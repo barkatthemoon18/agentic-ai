@@ -1,7 +1,7 @@
 package com.fuad.activation.wake;
 
+import com.fuad.enums.WakeResolution;
 import com.openai.client.OpenAIClient;
-import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 
@@ -10,53 +10,82 @@ import java.util.Locale;
 public class GraniteWakeClassifier implements WakeClassifier {
     private static final String MODEL = "granite-router";
     private static final String SYSTEM_PROMPT = """
-            Eres un clasificador de wake word para un asistente de voz llamado Ares.
+        You classify ambiguous voice-assistant activations for an assistant named Ares.
 
-            Recibirás únicamente un fragmento corto producido por speech-to-text.
+        You receive:
+        candidate: a phrase acoustically similar to "Ares" or "Oye Ares"
+        remainder: the rest of the utterance
 
-            Determina si el fragmento es probablemente una transcripción incorrecta
-            de una llamada al asistente usando "Ares" u "Oye Ares".
+        Return exactly ONE label:
 
-            Responde exclusivamente con una de estas opciones:
+        wake
+        intent
+        none
 
-            wake
-            none
+        wake:
+        The candidate is probably a speech-to-text corruption of "Ares"
+        or "Oye Ares".
 
-            Debes tolerar errores fonéticos y de speech-to-text.
+        intent:
+        The candidate is NOT the wake word, but the complete utterance
+        is itself a direct question, command, request, recommendation
+        request, or request for help directed to an assistant/listener.
 
-            Ejemplos:
+        none:
+        Neither condition applies.
 
-            "Ares" -> wake
-            "Oye Ares" -> wake
-            "Oye eres" -> wake
-            "Oye Res" -> wake
-            "Oyares" -> wake
-            "Oeres" -> wake
-            "Oh ya eres" -> wake
+        IMPORTANT:
+        A direct question in the remainder does NOT make the candidate
+        a wake word.
 
-            "Spotify" -> none
-            "Ayer" -> none
-            "Eres" -> none
-            "Oye" -> none
-            "Áreas" -> none
-            "Firefox" -> none
+        Examples:
 
-            No respondas la solicitud.
-            No expliques.
-            Devuelve exclusivamente wake o none.
-            """;
+        candidate: Oeres
+        remainder: abre Spotify
+        -> wake
+
+        candidate: Oyares
+        remainder: qué hora es
+        -> wake
+
+        candidate: Oh ya eres
+        remainder: abre Spotify
+        -> wake
+
+        candidate: Sabes
+        remainder: qué hora es
+        -> intent
+
+        candidate: Eres
+        remainder: bastante rápido
+        -> none
+
+        candidate: Las áreas
+        remainder: están delimitadas
+        -> none
+
+        candidate: Eres
+        remainder: una buena persona
+        -> none
+
+        Return only: wake, intent, or none.
+        """;
     private final OpenAIClient client;
 
-    public GraniteWakeClassifier() {
-        this.client = OpenAIOkHttpClient.builder().baseUrl("http://localhost:1234/v1").apiKey("lm-studio").build();
+    public GraniteWakeClassifier(OpenAIClient client) {
+        this.client = client;
     }
 
     @Override
-    public boolean isWake(String candidate) {
+    public WakeResolution classify(String candidate, String remainder) {
+        String input = """
+                candidate: %s
+                remainder: %s
+                """.formatted(candidate, remainder);
         ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
                 .model(MODEL)
                 .addSystemMessage(SYSTEM_PROMPT)
-                .addUserMessage(candidate)
+                .addUserMessage(input)
                 .temperature(0.0)
                 .maxCompletionTokens(4)
                 .build();
@@ -64,8 +93,9 @@ public class GraniteWakeClassifier implements WakeClassifier {
         String result = completion.choices().getFirst().message().content().orElseThrow(() ->
                 new IllegalStateException("Granite returned no wake classification")).trim().toLowerCase(Locale.ROOT);
         return switch (result) {
-            case "wake" -> true;
-            case "none" -> false;
+            case "wake" -> WakeResolution.WAKE;
+            case "intent" -> WakeResolution.SEMANTIC_INTENT;
+            case "none" -> WakeResolution.NONE;
             default -> throw new IllegalStateException("Unknown Granite wake classification: " + result);
         };
     }

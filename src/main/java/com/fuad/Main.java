@@ -1,7 +1,12 @@
 package com.fuad;
 
 import com.fuad.activation.ActivationDetector;
+import com.fuad.activation.ActivationResult;
 import com.fuad.activation.RuleBasedActivationDetector;
+import com.fuad.activation.context.ContextContinuationClassifier;
+import com.fuad.activation.context.GraniteContextContinuationClassifier;
+import com.fuad.activation.semantic.GraniteSemanticActivationClassifier;
+import com.fuad.activation.semantic.SemanticActivationClassifier;
 import com.fuad.activation.wake.GraniteWakeClassifier;
 import com.fuad.activation.wake.WakeClassifier;
 import com.fuad.activation.wake.WakeWordMatch;
@@ -27,6 +32,7 @@ import com.fuad.speech.SpeechProcessingService;
 import com.fuad.speech.validation.BasicSpeechSegmentValidator;
 import com.fuad.speech.validation.SpeechSegmentValidator;
 import com.fuad.stt.SttEngine;
+import com.fuad.stt.TranscriptionResult;
 import com.fuad.stt.fasterwhisper.FasterWhisperClient;
 import com.fuad.stt.fasterwhisper.FasterWhisperSttEngine;
 import com.fuad.tts.TtsEngine;
@@ -47,12 +53,16 @@ public class Main {
         final PiperClient piperClient = new PiperClient();
         final TtsEngine tts = new PiperTtsEngine(piperClient);
         final SpeechSegmentValidator speechSegmentValidator = new BasicSpeechSegmentValidator(300, 0.008, 0.02);
+        final OpenAIClient localAiClient = OpenAIOkHttpClient.builder()
+                .baseUrl("http://localhost:1234/v1")
+                .apiKey("lm-studio")
+                .build();
         SpeechProcessingService speechProcessor = null;
 
         /* Init Assistant GPT */
         OpenAIClient openAiClient = OpenAIOkHttpClient.fromEnv();
         AssistantEngine assistantEngine = new GptAssistantEngine(openAiClient);
-        SemanticRouter semanticRouter = new GraniteSemanticRouter();
+        SemanticRouter semanticRouter = new GraniteSemanticRouter(localAiClient);
         SystemTimeSkill systemTimeSkill = new SystemTimeSkill();
         GeneralSkill generalSkill = new GeneralSkill(assistantEngine);
         SkillRegistry skillRegistry =
@@ -63,30 +73,32 @@ public class Main {
         SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);
         AssistantPipeline assistantPipeline = new AssistantPipeline(assistantEngine, skillRouter);
         WakeWordMatcher wakeWordMatcher = new WakeWordMatcher(AppConfig.wakeWords, AppConfig.WAKE_HIGH_THRESHOLD, AppConfig.WAKE_LOW_THRESHOLD);
-        WakeClassifier wakeClassifier = new GraniteWakeClassifier();
+        WakeClassifier wakeClassifier = new GraniteWakeClassifier(localAiClient);
+        SemanticActivationClassifier semanticActivationClassifier = new GraniteSemanticActivationClassifier(localAiClient);
+        ContextContinuationClassifier contextContinuationClassifier = new GraniteContextContinuationClassifier(localAiClient);
         ActivationDetector activationDetector = new RuleBasedActivationDetector(wakeWordMatcher, wakeClassifier,
-                AppConfig.intentPhrases);
+                semanticActivationClassifier, AppConfig.intentPhrases);
         final SileroVadEngine vad = new SileroVadEngine(AppConfig.SILERO_MODEL_PATH, AppConfig.VAD_THRESHOLD);
 
         String[] tests = {
-                "Oye Ares, abre Spotify",
-                "Oye eres, abre Spotify",
-                "Oye Res, abre Spotify",
-                "Oyares, abre Spotify",
-                "Oeres, abre Spotify",
-                "Oh ya eres, abre Spotify",
-                "Spotify se está cerrando solo",
-                "Ayer fui a Spotify",
-                "Eres bastante rápido",
-                "Oye, Spotify se está cerrando",
-                "Las áreas están delimitadas",
-                "Oye Juan, abre Spotify"
+                "¿Me puedes sugerir alguna canción?",
+                "¿Puedes recomendarme una película?",
+                "¿Podrías buscar algo sobre NVIDIA?",
+                "¿Me ayudas a entender RSA?",
+                "¿Qué canción me recomiendas?",
+                "¿Sabes qué hora es?",
+
+                "Puedes venir mañana si quieres",
+                "Juan puede abrir Spotify",
+                "Creo que puedes hacerlo",
+                "Mañana podrías escuchar música",
+                "Me dijeron que puedes abrir Spotify"
         };
 
         for (String test : tests) {
-            WakeWordMatch result = wakeWordMatcher.match(test);
-            System.out.printf("%-35s -> %-10s | %.2f | candidate='%s' | command='%s'%n", test, result.getStatus(),
-                    result.getSimilarity(), result.getCandidate(), result.getCommand());
+            TranscriptionResult transcriptionResult = new TranscriptionResult(test, "es", 1.0);
+            ActivationResult result = activationDetector.detect(transcriptionResult);
+            System.out.printf("TEST='%s' -> activated%s | type=%s | command'%s'%n", test, result.isActivated(), result.getType(), result.getCommand());
         }
 
         try {
@@ -108,7 +120,7 @@ public class Main {
 
             /* Processor */
             speechProcessor = new SpeechProcessingService(stt, assistantPipeline, activationDetector,
-                    new ConversationSession(), audioPipeline, speechSegmentValidator);
+                    new ConversationSession(), audioPipeline, speechSegmentValidator, contextContinuationClassifier);
 
             /* Initialize out pipeline */
             VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline);

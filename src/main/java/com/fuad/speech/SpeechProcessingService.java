@@ -2,6 +2,7 @@ package com.fuad.speech;
 
 import com.fuad.activation.ActivationDetector;
 import com.fuad.activation.ActivationResult;
+import com.fuad.activation.context.ContextContinuationClassifier;
 import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.session.ConversationSession;
 import com.fuad.enums.ActivationType;
@@ -23,17 +24,20 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
     private final ConversationSession conversationSession;
     private final AudioPipeline audioPipeline;
     private final SpeechSegmentValidator speechValidator;
+    private final ContextContinuationClassifier contextContinuationClassifier;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     public SpeechProcessingService(SttEngine sttEngine, AssistantPipeline assistantPipeline,
                                    ActivationDetector activationDetector, ConversationSession session,
-                                   AudioPipeline audioPipeline, SpeechSegmentValidator speechValidator) {
+                                   AudioPipeline audioPipeline, SpeechSegmentValidator speechValidator,
+                                   ContextContinuationClassifier contextContinuationClassifier) {
         this.sttEngine = sttEngine;
         this.assistantPipeline = assistantPipeline;
         this.activationDetector = activationDetector;
         this.conversationSession = session;
         this.audioPipeline = audioPipeline;
         this.speechValidator = speechValidator;
+        this.contextContinuationClassifier = contextContinuationClassifier;
     }
 
     @Override
@@ -88,8 +92,17 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             }
             ActivationResult detected = activationDetector.detect(result);
             if (conversationSession.isActive()) {
-                activationResult = detected.isActivated() ? detected : new ActivationResult(true,
-                        ActivationType.CONTEXTUAL, text);
+                if (detected.isActivated()) {
+                    activationResult = detected;
+                }
+                else if (conversationSession.isActive()) {
+                    boolean continuation = contextContinuationClassifier.shouldContinue(text);
+                    System.out.println("CONTEXT AI -> " + (continuation ? "CONTINUE" : "NONE"));
+                    activationResult = continuation ? new ActivationResult(true, ActivationType.CONTEXTUAL, text) : ActivationResult.none();
+                }
+                else {
+                    activationResult = ActivationResult.none();
+                }
             }
             else {
                 activationResult = detected;

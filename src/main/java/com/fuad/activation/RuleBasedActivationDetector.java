@@ -1,10 +1,12 @@
 package com.fuad.activation;
 
+import com.fuad.activation.semantic.SemanticActivationClassifier;
 import com.fuad.activation.wake.WakeClassifier;
 import com.fuad.activation.wake.WakeWordMatch;
 import com.fuad.activation.wake.WakeWordMatcher;
 import com.fuad.enums.ActivationType;
 import com.fuad.enums.WakeMatchStatus;
+import com.fuad.enums.WakeResolution;
 import com.fuad.stt.TranscriptionResult;
 
 import java.util.List;
@@ -13,12 +15,14 @@ import java.util.Locale;
 public class RuleBasedActivationDetector implements ActivationDetector {
     private final WakeWordMatcher wakeWordMatcher;
     private final WakeClassifier wakeClassifier;
+    private final SemanticActivationClassifier semanticActivationClassifier;
     private final List<String> intentPhrases;
 
     public  RuleBasedActivationDetector(WakeWordMatcher wakeWordMatcher, WakeClassifier wakeClassifier,
-                                        List<String> intentPhrases) {
+                                        SemanticActivationClassifier semanticActivationClassifier, List<String> intentPhrases) {
         this.wakeWordMatcher = wakeWordMatcher;
         this.wakeClassifier = wakeClassifier;
+        this.semanticActivationClassifier = semanticActivationClassifier;
         this.intentPhrases = intentPhrases;
     }
 
@@ -36,10 +40,13 @@ public class RuleBasedActivationDetector implements ActivationDetector {
         }
         if (wakeWordMatch.getStatus() == WakeMatchStatus.AMBIGUOUS) {
             System.out.printf("WAKE -> AMBIGUOUS | %.2f | candidate='%s'%n", wakeWordMatch.getSimilarity(), wakeWordMatch.getCandidate());
-            boolean wake = wakeClassifier.isWake(wakeWordMatch.getCandidate());
-            System.out.println("WAKE AI -> " + (wake ? "WAKE" : "NONE"));
-            if (wake) {
+            WakeResolution resolution = wakeClassifier.classify(wakeWordMatch.getCandidate(), wakeWordMatch.getCommand());
+            System.out.println("WAKE AI -> " + resolution);
+            if (resolution == WakeResolution.WAKE) {
                 return new ActivationResult(true, ActivationType.WAKE_WORD, wakeWordMatch.getCommand());
+            }
+            if (resolution == WakeResolution.SEMANTIC_INTENT) {
+                return new ActivationResult(true, ActivationType.SEMANTIC_INTENT, original);
             }
         }
         for (String phrase : intentPhrases) {
@@ -47,6 +54,11 @@ public class RuleBasedActivationDetector implements ActivationDetector {
                 System.out.println("ACTIVATION -> INTENT_PHRASE | phrase='" + phrase + "'");
                 return new ActivationResult(true, ActivationType.INTENT_PHRASE, original);
             }
+        }
+        boolean semanticIntent = semanticActivationClassifier.shouldActivate(original);
+        System.out.println("ACTIVATION AI -> " + (semanticIntent ? "ACTIVATE" : "NONE"));
+        if (semanticIntent) {
+            return new ActivationResult(true, ActivationType.SEMANTIC_INTENT, original);
         }
         return ActivationResult.none();
     }

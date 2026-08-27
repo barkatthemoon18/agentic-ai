@@ -89,8 +89,8 @@ public class GraniteSemanticRouter implements SemanticRouter {
             "            No inventes categorías.";
     private final OpenAIClient client;
 
-    public GraniteSemanticRouter() {
-        this.client = OpenAIOkHttpClient.builder().baseUrl("http://localhost:1234/v1").apiKey("lm-studio").build();
+    public GraniteSemanticRouter(OpenAIClient client) {
+        this.client = client;
     }
 
     @Override
