@@ -49,8 +49,11 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
     public void close() {
         executorService.shutdown();
         try {
-            if (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
+            if (!executorService.awaitTermination(30, TimeUnit.SECONDS)) {
                 executorService.shutdownNow();
+                if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+                    System.err.println("Speech processor did not terminate");
+                }
             }
         }
         catch (InterruptedException e) {

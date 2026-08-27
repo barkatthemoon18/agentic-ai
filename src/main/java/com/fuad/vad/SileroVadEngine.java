@@ -51,15 +51,16 @@ public class SileroVadEngine implements VadEngine {
             inputs.put("input", inputTensor);
             inputs.put("state", stateTensor);
             inputs.put("sr", srTensor);
-            OrtSession.Result result = session.run(inputs);
-            OnnxTensor outputTensor = (OnnxTensor) result.get("output").orElseThrow();
-            float[][] output = (float[][]) outputTensor.getValue();
-            float probability = output[0][0];
-            OnnxTensor newStateTensor = (OnnxTensor) result.get("stateN").orElseThrow();
-            state = (float[][][]) newStateTensor.getValue();
-            System.arraycopy(frame.getSamples(), FRAME_SIZE - CONTEXT_SIZE, context, 0, CONTEXT_SIZE);
-            boolean speech = probability >= threshold;
-            return new VadResult(probability, speech);
+            try (OrtSession.Result result = session.run(inputs)) {
+                OnnxTensor outputTensor = (OnnxTensor) result.get("output").orElseThrow();
+                float[][] output = (float[][]) outputTensor.getValue();
+                float probability = output[0][0];
+                OnnxTensor newStateTensor = (OnnxTensor) result.get("stateN").orElseThrow();
+                state = (float[][][]) newStateTensor.getValue();
+                System.arraycopy(frame.getSamples(), FRAME_SIZE - CONTEXT_SIZE, context, 0, CONTEXT_SIZE);
+                boolean speech = probability >= threshold;
+                return new VadResult(probability, speech);
+            }
         }
         catch (OrtException e) {
             throw new RuntimeException("Unable to process SileroVadEngine.", e);

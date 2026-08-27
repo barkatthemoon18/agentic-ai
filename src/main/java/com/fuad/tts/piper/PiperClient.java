@@ -87,7 +87,10 @@ public class PiperClient implements AutoCloseable {
             if (process.isAlive()) {
                 long requestId = requestCounter.incrementAndGet();
                 writeAudioRequest(requestId, OP_SHUTDOWN, new byte[0]);
-                readAudioResponse(requestId);
+                PiperResponse response = readResponse(requestId);
+                if (response.getStatus() != STATUS_OK) {
+                    throw new RuntimeException("Piper shutdown failed: " + response.getMessage());
+                }
             }
         }
         catch (Exception e) {
