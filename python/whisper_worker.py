@@ -86,7 +86,8 @@ def main():
             elif opcode == OP_PING:
                 send_response(request_id = request_id, status = STATUS_OK, text = "Working...")
             elif opcode == OP_SHUTDOWN:
-                send_response(request_id = request_id, status = STATUS_ERROR, text = "Shutdown in progress...")
+                send_response(request_id = request_id, status = STATUS_OK, text = "Shutdown in progress...")
+                break
             else:
                 send_response(request_id = request_id, status = STATUS_ERROR, text = f"Unknown opcode: {opcode}")
         except EOFError:

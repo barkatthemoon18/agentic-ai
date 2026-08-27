@@ -12,11 +12,6 @@ public class ConversationSession {
         activeUntil = System.currentTimeMillis() + TIMEOUT_MS;
     }
 
-    @Deprecated
-    public void touch() {
-        activate();
-    }
-
     public boolean isActive() {
         return System.currentTimeMillis() < activeUntil;
     }

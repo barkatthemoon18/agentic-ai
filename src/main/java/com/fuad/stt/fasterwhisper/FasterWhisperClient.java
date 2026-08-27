@@ -6,6 +6,7 @@ import com.fuad.stt.TranscriptionResult;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class FasterWhisperClient implements AutoCloseable {
@@ -145,7 +146,64 @@ public class FasterWhisperClient implements AutoCloseable {
     }
 
     @Override
-    public void close() {
-        process.destroy();
+    public synchronized void close() {
+        if (process == null) {
+            return;
+        }
+        try {
+            if (process.isAlive()) {
+                long requestId = requestCounter.incrementAndGet();
+                outputStream.writeInt(AppConfig.MAGIC_REQUEST);
+                outputStream.writeByte(AppConfig.VERSION);
+                outputStream.writeByte(AppConfig.OP_SHUTDOWN);
+                outputStream.writeShort(0);
+                outputStream.writeLong(requestId);
+                outputStream.flush();
+                TranscriptionResult response = readTranscriptionResponse(requestId);
+                System.out.println("[Whisper] " + response.getText());
+            }
+        }
+        catch (Exception e) {
+            System.err.println("Unable to gracefully stop FasterWhisper: " + e.getMessage());
+        }
+        finally {
+            closeResources();
+        }
+    }
+
+    private void closeResources() {
+        try {
+            if (outputStream != null) {
+                outputStream.close();
+            }
+        }
+        catch (IOException e) {
+            System.err.println("Unable to close output stream: " + e.getMessage());
+        }
+        try {
+            if (inputStream != null) {
+                inputStream.close();
+            }
+        }
+        catch (IOException e) {
+            System.err.println("Unable to close input stream: " + e.getMessage());
+        }
+        if (process != null && process.isAlive()) {
+            try {
+                if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                    process.destroy();
+                    if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                        process.destroyForcibly();
+                    }
+                }
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                process.destroyForcibly();
+            }
+        }
+        process = null;
+        outputStream = null;
+        inputStream = null;
     }
 }

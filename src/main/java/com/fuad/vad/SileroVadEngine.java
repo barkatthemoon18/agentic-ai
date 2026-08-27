@@ -43,11 +43,10 @@ public class SileroVadEngine implements VadEngine {
         float[][] input = new float[1][CONTEXT_SIZE + FRAME_SIZE];
         System.arraycopy(context, 0, input[0], 0, CONTEXT_SIZE);
         System.arraycopy(frame.getSamples(), 0, input[0], CONTEXT_SIZE, FRAME_SIZE);
-        try {
-            OnnxTensor inputTensor = OnnxTensor.createTensor(environment, input);
-            OnnxTensor stateTensor = OnnxTensor.createTensor(environment, state);
+        try (OnnxTensor inputTensor = OnnxTensor.createTensor(environment, input);
+             OnnxTensor stateTensor = OnnxTensor.createTensor(environment, state);
+             OnnxTensor srTensor = OnnxTensor.createTensor(environment, (long) SAMPLE_RATE)) {
             /* Inferencia */
-            OnnxTensor srTensor = OnnxTensor.createTensor(environment, (long) SAMPLE_RATE);
             Map<String, OnnxTensor> inputs = new HashMap<>();
             inputs.put("input", inputTensor);
             inputs.put("state", stateTensor);

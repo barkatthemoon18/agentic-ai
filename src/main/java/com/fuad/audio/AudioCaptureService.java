@@ -22,7 +22,14 @@ public class AudioCaptureService {
     }
 
     public void stop()  {
-        /* Empty intentionally */
+        running = false;
+        if (line != null) {
+            line.stop();
+            line.close();
+        }
+        if (captureThread != null) {
+            captureThread.interrupt();
+        }
     }
 
     public boolean isRunning() {

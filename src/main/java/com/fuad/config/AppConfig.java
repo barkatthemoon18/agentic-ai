@@ -3,11 +3,6 @@ package com.fuad.config;
 import java.util.List;
 
 public class AppConfig {
-    public static final String AUDIO_DEVICE = "Focusrite";
-    public static final int AUDIO_CHANNELS = 2;
-    public static final int AUDIO_INPUT_CHANNEL = 1;
-    public static final int SAMPLE_RATE = 16000;
-    public static final int FRAME_SIZE = 512;
     public static final float VAD_THRESHOLD = 0.5f;
     public static final String SILERO_MODEL_PATH = "models/silero_vad.onnx";
     public static final int MAGIC_REQUEST = 0x46535454; /* "FSTT" */

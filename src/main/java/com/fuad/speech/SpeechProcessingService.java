@@ -14,6 +14,7 @@ import com.fuad.stt.TranscriptionResult;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class SpeechProcessingService implements SpeechSegmentListener, AutoCloseable {
     private final SttEngine sttEngine;
@@ -48,10 +49,13 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
     public void close() {
         executorService.shutdown();
         try {
-            sttEngine.close();
+            if (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
+                executorService.shutdownNow();
+            }
         }
-        catch (Exception e) {
-            throw new RuntimeException(e);
+        catch (InterruptedException e) {
+            executorService.shutdownNow();
+            Thread.currentThread().interrupt();
         }
     }
 

@@ -4,18 +4,18 @@ import com.fuad.activation.ActivationDetector;
 import com.fuad.activation.RuleBasedActivationDetector;
 import com.fuad.assistant.AssistantEngine;
 import com.fuad.assistant.GptAssistantEngine;
-import com.fuad.assistant.GraniteAssistantEngine;
 import com.fuad.assistant.routing.AiSkillRouter;
 import com.fuad.assistant.routing.GraniteSemanticRouter;
 import com.fuad.assistant.routing.SemanticRouter;
 import com.fuad.assistant.session.ConversationSession;
-import com.fuad.assistant.skills.*;
+import com.fuad.assistant.skills.GeneralSkill;
+import com.fuad.assistant.skills.SkillRouter;
+import com.fuad.assistant.skills.SystemTimeSkill;
 import com.fuad.audio.AudioCaptureService;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioDeviceManager;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.config.AppConfig;
-import com.fuad.enums.Capability;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.pipeline.VoicePipeline;
@@ -45,7 +45,6 @@ public class Main {
         SpeechProcessingService speechProcessor = null;
 
         /* Init Assistant GPT */
-        System.out.println("Api Key: " + System.getenv("OPENAI_API_KEY"));
         OpenAIClient openAiClient = OpenAIOkHttpClient.fromEnv();
         AssistantEngine assistantEngine = new GptAssistantEngine(openAiClient);
         SemanticRouter semanticRouter = new GraniteSemanticRouter();
@@ -56,23 +55,6 @@ public class Main {
         ActivationDetector activationDetector = new RuleBasedActivationDetector(AppConfig.wakeWords,
                 AppConfig.intentPhrases);
         final SileroVadEngine vad = new SileroVadEngine(AppConfig.SILERO_MODEL_PATH, AppConfig.VAD_THRESHOLD);
-
-        /*String[] tests = {
-                "Oye Ares, ¿qué hora es?",
-                "Pon el volumen al 40%.",
-                "¿Por qué Windows me baja solo el volumen?",
-                "Abre IntelliJ.",
-                "¿Qué versión de Firefox tengo instalada?",
-                "¿Cuál es la última versión disponible de Firefox?",
-                "¿Quién fue Alan Turing?",
-                "Explícame en detalle cómo funciona RSA."
-        };
-        for (String test : tests) {
-            long start = System.nanoTime();
-            Capability result = graniteAssistantEngine.classify(test);
-            double elapsedMs = (System.nanoTime() - start) / 1_000_000.0;
-            System.out.printf("%-65s -> %-20s %.2f ms%n", test, result, elapsedMs);
-        }*/
 
         try {
             /* Run worker */
@@ -112,12 +94,18 @@ public class Main {
         }
         finally {
             captureService.stop();
-            client.close();
-            stt.close();
-            vad.close();
             if (speechProcessor != null) {
                 speechProcessor.close();
             }
+            try {
+                tts.close();
+            }
+            catch (Exception e) {
+                System.out.println("Unable to close TTS: " + e.getMessage());
+                e.printStackTrace();
+            }
+            stt.close();
+            vad.close();
         }
     }
 }
