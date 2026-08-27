@@ -4,6 +4,7 @@ import com.fuad.enums.ActivationType;
 import com.fuad.stt.TranscriptionResult;
 
 import java.util.List;
+import java.util.Locale;
 
 public class RuleBasedActivationDetector implements ActivationDetector{
     private final List<String> wakeWords;
@@ -16,21 +17,23 @@ public class RuleBasedActivationDetector implements ActivationDetector{
 
     @Override
     public ActivationResult detect(TranscriptionResult transcriptionResult) {
-        String originalNormalized = transcriptionResult.getText().trim().toLowerCase();
+        String original = transcriptionResult.getText().trim();
+        String normalized = original.toLowerCase();
 
         for (String wakeWord : wakeWords) {
-            int index = originalNormalized.indexOf(wakeWord.toLowerCase());
+            String normalizedWakeWord = normalized.toLowerCase(Locale.ROOT);
+            int index = normalized.indexOf(normalizedWakeWord);
             if (index >= 0) {
-                String command = originalNormalized.substring(index + wakeWord.length())
-                        .replaceFirst("^[,.:;\\s]+", "").trim();
+                String command = original.substring(index + wakeWord.length()).replaceFirst("^[,.:;!?¿¡\\s]+",
+                        "").trim();
                 return new ActivationResult(true, ActivationType.WAKE_WORD, command);
             }
         }
         for (String phrase : intentPhrases) {
-            if (originalNormalized.contains(phrase.toLowerCase())) {
-                return new ActivationResult(true, ActivationType.INTENT_PHRASE, originalNormalized);
+            if (normalized.contains(phrase.toLowerCase(Locale.ROOT))) {
+                return new ActivationResult(true, ActivationType.INTENT_PHRASE, original);
             }
         }
-        return new ActivationResult(false, ActivationType.NONE, "");
+        return ActivationResult.none();
     }
 }

@@ -86,11 +86,13 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                 conversationSession.close();
                 assistantPipeline.resetConversation();
             }
+            ActivationResult detected = activationDetector.detect(result);
             if (conversationSession.isActive()) {
-                activationResult = new ActivationResult(true, ActivationType.CONTEXTUAL, text);
+                activationResult = detected.isActivated() ? detected : new ActivationResult(true,
+                        ActivationType.CONTEXTUAL, text);
             }
             else {
-                activationResult = activationDetector.detect(result);
+                activationResult = detected;
             }
             if (!activationResult.isActivated()) {
                 System.out.println("Activation ignored");
