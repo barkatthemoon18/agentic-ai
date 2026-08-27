@@ -3,7 +3,6 @@ package com.fuad.assistant.skills;
 import com.fuad.assistant.AssistantEngine;
 import com.fuad.assistant.AssistantRequest;
 import com.fuad.assistant.AssistantResult;
-import com.fuad.enums.SkillType;
 
 public class GeneralSkill implements Skill {
     private static final String INSTRUCTIONS = "Responde de forma breve, natural y conversacional. " +
@@ -14,11 +13,6 @@ public class GeneralSkill implements Skill {
 
     public GeneralSkill(AssistantEngine assistantEngine) {
         this.assistantEngine = assistantEngine;
-    }
-
-    @Override
-    public SkillType getType() {
-        return SkillType.GENERAL;
     }
 
     @Override

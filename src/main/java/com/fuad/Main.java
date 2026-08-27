@@ -8,14 +8,13 @@ import com.fuad.assistant.routing.AiSkillRouter;
 import com.fuad.assistant.routing.GraniteSemanticRouter;
 import com.fuad.assistant.routing.SemanticRouter;
 import com.fuad.assistant.session.ConversationSession;
-import com.fuad.assistant.skills.GeneralSkill;
-import com.fuad.assistant.skills.SkillRouter;
-import com.fuad.assistant.skills.SystemTimeSkill;
+import com.fuad.assistant.skills.*;
 import com.fuad.audio.AudioCaptureService;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioDeviceManager;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.config.AppConfig;
+import com.fuad.enums.Capability;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.pipeline.VoicePipeline;
@@ -32,6 +31,8 @@ import com.fuad.tts.piper.PiperTtsEngine;
 import com.fuad.vad.SileroVadEngine;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
+
+import java.util.Map;
 
 public class Main {
     public static void main(String[] args) {
@@ -50,7 +51,12 @@ public class Main {
         SemanticRouter semanticRouter = new GraniteSemanticRouter();
         SystemTimeSkill systemTimeSkill = new SystemTimeSkill();
         GeneralSkill generalSkill = new GeneralSkill(assistantEngine);
-        SkillRouter skillRouter = new AiSkillRouter(semanticRouter, systemTimeSkill, generalSkill);
+        SkillRegistry skillRegistry =
+                new SkillRegistry(Map.of(Capability.SYSTEM_TIME, systemTimeSkill, Capability.GENERAL, generalSkill,
+                                Capability.AUDIO_CONTROL, new UnsupportedSkill(Capability.AUDIO_CONTROL),
+                                Capability.OS_COMMAND, new UnsupportedSkill(Capability.OS_COMMAND),
+                                Capability.CURRENT_RESEARCH, new UnsupportedSkill(Capability.CURRENT_RESEARCH)));
+        SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);
         AssistantPipeline assistantPipeline = new AssistantPipeline(assistantEngine, skillRouter);
         ActivationDetector activationDetector = new RuleBasedActivationDetector(AppConfig.wakeWords,
                 AppConfig.intentPhrases);

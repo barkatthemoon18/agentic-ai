@@ -20,7 +20,7 @@ public class AssistantPipeline {
             throw new IllegalArgumentException("Activation result is not activated");
         }
         Skill skill = skillRouter.route(activationResult.getCommand());
-        System.out.println("SKILL -> " + skill.getType());
+        System.out.println("SKILL -> " + skill.getClass().getSimpleName());
         return skill.execute(activationResult.getCommand());
     }
 
