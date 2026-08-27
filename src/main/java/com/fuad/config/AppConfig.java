@@ -3,6 +3,8 @@ package com.fuad.config;
 import java.util.List;
 
 public class AppConfig {
+    public static final double WAKE_HIGH_THRESHOLD = 0.85;
+    public static final double WAKE_LOW_THRESHOLD = 0.55;
     public static final float VAD_THRESHOLD = 0.5f;
     public static final String SILERO_MODEL_PATH = "models/silero_vad.onnx";
     public static final int MAGIC_REQUEST = 0x46535454; /* "FSTT" */

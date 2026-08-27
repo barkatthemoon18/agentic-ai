@@ -2,6 +2,10 @@ package com.fuad;
 
 import com.fuad.activation.ActivationDetector;
 import com.fuad.activation.RuleBasedActivationDetector;
+import com.fuad.activation.wake.GraniteWakeClassifier;
+import com.fuad.activation.wake.WakeClassifier;
+import com.fuad.activation.wake.WakeWordMatch;
+import com.fuad.activation.wake.WakeWordMatcher;
 import com.fuad.assistant.AssistantEngine;
 import com.fuad.assistant.GptAssistantEngine;
 import com.fuad.assistant.routing.AiSkillRouter;
@@ -58,9 +62,32 @@ public class Main {
                                 Capability.CURRENT_RESEARCH, new UnsupportedSkill(Capability.CURRENT_RESEARCH)));
         SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);
         AssistantPipeline assistantPipeline = new AssistantPipeline(assistantEngine, skillRouter);
-        ActivationDetector activationDetector = new RuleBasedActivationDetector(AppConfig.wakeWords,
+        WakeWordMatcher wakeWordMatcher = new WakeWordMatcher(AppConfig.wakeWords, AppConfig.WAKE_HIGH_THRESHOLD, AppConfig.WAKE_LOW_THRESHOLD);
+        WakeClassifier wakeClassifier = new GraniteWakeClassifier();
+        ActivationDetector activationDetector = new RuleBasedActivationDetector(wakeWordMatcher, wakeClassifier,
                 AppConfig.intentPhrases);
         final SileroVadEngine vad = new SileroVadEngine(AppConfig.SILERO_MODEL_PATH, AppConfig.VAD_THRESHOLD);
+
+        String[] tests = {
+                "Oye Ares, abre Spotify",
+                "Oye eres, abre Spotify",
+                "Oye Res, abre Spotify",
+                "Oyares, abre Spotify",
+                "Oeres, abre Spotify",
+                "Oh ya eres, abre Spotify",
+                "Spotify se está cerrando solo",
+                "Ayer fui a Spotify",
+                "Eres bastante rápido",
+                "Oye, Spotify se está cerrando",
+                "Las áreas están delimitadas",
+                "Oye Juan, abre Spotify"
+        };
+
+        for (String test : tests) {
+            WakeWordMatch result = wakeWordMatcher.match(test);
+            System.out.printf("%-35s -> %-10s | %.2f | candidate='%s' | command='%s'%n", test, result.getStatus(),
+                    result.getSimilarity(), result.getCandidate(), result.getCommand());
+        }
 
         try {
             /* Run worker */
