@@ -3,9 +3,13 @@ package com.fuad.speech;
 import com.fuad.activation.ActivationDetector;
 import com.fuad.activation.ActivationResult;
 import com.fuad.activation.context.ContextContinuationClassifier;
+import com.fuad.assistant.AssistantExecutionResult;
 import com.fuad.assistant.AssistantResult;
+import com.fuad.assistant.session.ConversationControlDetector;
 import com.fuad.assistant.session.ConversationSession;
 import com.fuad.enums.ActivationType;
+import com.fuad.enums.ConversationControl;
+import com.fuad.enums.ConversationPolicy;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.speech.validation.SpeechSegmentValidator;
@@ -68,6 +72,7 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
 
     private void process(SpeechSegment speechSegment) {
         ActivationResult activationResult;
+        ConversationControlDetector controlDetector = new ConversationControlDetector();
 
         try {
             SpeechValidationResult validationResult = speechValidator.validate(speechSegment);
@@ -83,6 +88,14 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             System.out.println("STT: " + text);
             if (text.isEmpty()) {
                 System.out.println("STT: empty. Ignored");
+                return;
+            }
+            ConversationControl conversationControl = controlDetector.detect(text);
+            if (conversationControl == ConversationControl.CLOSE) {
+                System.out.println("CONVERSATION -> FORCE CLOSE");
+                conversationSession.close();
+                assistantPipeline.resetConversation();
+                audioPipeline.speak("Conversación terminada");
                 return;
             }
             if (conversationSession.hasExpired()) {
@@ -107,9 +120,14 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                 return;
             }
             conversationSession.activate();
-            AssistantResult response = assistantPipeline.process(activationResult);
+            AssistantExecutionResult executionResult = assistantPipeline.process(activationResult);
+            AssistantResult response = executionResult.getResponse();
             System.out.println("ASSISTANT: " + response.getText());
             audioPipeline.speak(response.getText());
+            if (executionResult.getConversationPolicy() == ConversationPolicy.KEEP_OPEN) {
+                conversationSession.refresh();
+                System.out.println("CONVERSATION -> ACTIVE");
+            }
             conversationSession.refresh();
         }
         catch (Exception e) {

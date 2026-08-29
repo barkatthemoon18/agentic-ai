@@ -3,6 +3,7 @@ package com.fuad.assistant.skills;
 import com.fuad.assistant.AssistantEngine;
 import com.fuad.assistant.AssistantRequest;
 import com.fuad.assistant.AssistantResult;
+import com.fuad.enums.ConversationPolicy;
 
 public class GeneralSkill implements Skill {
     private static final String INSTRUCTIONS = "Responde de forma breve, natural y conversacional. " +
@@ -18,5 +19,10 @@ public class GeneralSkill implements Skill {
     @Override
     public AssistantResult execute(String command) {
         return assistantEngine.process(new AssistantRequest(command, INSTRUCTIONS, 300));
+    }
+
+    @Override
+    public ConversationPolicy conversationPolicy() {
+        return ConversationPolicy.KEEP_OPEN;
     }
 }
