@@ -18,6 +18,7 @@ import com.fuad.assistant.routing.GraniteSemanticRouter;
 import com.fuad.assistant.routing.SemanticRouter;
 import com.fuad.assistant.session.ConversationSession;
 import com.fuad.assistant.skills.*;
+import com.fuad.assistant.skills.os.*;
 import com.fuad.audio.AudioCaptureService;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioDeviceManager;
@@ -42,6 +43,7 @@ import com.fuad.vad.SileroVadEngine;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 
+import java.util.List;
 import java.util.Map;
 
 public class Main {
@@ -57,6 +59,10 @@ public class Main {
                 .baseUrl("http://localhost:1234/v1")
                 .apiKey("lm-studio")
                 .build();
+        final OsCommandParser osCommandParser = new GraniteOsCommandParser(localAiClient);
+        final ApplicationRegistry applicationRegistry = new ApplicationRegistry(Map.of("spotify",
+                List.of("spotify", "cmd.exe", "/c", "start", "", "spotify:")));
+        OsCommandSkill osCommandSkill = new OsCommandSkill(osCommandParser, applicationRegistry);
         SpeechProcessingService speechProcessor = null;
 
         /* Init Assistant GPT */
@@ -68,7 +74,7 @@ public class Main {
         SkillRegistry skillRegistry =
                 new SkillRegistry(Map.of(Capability.SYSTEM_TIME, systemTimeSkill, Capability.GENERAL, generalSkill,
                                 Capability.AUDIO_CONTROL, new UnsupportedSkill(Capability.AUDIO_CONTROL),
-                                Capability.OS_COMMAND, new UnsupportedSkill(Capability.OS_COMMAND),
+                                Capability.OS_COMMAND, osCommandSkill,
                                 Capability.CURRENT_RESEARCH, new UnsupportedSkill(Capability.CURRENT_RESEARCH)));
         SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);
         AssistantPipeline assistantPipeline = new AssistantPipeline(assistantEngine, skillRouter);
@@ -80,6 +86,7 @@ public class Main {
                 semanticActivationClassifier, AppConfig.intentPhrases);
         final SileroVadEngine vad = new SileroVadEngine(AppConfig.SILERO_MODEL_PATH, AppConfig.VAD_THRESHOLD);
 
+        /*
         String[] tests = {
                 "¿Me puedes sugerir alguna canción?",
                 "¿Puedes recomendarme una película?",
@@ -94,12 +101,46 @@ public class Main {
                 "Mañana podrías escuchar música",
                 "Me dijeron que puedes abrir Spotify"
         };
+        String[] contextTests = {
+                "¿Y por qué?",
+                "¿Y cuándo ocurrió?",
+                "¿Y cómo funciona?",
+                "Explícame eso mejor",
+                "¿Qué quieres decir con eso?",
+                "Dame otro ejemplo",
+                "¿Y después qué pasó?",
 
-        for (String test : tests) {
+                "Spotify se está cerrando solo",
+                "Mañana voy a abrir Spotify",
+                "Está lloviendo afuera",
+                "Juan llegó temprano",
+                "Creo que hoy voy a escuchar música"
+        }; */
+
+        String[] osTests = {
+                "Abre Spotify",
+                "Have de spotify",
+                "Inicia Spotify",
+                "Spotify se está cerrando solo",
+                "Mañana voy a abrir Spotify",
+                "Cierra Spotify",
+                "Qué es Spotify"
+        };
+
+        for (String osTest : osTests) {
+            OsCommandIntent intent = osCommandParser.parse(osTest);
+            System.out.printf("OS TEST='%s' -> action=%s | target='%s'%n", osTest, intent.getAction(), intent.getTarget());
+        }
+
+        /*for (String test : tests) {
             TranscriptionResult transcriptionResult = new TranscriptionResult(test, "es", 1.0);
             ActivationResult result = activationDetector.detect(transcriptionResult);
             System.out.printf("TEST='%s' -> activated%s | type=%s | command'%s'%n", test, result.isActivated(), result.getType(), result.getCommand());
         }
+        for (String contextTest : contextTests) {
+            boolean continuation = contextContinuationClassifier.shouldContinue(contextTest);
+            System.out.printf("CONTEXT TEST='%s -> %s%n", contextTest, continuation ? "CONTINUE" : "NONE");
+        }*/
 
         try {
             /* Run worker */

@@ -9,70 +9,56 @@ import java.util.Locale;
 public class GraniteContextContinuationClassifier implements ContextContinuationClassifier {
     private static final String MODEL = "granite-router";
     private static final String SYSTEM_PROMPT = """
-        Eres un clasificador de activación para un asistente de voz llamado Ares.
+        You are a conversational-continuation classifier
+        for a Spanish voice assistant named Ares.
 
-        Determina si el texto representa razonablemente una solicitud,
-        pregunta o instrucción que el usuario espera que un asistente atienda.
+        A conversation with the assistant is currently active.
 
-        Responde exclusivamente:
+        Determine whether the new utterance appears to be a FOLLOW-UP
+        to the active conversation.
 
-        activate
+        Return exactly ONE label:
+
+        continue
         none
 
-        ACTIVATE si el texto:
-        - da una orden directa;
-        - formula una pregunta directa;
-        - solicita información;
-        - pide una recomendación o sugerencia;
-        - pide ayuda, explicación o búsqueda;
-        - formula una petición cortés mediante expresiones como:
-          "puedes", "podrías", "me puedes", "me podrías",
-          "me ayudas", "me recomendarías", "me sugieres";
-        - pregunta por capacidad como forma de realizar una solicitud.
+        CONTINUE when the utterance:
+        - asks a follow-up question;
+        - refers to something previously discussed;
+        - asks for clarification;
+        - asks to expand, explain, repeat or reformulate something;
+        - uses conversational references such as:
+          "eso", "esto", "él", "ella", "entonces",
+          "y por qué", "y cuándo", "y cómo".
 
-        IMPORTANTE:
-        Una pregunta formulada como "¿puedes...?" o "¿podrías...?"
-        normalmente es una PETICIÓN, no una pregunta literal sobre
-        las capacidades del asistente.
+        Examples:
 
-        Ejemplos ACTIVATE:
+        "¿Y por qué?" -> continue
+        "¿Y cuándo ocurrió?" -> continue
+        "¿Y cómo funciona?" -> continue
+        "Explícame eso mejor" -> continue
+        "¿Qué quieres decir con eso?" -> continue
+        "Dame otro ejemplo" -> continue
+        "¿Y después qué pasó?" -> continue
+        "¿Puedes explicarlo de otra forma?" -> continue
 
-        "Abre Spotify" -> activate
-        "Dime qué hora es" -> activate
-        "Qué hora es" -> activate
-        "Explícame cómo funciona RSA" -> activate
-        "Averigua qué pasó con NVIDIA" -> activate
-        "Busca la última versión de Firefox" -> activate
+        NONE when the utterance appears independent from the conversation:
+        - ambient statements;
+        - unrelated facts;
+        - something the speaker plans to do;
+        - casual comments without a follow-up request.
 
-        "¿Me puedes sugerir alguna canción?" -> activate
-        "¿Puedes recomendarme una película?" -> activate
-        "¿Podrías buscar información sobre NVIDIA?" -> activate
-        "¿Me ayudas con este problema?" -> activate
-        "¿Me puedes explicar RSA?" -> activate
-        "¿Qué canción me recomiendas?" -> activate
-        "¿Sabes qué hora es?" -> activate
-
-        NONE si el texto:
-        - es una afirmación sin petición;
-        - describe algo que ocurre;
-        - pertenece a conversación ambiental;
-        - indica una acción que el hablante hará por sí mismo;
-        - está dirigido claramente a otra persona;
-        - es un fragmento sin una solicitud clara.
-
-        Ejemplos NONE:
+        Examples:
 
         "Spotify se está cerrando solo" -> none
-        "Ayer fui a Spotify" -> none
-        "Creo que Firefox está actualizado" -> none
         "Mañana voy a abrir Spotify" -> none
-        "Le dije a Juan que abriera Spotify" -> none
-        "Eres bastante rápido" -> none
-        "Las áreas están delimitadas" -> none
+        "Está lloviendo afuera" -> none
+        "Juan llegó temprano" -> none
+        "Creo que hoy voy a escuchar música" -> none
 
-        No respondas la solicitud.
-        No expliques.
-        Devuelve exclusivamente activate o none.
+        Do not answer the utterance.
+        Do not explain.
+        Return only: continue or none.
         """;
     private final OpenAIClient client;
 
