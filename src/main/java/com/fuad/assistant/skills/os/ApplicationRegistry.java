@@ -4,21 +4,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 public class ApplicationRegistry {
-    private final Map<String, List<String>> applications;
+    private final Map<String, ApplicationDefinition> applications;
 
-    public ApplicationRegistry(Map<String, List<String>> applications) {
-        this.applications = applications;
+    public ApplicationRegistry(Map<String, ApplicationDefinition> applications) {
+        this.applications = Map.copyOf(applications);
     }
 
-    public boolean open(String application) throws IOException {
-        String normalized = application.toLowerCase(Locale.ROOT);
-        List<String> command = applications.get(normalized);
-        if (command == null) {
-            return false;
-        }
-        new ProcessBuilder(command).start();
-        return true;
+    public Optional<ApplicationDefinition> get(String application) {
+        return application == null ? Optional.empty() : Optional.ofNullable(applications
+                .get(application.toLowerCase(Locale.ROOT)));
     }
 }

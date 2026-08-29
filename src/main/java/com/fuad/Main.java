@@ -60,9 +60,12 @@ public class Main {
                 .apiKey("lm-studio")
                 .build();
         final OsCommandParser osCommandParser = new GraniteOsCommandParser(localAiClient);
-        final ApplicationRegistry applicationRegistry = new ApplicationRegistry(Map.of("spotify",
-                List.of("spotify", "cmd.exe", "/c", "start", "", "spotify:")));
-        OsCommandSkill osCommandSkill = new OsCommandSkill(osCommandParser, applicationRegistry);
+        final ApplicationDefinition spotify = new ApplicationDefinition("spotify", "Spotify",
+                List.of("cmd.exe", "/c", "start", "", "spotify:"), "Spotify.exe");
+        final ApplicationRegistry applicationRegistry = new ApplicationRegistry(Map.of("spotify", spotify));
+        final ApplicationController applicationController = new WindowsApplicationController();
+        final OsCommandSafetyGuard safetyGuard = new OsCommandSafetyGuard();
+        OsCommandSkill osCommandSkill = new OsCommandSkill(osCommandParser, applicationRegistry, applicationController, safetyGuard);
         SpeechProcessingService speechProcessor = null;
 
         /* Init Assistant GPT */
@@ -119,17 +122,52 @@ public class Main {
 
         String[] osTests = {
                 "Abre Spotify",
-                "Have de spotify",
-                "Inicia Spotify",
-                "Spotify se está cerrando solo",
-                "Mañana voy a abrir Spotify",
+                "¿Puedes abrir Spotify?",
+                "Quiero que abras Spotify",
+
                 "Cierra Spotify",
+                "¿Puedes cerrar Spotify?",
+                "Quiero que cierres Spotify",
+
+                "Spotify se está cerrando solo",
+                "Spotify se cerró solo",
+                "Spotify está cerrado",
+
+                "Mañana voy a cerrar Spotify",
+                "Después voy a cerrar Spotify",
+                "Más tarde cerraré Spotify",
+
+                "Mañana voy a abrir Spotify",
+                "Spotify se abre solo",
+                "Ayer abrí Spotify",
+
                 "Qué es Spotify"
+        };
+
+        String[] safetyTests = {
+                "Abre Spotify",
+                "Cierra Spotify",
+                "¿Puedes cerrar Spotify?",
+                "Quiero que cierres Spotify",
+
+                "Spotify se está cerrando solo",
+                "Spotify se cerró solo",
+                "Spotify está cerrado",
+                "Mañana voy a cerrar Spotify",
+                "Después voy a cerrar Spotify",
+                "Más tarde cerraré Spotify",
+                "Mañana voy a abrir Spotify",
+                "Ayer abrí Spotify"
         };
 
         for (String osTest : osTests) {
             OsCommandIntent intent = osCommandParser.parse(osTest);
             System.out.printf("OS TEST='%s' -> action=%s | target='%s'%n", osTest, intent.getAction(), intent.getTarget());
+        }
+
+        for (String safetyTest : safetyTests) {
+            boolean allowed = safetyGuard.canExecute(safetyTest);
+            System.out.printf("OS SAFETY='%s' -> %s%n", safetyTest, allowed ? "ALLOW" : "REJECT");
         }
 
         /*for (String test : tests) {

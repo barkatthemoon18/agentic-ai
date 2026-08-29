@@ -10,34 +10,77 @@ import java.util.Locale;
 public class GraniteOsCommandParser implements OsCommandParser {
     private static final String MODEL = "granite-router";
     private static final String SYSTEM_PROMPT = """
-            You are a restricted OS command intent parser.
+        You are a restricted OS command intent parser.
+        The user speaks Spanish.
 
-            The user speaks Spanish.
+        Determine whether the user is giving a DIRECT COMMAND
+        to open or close Spotify NOW.
 
-            Determine whether the utterance asks to open Spotify.
+        Return exactly ONE of:
 
-            Return exactly ONE of:
+        open_application|spotify
+        close_application|spotify
+        unsupported|unknown
 
-            open_application|spotify
-            unsupported|unknown
+        CRITICAL RULES:
 
-            Examples:
+        Classify OPEN_APPLICATION or CLOSE_APPLICATION ONLY when the
+        utterance is a direct request or instruction for the assistant
+        to perform the action now.
 
-            "Abre Spotify" -> open_application|spotify
-            "Abrir Spotify" -> open_application|spotify
-            "Inicia Spotify" -> open_application|spotify
-            "Pon Spotify" -> open_application|spotify
-            "Have de spotify" -> open_application|spotify
+        Do NOT classify descriptions, observations, future plans,
+        past events, predictions or statements as commands.
 
-            "Spotify se está cerrando solo" -> unsupported|unknown
-            "Mañana voy a abrir Spotify" -> unsupported|unknown
-            "Qué es Spotify" -> unsupported|unknown
-            "Cierra Spotify" -> unsupported|unknown
+        The presence of words such as "abrir", "cerrar" or "Spotify"
+        is NOT sufficient by itself.
 
-            Do not generate shell commands.
-            Do not explain.
-            Return only one allowed value.
-            """;
+        OPEN_APPLICATION:
+
+        "Abre Spotify" -> open_application|spotify
+        "Abrir Spotify" -> open_application|spotify
+        "Inicia Spotify" -> open_application|spotify
+        "Pon Spotify" -> open_application|spotify
+        "¿Puedes abrir Spotify?" -> open_application|spotify
+        "Quiero que abras Spotify" -> open_application|spotify
+        "Have de spotify" -> open_application|spotify
+
+        CLOSE_APPLICATION:
+
+        "Cierra Spotify" -> close_application|spotify
+        "Cerrar Spotify" -> close_application|spotify
+        "Termina Spotify" -> close_application|spotify
+        "¿Puedes cerrar Spotify?" -> close_application|spotify
+        "Quiero que cierres Spotify" -> close_application|spotify
+
+        UNSUPPORTED:
+
+        "Spotify se está cerrando solo" -> unsupported|unknown
+        "Spotify se cerró solo" -> unsupported|unknown
+        "Spotify está cerrado" -> unsupported|unknown
+
+        "Mañana voy a cerrar Spotify" -> unsupported|unknown
+        "Después voy a cerrar Spotify" -> unsupported|unknown
+        "Más tarde cerraré Spotify" -> unsupported|unknown
+        "Creo que voy a cerrar Spotify" -> unsupported|unknown
+
+        "Mañana voy a abrir Spotify" -> unsupported|unknown
+        "Spotify se abre solo" -> unsupported|unknown
+        "Ayer abrí Spotify" -> unsupported|unknown
+
+        "Qué es Spotify" -> unsupported|unknown
+        "Spotify funciona mal" -> unsupported|unknown
+
+        IMPORTANT:
+        Gerund constructions describing what Spotify is doing,
+        such as "se está cerrando", are observations, NOT commands.
+
+        Future expressions such as "mañana", "después", "más tarde",
+        "voy a abrir" or "voy a cerrar" are plans, NOT commands.
+
+        Do not generate shell commands.
+        Do not explain.
+        Return only one allowed value.
+        """;
     private final OpenAIClient client;
 
     public GraniteOsCommandParser(OpenAIClient client) {
@@ -58,6 +101,7 @@ public class GraniteOsCommandParser implements OsCommandParser {
                 new IllegalStateException("Granite returned no OS command classification")).trim().toLowerCase(Locale.ROOT);
         return switch (result) {
             case "open_application|spotify" -> new OsCommandIntent(OsAction.OPEN_APPLICATION, "spotify");
+            case "close_application|spotify" -> new OsCommandIntent(OsAction.CLOSE_APPLICATION, "spotify");
             case "unsupported|unknown" -> OsCommandIntent.unsupported();
             default -> throw new IllegalStateException("Unknown OS command classification: " + result);
         };

@@ -5,4 +5,4 @@ public enum OsAction {
     CLOSE_APPLICATION,
     FOCUS_APPLICATION,
     UNSUPPORTED
-};
+}
