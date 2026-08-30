@@ -1,5 +1,6 @@
 package com.fuad.pipeline;
 
+import com.fuad.audio.AssistantAudioController;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.enums.AudioState;
@@ -12,14 +13,17 @@ public class AudioPipeline {
     private final TtsEngine ttsEngine;
     private final AudioPlaybackService playbackService;
     private final AudioDeviceInfo outputDevice;
+    private final AssistantAudioController assistantAudioController;
     @Getter
     private volatile AudioState state = AudioState.LISTENING;
     private volatile long listeningBlockedUntilNanos = 0;
 
-    public AudioPipeline(TtsEngine ttsEngine, AudioPlaybackService playbackService, AudioDeviceInfo outputDevice) {
+    public AudioPipeline(TtsEngine ttsEngine, AudioPlaybackService playbackService, AudioDeviceInfo outputDevice,
+                         AssistantAudioController assistantAudioController) {
         this.ttsEngine = ttsEngine;
         this.playbackService = playbackService;
         this.outputDevice = outputDevice;
+        this.assistantAudioController = assistantAudioController;
     }
 
     public synchronized boolean beginProcessing() {
@@ -39,7 +43,7 @@ public class AudioPipeline {
             state = AudioState.SPEAKING;
             playbackStarted = true;
             System.out.println("AUDIO STATE -> SPEAKING");
-            playbackService.play(outputDevice, audio);
+            playbackService.play(outputDevice, audio, assistantAudioController.getGain());
         }
         finally {
             if (playbackStarted) {

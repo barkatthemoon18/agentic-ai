@@ -19,10 +19,7 @@ import com.fuad.assistant.routing.SemanticRouter;
 import com.fuad.assistant.session.ConversationSession;
 import com.fuad.assistant.skills.*;
 import com.fuad.assistant.skills.os.*;
-import com.fuad.audio.AudioCaptureService;
-import com.fuad.audio.AudioDeviceInfo;
-import com.fuad.audio.AudioDeviceManager;
-import com.fuad.audio.AudioPlaybackService;
+import com.fuad.audio.*;
 import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
 import com.fuad.pipeline.AssistantPipeline;
@@ -120,6 +117,7 @@ public class Main {
                 "Creo que hoy voy a escuchar música"
         }; */
 
+        /*
         String[] osTests = {
                 "Abre Spotify",
                 "¿Puedes abrir Spotify?",
@@ -168,6 +166,67 @@ public class Main {
         for (String safetyTest : safetyTests) {
             boolean allowed = safetyGuard.canExecute(safetyTest);
             System.out.printf("OS SAFETY='%s' -> %s%n", safetyTest, allowed ? "ALLOW" : "REJECT");
+        } */
+
+        /**
+        String[] activationTests = {
+                "¿Quién fue Alan Turing?",
+                "¿Cuándo murió Alan Turing?",
+                "¿En qué año murió Turing?",
+                "¿Dónde nació Alan Turing?",
+                "¿Cómo funciona RSA?",
+                "¿Por qué el cielo es azul?",
+                "¿Cuál es la capital de Japón?",
+
+                "Abre Spotify",
+                "¿Me puedes recomendar una canción?",
+
+                "Spotify se está cerrando solo",
+                "Mañana voy a abrir Spotify",
+                "Creo que Firefox está actualizado",
+
+                "Me preguntaron quién fue Alan Turing",
+                "Juan preguntó cuándo murió Turing",
+                "Le expliqué cómo funciona RSA"
+        };
+
+        String[] whyTests = {
+                "¿Por qué el cielo es azul?",
+                "¿Por qué ocurre un eclipse?",
+                "¿Por qué funciona RSA?",
+                "¿Por qué Spotify consume tanta memoria?",
+                "¿Por qué pasó eso?",
+
+                "No sé por qué el cielo es azul",
+                "Me explicó por qué funciona RSA",
+                "Juan preguntó por qué ocurrió eso",
+                "Estábamos hablando de por qué pasó"
+        };
+
+        String[] independenceTests = {
+                // Self-contained → REQUEST
+                "¿Por qué Spotify consume tanta memoria?",
+                "¿Por qué Firefox consume tanta CPU?",
+                "¿Por qué Spotify se cierra solo?",
+                "¿Por qué mi micrófono no funciona?",
+                "¿Por qué RSA necesita una clave privada?",
+
+                // Context-dependent → OTHER
+                "¿Por qué pasó eso?",
+                "¿Y por qué?",
+                "¿Y cuándo ocurrió?",
+                "¿Por qué necesita eso?",
+                "Explícame eso mejor",
+
+                // Statements → OTHER
+                "Spotify consume mucha memoria",
+                "Firefox consume mucha CPU",
+                "Spotify se está cerrando solo"
+        };
+
+        for (String test : independenceTests) {
+            boolean activated = semanticActivationClassifier.shouldActivate(test);
+            System.out.printf("ACTIVATION TEST='%s' -> %s%n", test, activated ? "REQUEST" : "OTHER");
         }
 
         /*for (String test : tests) {
@@ -179,6 +238,23 @@ public class Main {
             boolean continuation = contextContinuationClassifier.shouldContinue(contextTest);
             System.out.printf("CONTEXT TEST='%s -> %s%n", contextTest, continuation ? "CONTINUE" : "NONE");
         }*/
+
+        AssistantAudioController controller =
+                new AssistantAudioController();
+
+        System.out.println(controller.getGain()); // 1.0
+
+        controller.setVolume(50);
+        System.out.println(controller.getGain()); // 0.5
+
+        controller.decreaseVolume();
+        System.out.println(controller.getGain()); // 0.4
+
+        controller.mute();
+        System.out.println(controller.getGain()); // 0.0
+
+        controller.unmute();
+        System.out.println(controller.getGain()); // 0.4
 
         try {
             /* Run worker */
@@ -195,7 +271,13 @@ public class Main {
                             .contains("Focusrite")).findFirst().orElseThrow();
 
             /* Initialize in pipeline */
-            AudioPipeline audioPipeline = new AudioPipeline(tts, playbackService, deviceOutFocusrite);
+            AudioPipeline audioPipeline = new AudioPipeline(tts, playbackService, deviceOutFocusrite, controller);
+
+            controller.setVolume(100);
+            audioPipeline.speak("Prueba al 100");
+
+            controller.setVolume(50);
+            audioPipeline.speak("Prueba al 20");
 
             /* Processor */
             speechProcessor = new SpeechProcessingService(stt, assistantPipeline, activationDetector,
