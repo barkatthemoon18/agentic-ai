@@ -3,11 +3,14 @@ package com.fuad.speech;
 import com.fuad.activation.ActivationDetector;
 import com.fuad.activation.ActivationResult;
 import com.fuad.activation.context.ContextContinuationClassifier;
+import com.fuad.activation.context.ContextContinuationRequest;
 import com.fuad.assistant.AssistantExecutionResult;
 import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.session.ConversationControlDetector;
 import com.fuad.assistant.session.ConversationSession;
+import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.ActivationType;
+import com.fuad.enums.ContextContinuationDecision;
 import com.fuad.enums.ConversationControl;
 import com.fuad.enums.ConversationPolicy;
 import com.fuad.pipeline.AssistantPipeline;
@@ -108,9 +111,13 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                 activationResult = detected;
             }
             else if (conversationSession.isActive()) {
-                boolean continuation = contextContinuationClassifier.shouldContinue(text);
-                System.out.println("CONTEXT AI -> " + (continuation ? "CONTINUE" : "NONE"));
-                activationResult = continuation ? new ActivationResult(true, ActivationType.CONTEXTUAL, text) : ActivationResult.none();
+                ConversationSnapshot conversationSnapshot = conversationSession.getSnapshot().orElseThrow(() ->
+                        new IllegalStateException("Active conversation has no snapshot"));
+                ContextContinuationRequest continuationRequest = new ContextContinuationRequest(conversationSnapshot, text);
+                ContextContinuationDecision continuationDecision = contextContinuationClassifier.classify(continuationRequest);
+                System.out.println("CONTEXT AI -> " + continuationDecision);
+                activationResult = continuationDecision == ContextContinuationDecision.CONTINUE ?
+                        new ActivationResult(true, ActivationType.CONTEXTUAL, text) : ActivationResult.none();
             }
             else {
                 activationResult = ActivationResult.none();
@@ -119,16 +126,12 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                 System.out.println("Activation ignored");
                 return;
             }
-            conversationSession.activate();
             AssistantExecutionResult executionResult = assistantPipeline.process(activationResult);
             AssistantResult response = executionResult.getResponse();
             System.out.println("ASSISTANT: " + response.getText());
             audioPipeline.speak(response.getText());
-            if (executionResult.getConversationPolicy() == ConversationPolicy.KEEP_OPEN) {
-                conversationSession.refresh();
-                System.out.println("CONVERSATION -> ACTIVE");
-            }
-            conversationSession.refresh();
+            applyConversationPolicy(executionResult.getConversationPolicy(), activationResult.getCommand(),
+                    response.getText());
         }
         catch (Exception e) {
             System.out.println("Error processing speech segment: " + e.getMessage());
@@ -136,6 +139,18 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
         }
         finally {
             audioPipeline.finishProcessing();
+        }
+    }
+
+    private void applyConversationPolicy(ConversationPolicy conversationPolicy, String userText, String assistantText) {
+        switch (conversationPolicy) {
+            case KEEP_OPEN -> {
+                ConversationSnapshot conversationSnapshot = new ConversationSnapshot(userText, assistantText);
+                boolean wasActive = conversationSession.isActive();
+                conversationSession.openOrRefresh(conversationSnapshot);
+                System.out.println("CONVERSATION POLICY: -> " + (wasActive ? "CONVERSATION -> REFRESHED" : "CONVERSATION -> OPENED"));
+            }
+            case PRESERVE -> System.out.println("PRESERVE. Nothing to do");
         }
     }
 }

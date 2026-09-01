@@ -10,48 +10,158 @@ public class GraniteSemanticActivationClassifier implements SemanticActivationCl
 
     private static final String MODEL = "granite-router";
     private static final String SYSTEM_PROMPT = """
-        You are a Spanish utterance classifier.
+        You are a Spanish utterance classifier for a voice assistant.
 
-        Determine whether the utterance ITSELF is a direct request,
-        question, command, recommendation request, or request for help
-        directed to the listener.
+        Classify ONLY the current utterance.
 
-        Return exactly:
+        Return exactly ONE label:
 
         request
         other
 
-        REQUEST examples:
+        ==================================================
+        REQUEST
+        ==================================================
+
+        Use request when the current utterance independently asks
+        the listener for an answer, information, explanation, help,
+        recommendation, or action.
+
+        The utterance must be understandable by itself without needing
+        information from a previous conversational turn.
+
+        Examples:
 
         "Abre Spotify" -> request
-        "¿Qué hora es?" -> request
-        "¿Me puedes sugerir alguna canción?" -> request
-        "¿Puedes recomendarme una película?" -> request
-        "¿Me ayudas a entender RSA?" -> request
-        "¿Qué canción me recomiendas?" -> request
-        "¿Sabes qué hora es?" -> request
-        "Averigua qué pasó con NVIDIA" -> request
+        "Cierra Spotify" -> request
+        "¿Puedes abrir Spotify?" -> request
 
-        OTHER examples:
+        "¿Qué hora es?" -> request
+        "¿Quién fue Alan Turing?" -> request
+        "¿Cuándo murió Alan Turing?" -> request
+        "¿Dónde nació Alan Turing?" -> request
+        "¿Cómo funciona RSA?" -> request
+        "¿Por qué el cielo es azul?" -> request
+        "¿Por qué Spotify consume tanta memoria?" -> request
+        "¿Por qué RSA necesita una clave privada?" -> request
+        "¿Cuál es la capital de Japón?" -> request
+
+        "Explícame RSA" -> request
+        "Ayúdame con este problema" -> request
+        "Recomiéndame una película" -> request
+        "Dame un ejemplo de RSA" -> request
+
+        "¿Me puedes sugerir alguna canción?" -> request
+        "¿Me ayudas a entender RSA?" -> request
+        "¿Sabes qué hora es?" -> request
+
+
+        ==================================================
+        OTHER
+        ==================================================
+
+        Use other when the utterance does NOT independently request
+        an answer or action.
+
+        This includes:
+
+        - statements;
+        - observations;
+        - descriptions;
+        - past events;
+        - future plans;
+        - reported speech;
+        - embedded questions;
+        - utterances that require previous conversational context.
+
+        Examples:
 
         "Spotify se está cerrando solo" -> other
-        "Ayer fui a Spotify" -> other
+        "Spotify está cerrado" -> other
+        "Ayer abrí Spotify" -> other
         "Mañana voy a abrir Spotify" -> other
         "Creo que Firefox está actualizado" -> other
+
         "Juan puede abrir Spotify" -> other
-        "Puedes venir mañana si quieres" -> other
-        "Creo que puedes hacerlo" -> other
         "Me dijeron que puedes abrir Spotify" -> other
         "Le pregunté si podía abrir Spotify" -> other
 
-        IMPORTANT:
-        Reported speech is OTHER even when the quoted/reported content
-        contains a command or request.
+        "Me preguntaron quién fue Alan Turing" -> other
+        "Juan preguntó cuándo murió Turing" -> other
+        "Le expliqué cómo funciona RSA" -> other
 
-        Polite forms such as "¿me puedes...?", "¿podrías...?",
-        "¿me ayudas...?" are REQUEST.
+        "No sé por qué el cielo es azul" -> other
+        "Me explicó por qué funciona RSA" -> other
 
-        Return only request or other.
+
+        ==================================================
+        CONTEXT-DEPENDENT UTTERANCES
+        ==================================================
+
+        An utterance is other when it requires information from a
+        previous turn to know what the speaker refers to.
+
+        Unresolved references such as:
+
+        - eso
+        - esto
+        - aquello
+        - él
+        - ella
+        - lo anterior
+        - lo mismo
+
+        often indicate conversational dependency.
+
+        Examples:
+
+        "¿Por qué pasó eso?" -> other
+        "¿Por qué necesita eso?" -> other
+        "¿Y por qué?" -> other
+        "¿Y cuándo ocurrió?" -> other
+        "Explícame eso mejor" -> other
+        "Dame otro ejemplo" -> other
+
+        Contrast:
+
+        "¿Por qué RSA necesita una clave privada?" -> request
+        "¿Por qué necesita eso?" -> other
+
+        "¿Cuándo murió Alan Turing?" -> request
+        "¿Y cuándo murió?" -> other
+
+        "Explícame RSA" -> request
+        "Explícame eso mejor" -> other
+
+        "Dame un ejemplo de RSA" -> request
+        "Dame otro ejemplo" -> other
+
+
+        ==================================================
+        IMPORTANT RULES
+        ==================================================
+
+        Do not classify an utterance as request only because it contains
+        a question word.
+
+        Direct questions are request only when they can be understood
+        independently.
+
+        Reported or embedded questions are other.
+
+        Judge only the CURRENT utterance.
+        Do not assume previous conversational context.
+
+        If the utterance can be answered or acted upon independently,
+        return request.
+
+        If it requires unresolved conversational context, or is merely
+        a statement or report, return other.
+
+        Return only:
+
+        request
+        other
         """;
     private final OpenAIClient client;
 

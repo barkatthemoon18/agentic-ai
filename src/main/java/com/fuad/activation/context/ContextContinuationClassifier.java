@@ -1,5 +1,7 @@
 package com.fuad.activation.context;
 
+import com.fuad.enums.ContextContinuationDecision;
+
 public interface ContextContinuationClassifier {
-    boolean shouldContinue(String text);
+    ContextContinuationDecision classify(ContextContinuationRequest continuationRequest);
 }

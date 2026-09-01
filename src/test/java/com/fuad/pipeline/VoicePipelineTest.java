@@ -2,6 +2,7 @@ package com.fuad.pipeline;
 
 import com.fuad.audio.AudioFrame;
 import com.fuad.audio.AudioPlaybackService;
+import com.fuad.audio.AssistantAudioController;
 import com.fuad.speech.SpeechBuffer;
 import com.fuad.speech.SpeechSegment;
 import com.fuad.tts.TtsAudio;
@@ -85,7 +86,7 @@ class VoicePipelineTest {
             @Override public TtsAudio synthesize(String text) { return new TtsAudio(new float[0], 16_000); }
             @Override public void close() { }
         };
-        return new AudioPipeline(tts, new AudioPlaybackService(), null);
+        return new AudioPipeline(tts, new AudioPlaybackService(), null, new AssistantAudioController());
     }
 
     private static final class StubVad implements VadEngine {

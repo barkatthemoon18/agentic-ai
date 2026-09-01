@@ -1,14 +1,15 @@
 package com.fuad.assistant.session;
 
+import java.util.Objects;
+import java.util.Optional;
+
 public class ConversationSession {
     private static final long TIMEOUT_MS = 30_000;
     private long activeUntil = 0;
+    private ConversationSnapshot conversationSnapshot;
 
-    public void activate() {
-        activeUntil = System.currentTimeMillis() + TIMEOUT_MS;
-    }
-
-    public void refresh() {
+    public void openOrRefresh(ConversationSnapshot conversationSnapshot) {
+        this.conversationSnapshot = Objects.requireNonNull(conversationSnapshot, "conversationSnapshot cannot be null");
         activeUntil = System.currentTimeMillis() + TIMEOUT_MS;
     }
 
@@ -22,5 +23,13 @@ public class ConversationSession {
 
     public void close() {
         activeUntil = 0;
+        conversationSnapshot = null;
+    }
+
+    public Optional<ConversationSnapshot> getSnapshot() {
+        if (!isActive()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(conversationSnapshot);
     }
 }

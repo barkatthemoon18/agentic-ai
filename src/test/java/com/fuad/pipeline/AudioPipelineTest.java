@@ -2,6 +2,7 @@ package com.fuad.pipeline;
 
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioPlaybackService;
+import com.fuad.audio.AssistantAudioController;
 import com.fuad.enums.AudioState;
 import com.fuad.tts.TtsAudio;
 import com.fuad.tts.TtsEngine;
@@ -67,7 +68,7 @@ class AudioPipelineTest {
 
     private AudioPipeline pipeline(TtsEngine engine, TrackingPlayback playback) {
         AudioDeviceInfo device = new AudioDeviceInfo(null, "test", "test", "test");
-        return new AudioPipeline(engine, playback, device);
+        return new AudioPipeline(engine, playback, device, new AssistantAudioController());
     }
 
     private TtsEngine tts(Function<String, TtsAudio> synthesis) {
@@ -82,7 +83,7 @@ class AudioPipelineTest {
         private RuntimeException failure;
 
         @Override
-        public void play(AudioDeviceInfo device, TtsAudio audio) {
+        public void play(AudioDeviceInfo device, TtsAudio audio, float gain) {
             this.audio = audio;
             if (failure != null) throw failure;
         }
