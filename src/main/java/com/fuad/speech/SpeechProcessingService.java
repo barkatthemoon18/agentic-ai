@@ -94,14 +94,12 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             if (conversationControl == ConversationControl.CLOSE) {
                 System.out.println("CONVERSATION -> FORCE CLOSE");
                 conversationSession.close();
-                assistantPipeline.resetConversation();
                 audioPipeline.speak("Conversación terminada");
                 return;
             }
             if (conversationSession.hasExpired()) {
                 System.out.println("Conversación expirada");
                 conversationSession.close();
-                assistantPipeline.resetConversation();
             }
             ActivationResult explicitActivation = activationDetector.detect(result);
             if (explicitActivation.isActivated()) {
@@ -119,8 +117,9 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             }
             AssistantExecutionResult executionResult;
             if (activationResult.getType() == ActivationType.CONTEXTUAL) {
-                Capability owner = conversationSession.getOwner().orElseThrow(() -> new IllegalStateException("Contextual activation without context owner"));
-                executionResult = assistantPipeline.processFollowUp(activationResult, owner);
+                ConversationSnapshot conversationSnapshot = conversationSession.getSnapshot().orElseThrow(() ->
+                        new IllegalStateException("Contextual activation without conversation snapshot"));
+                executionResult = assistantPipeline.processFollowUp(activationResult, conversationSnapshot);
             }
             else {
                 executionResult = assistantPipeline.process(activationResult);
@@ -144,7 +143,7 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
         switch (executionResult.getConversationPolicy()) {
             case KEEP_OPEN -> {
                 ConversationSnapshot conversationSnapshot = new ConversationSnapshot(executionResult.getCapability(),
-                        userText, assistantText);
+                        userText, assistantText, executionResult.getResponse().getContinuationToken());
                 boolean wasActive = conversationSession.isActive();
                 conversationSession.openOrRefresh(conversationSnapshot);
                 System.out.println("CONVERSATION POLICY: -> " + (wasActive ? "CONVERSATION -> REFRESHED" : "CONVERSATION -> OPENED"));

@@ -8,7 +8,6 @@ import com.openai.models.responses.ResponseOutputText;
 
 public class GptAssistantEngine implements AssistantEngine {
     private final OpenAIClient client;
-    private String previousResponseId;
 
     public GptAssistantEngine(OpenAIClient client) {
         this.client = client;
@@ -20,11 +19,11 @@ public class GptAssistantEngine implements AssistantEngine {
                 .input(request.getCommand())
                 .instructions(request.getInstructions())
                 .maxOutputTokens(request.getMaxOutputTokens());
-        if (previousResponseId != null) {
-            builder.previousResponseId(previousResponseId);
+        String continuationToken = request.getContinuationToken();
+        if (continuationToken != null && !continuationToken.isBlank()) {
+            builder.previousResponseId(continuationToken);
         }
         Response response = client.responses().create(builder.build());
-        previousResponseId = response.id();
         String text = response.output()
                 .stream()
                 .flatMap(item -> item.message().stream())
@@ -32,11 +31,6 @@ public class GptAssistantEngine implements AssistantEngine {
                 .flatMap(content -> content.outputText().stream())
                 .map(ResponseOutputText::text)
                 .reduce("", String::concat);
-        return new AssistantResult(text);
-    }
-
-    @Override
-    public void resetConversation() {
-        previousResponseId = null;
+        return new AssistantResult(text, response.id());
     }
 }

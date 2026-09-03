@@ -2,11 +2,16 @@ package com.fuad.assistant;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Setter;
+import lombok.NonNull;
 
 @Getter
-@Setter
 @AllArgsConstructor
 public class AssistantResult {
-    String text;
+    @NonNull
+    private final String text;
+    private final String continuationToken;
+
+    public AssistantResult(String text) {
+        this(text, null);
+    }
 }

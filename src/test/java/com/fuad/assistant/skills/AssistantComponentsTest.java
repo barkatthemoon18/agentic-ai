@@ -6,6 +6,7 @@ import com.fuad.assistant.AssistantExecutionResult;
 import com.fuad.assistant.AssistantRequest;
 import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.routing.AiSkillRouter;
+import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.ActivationType;
 import com.fuad.enums.Capability;
 import com.fuad.enums.ConversationPolicy;
@@ -13,8 +14,9 @@ import com.fuad.pipeline.AssistantPipeline;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -22,6 +24,7 @@ import java.util.function.Function;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -67,11 +70,13 @@ class AssistantComponentsTest {
     void pipelineShouldRejectInactiveActivationInBothEntryPoints() {
         TrackingSkillRouter router = new TrackingSkillRouter(
                 Capability.GENERAL, ignored -> command -> new AssistantResult("ok"));
-        AssistantPipeline pipeline = new AssistantPipeline(noOpEngine(), router);
+        AssistantPipeline pipeline = new AssistantPipeline(router);
 
         assertThrows(IllegalArgumentException.class, () -> pipeline.process(ActivationResult.none()));
         assertThrows(IllegalArgumentException.class,
-                () -> pipeline.processFollowUp(ActivationResult.none(), Capability.GENERAL));
+                () -> pipeline.processFollowUp(ActivationResult.none(),
+                        new ConversationSnapshot(
+                                Capability.GENERAL, "pregunta", "respuesta", "token")));
         assertEquals(0, router.normalRoutes.get());
         assertEquals(0, router.ownerRoutes.get());
     }
@@ -81,7 +86,7 @@ class AssistantComponentsTest {
         AtomicReference<String> executed = new AtomicReference<>();
         Skill skill = keepOpenSkill(executed);
         TrackingSkillRouter router = new TrackingSkillRouter(Capability.GENERAL, ignored -> skill);
-        AssistantPipeline pipeline = new AssistantPipeline(noOpEngine(), router);
+        AssistantPipeline pipeline = new AssistantPipeline(router);
 
         AssistantExecutionResult result = pipeline.process(
                 new ActivationResult(true, ActivationType.WAKE_WORD, "comando"));
@@ -97,40 +102,47 @@ class AssistantComponentsTest {
     @Test
     void processFollowUpShouldRouteDirectlyToOwner() {
         AtomicReference<String> executed = new AtomicReference<>();
-        Skill researchSkill = keepOpenSkill(executed);
+        AtomicReference<String> receivedToken = new AtomicReference<>();
+        Skill researchSkill = new Skill() {
+            @Override
+            public AssistantResult execute(String command) {
+                return execute(command, null);
+            }
+
+            @Override
+            public AssistantResult execute(String command, String continuationToken) {
+                executed.set(command);
+                receivedToken.set(continuationToken);
+                return new AssistantResult("respuesta", "token-nuevo");
+            }
+
+            @Override
+            public ConversationPolicy getConversationPolicy() {
+                return ConversationPolicy.KEEP_OPEN;
+            }
+        };
         TrackingSkillRouter router = new TrackingSkillRouter(
                 Capability.GENERAL,
                 capability -> capability == Capability.CURRENT_RESEARCH
                         ? researchSkill
                         : command -> new AssistantResult("incorrecta"));
-        AssistantPipeline pipeline = new AssistantPipeline(noOpEngine(), router);
+        AssistantPipeline pipeline = new AssistantPipeline(router);
         ActivationResult followUp = new ActivationResult(
                 true, ActivationType.CONTEXTUAL, "¿Y cuándo ocurrió?");
+        ConversationSnapshot snapshot =
+                new ConversationSnapshot(
+                        Capability.CURRENT_RESEARCH, "tema", "respuesta", "token-anterior");
 
         AssistantExecutionResult result =
-                pipeline.processFollowUp(followUp, Capability.CURRENT_RESEARCH);
+                pipeline.processFollowUp(followUp, snapshot);
 
         assertEquals(0, router.normalRoutes.get());
         assertEquals(1, router.ownerRoutes.get());
         assertEquals(Capability.CURRENT_RESEARCH, router.requestedOwner.get());
         assertEquals("¿Y cuándo ocurrió?", executed.get());
+        assertEquals("token-anterior", receivedToken.get());
+        assertEquals("token-nuevo", result.getResponse().getContinuationToken());
         assertEquals(Capability.CURRENT_RESEARCH, result.getCapability());
-    }
-
-    @Test
-    void pipelineShouldDelegateConversationReset() {
-        AtomicBoolean reset = new AtomicBoolean();
-        AssistantEngine engine = new AssistantEngine() {
-            @Override public AssistantResult process(AssistantRequest request) { return new AssistantResult(""); }
-            @Override public void resetConversation() { reset.set(true); }
-        };
-        TrackingSkillRouter router = new TrackingSkillRouter(
-                Capability.GENERAL, ignored -> command -> new AssistantResult(""));
-        AssistantPipeline pipeline = new AssistantPipeline(engine, router);
-
-        pipeline.resetConversation();
-
-        assertTrue(reset.get());
     }
 
     @Test
@@ -143,7 +155,6 @@ class AssistantComponentsTest {
                 return new AssistantResult("respuesta");
             }
 
-            @Override public void resetConversation() { }
         };
         GeneralSkill skill = new GeneralSkill(engine);
 
@@ -152,8 +163,46 @@ class AssistantComponentsTest {
         assertEquals("respuesta", result.getText());
         assertEquals("explica RSA", captured.get().getCommand());
         assertEquals(300, captured.get().getMaxOutputTokens());
+        assertNull(captured.get().getContinuationToken());
         assertFalse(captured.get().getInstructions().isBlank());
         assertEquals(ConversationPolicy.KEEP_OPEN, skill.getConversationPolicy());
+    }
+
+    @Test
+    void generalSkillShouldForwardExplicitContinuationToken() {
+        AtomicReference<AssistantRequest> captured = new AtomicReference<>();
+        AssistantEngine engine = request -> {
+            captured.set(request);
+            return new AssistantResult("respuesta", "token-siguiente");
+        };
+        GeneralSkill skill = new GeneralSkill(engine);
+
+        AssistantResult result = skill.execute("continúa", "token-sesion");
+
+        assertEquals("token-sesion", captured.get().getContinuationToken());
+        assertEquals("token-siguiente", result.getContinuationToken());
+    }
+
+    @Test
+    void sharedStatelessEngineShouldReceiveTheTokenFromEachConversationSnapshot() {
+        List<String> receivedTokens = new ArrayList<>();
+        AssistantEngine sharedEngine = request -> {
+            receivedTokens.add(request.getContinuationToken());
+            return new AssistantResult("respuesta", "siguiente-" + receivedTokens.size());
+        };
+        GeneralSkill sharedSkill = new GeneralSkill(sharedEngine);
+        TrackingSkillRouter router = new TrackingSkillRouter(Capability.GENERAL, ignored -> sharedSkill);
+        AssistantPipeline pipeline = new AssistantPipeline(router);
+        ActivationResult followUp = new ActivationResult(true, ActivationType.CONTEXTUAL, "continúa");
+        ConversationSnapshot sessionA = new ConversationSnapshot(
+                Capability.GENERAL, "pregunta A", "respuesta A", "token-A");
+        ConversationSnapshot sessionB = new ConversationSnapshot(
+                Capability.GENERAL, "pregunta B", "respuesta B", "token-B");
+
+        pipeline.processFollowUp(followUp, sessionA);
+        pipeline.processFollowUp(followUp, sessionB);
+
+        assertEquals(List.of("token-A", "token-B"), receivedTokens);
     }
 
     @Test
@@ -190,13 +239,6 @@ class AssistantComponentsTest {
                     : command -> new AssistantResult(capability.name()));
         }
         return new SkillRegistry(skills);
-    }
-
-    private AssistantEngine noOpEngine() {
-        return new AssistantEngine() {
-            @Override public AssistantResult process(AssistantRequest request) { return new AssistantResult(""); }
-            @Override public void resetConversation() { }
-        };
     }
 
     private static final class TrackingSkillRouter implements SkillRouter {

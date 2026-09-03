@@ -18,7 +18,12 @@ public class GeneralSkill implements Skill {
 
     @Override
     public AssistantResult execute(String command) {
-        return assistantEngine.process(new AssistantRequest(command, INSTRUCTIONS, 300));
+        return execute(command, null);
+    }
+
+    @Override
+    public AssistantResult execute(String command, String continuationToken) {
+        return assistantEngine.process(new AssistantRequest(command, INSTRUCTIONS, 300, continuationToken));
     }
 
     @Override

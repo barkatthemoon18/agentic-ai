@@ -14,4 +14,9 @@ public class ConversationSnapshot {
     private final String previousUserText;
     @NonNull
     private final String previousAssistantText;
+    private final String continuationToken;
+
+    public ConversationSnapshot(Capability owner, String previousUserText, String previousAssistantText) {
+        this(owner, previousUserText, previousAssistantText, null);
+    }
 }

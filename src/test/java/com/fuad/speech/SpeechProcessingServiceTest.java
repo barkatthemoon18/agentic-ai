@@ -45,8 +45,7 @@ class SpeechProcessingServiceTest {
         SttEngine stt = stt(ignored -> { transcriptions.incrementAndGet(); return transcription("hola"); });
 
         try (SpeechProcessingService service = service(stt, valid(false), ignored -> ActivationResult.none(),
-                new ConversationSession(), audio, request -> UtteranceDecision.OTHER,
-                new TrackingAssistantEngine())) {
+                new ConversationSession(), audio, request -> UtteranceDecision.OTHER)) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -61,8 +60,7 @@ class SpeechProcessingServiceTest {
         ActivationDetector detector = result -> { activationCalled.set(true); return ActivationResult.none(); };
 
         try (SpeechProcessingService service = service(stt(ignored -> transcription("   ")), valid(true), detector,
-                new ConversationSession(), audio, request -> UtteranceDecision.OTHER,
-                new TrackingAssistantEngine())) {
+                new ConversationSession(), audio, request -> UtteranceDecision.OTHER)) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -81,8 +79,7 @@ class SpeechProcessingServiceTest {
             @Override public AssistantResult execute(String command) { executed.set(command); return new AssistantResult("respuesta"); }
             @Override public ConversationPolicy getConversationPolicy() { return ConversationPolicy.KEEP_OPEN; }
         };
-        AssistantPipeline assistant = new AssistantPipeline(
-                new TrackingAssistantEngine(), staticRouter(Capability.GENERAL, skill));
+        AssistantPipeline assistant = new AssistantPipeline(staticRouter(Capability.GENERAL, skill));
 
         try (SpeechProcessingService service = new SpeechProcessingService(
                 stt(ignored -> transcription("Ares responde")), assistant,
@@ -164,8 +161,7 @@ class SpeechProcessingServiceTest {
     void followUpWithoutActiveConversationShouldBeRejected() throws Exception {
         TrackingAudioPipeline audio = new TrackingAudioPipeline();
         AtomicBoolean assistantCalled = new AtomicBoolean();
-        AssistantPipeline assistant = new AssistantPipeline(new TrackingAssistantEngine(),
-                staticRouter(Capability.GENERAL, command -> {
+        AssistantPipeline assistant = new AssistantPipeline(staticRouter(Capability.GENERAL, command -> {
             assistantCalled.set(true);
             return new AssistantResult("no debe ejecutarse");
         }));
@@ -187,7 +183,7 @@ class SpeechProcessingServiceTest {
         ConversationSession session = new ConversationSession();
         Skill preservingSkill = command -> new AssistantResult("respuesta transaccional");
         AssistantPipeline assistant = new AssistantPipeline(
-                new TrackingAssistantEngine(), staticRouter(Capability.OS_COMMAND, preservingSkill));
+                staticRouter(Capability.OS_COMMAND, preservingSkill));
 
         try (SpeechProcessingService service = new SpeechProcessingService(
                 stt(ignored -> transcription("abre Spotify")), assistant,
@@ -213,7 +209,7 @@ class SpeechProcessingServiceTest {
         setActiveUntil(session, originalDeadline);
         Skill preservingSkill = command -> new AssistantResult("respuesta transaccional");
         AssistantPipeline assistant = new AssistantPipeline(
-                new TrackingAssistantEngine(), staticRouter(Capability.OS_COMMAND, preservingSkill));
+                staticRouter(Capability.OS_COMMAND, preservingSkill));
 
         try (SpeechProcessingService service = new SpeechProcessingService(
                 stt(ignored -> transcription("abre Spotify")), assistant,
@@ -241,7 +237,7 @@ class SpeechProcessingServiceTest {
             @Override public ConversationPolicy getConversationPolicy() { return ConversationPolicy.KEEP_OPEN; }
         };
         AssistantPipeline assistant = new AssistantPipeline(
-                new TrackingAssistantEngine(), staticRouter(Capability.CURRENT_RESEARCH, conversationalSkill));
+                staticRouter(Capability.CURRENT_RESEARCH, conversationalSkill));
 
         try (SpeechProcessingService service = new SpeechProcessingService(
                 stt(ignored -> transcription("explica RSA")), assistant,
@@ -263,8 +259,7 @@ class SpeechProcessingServiceTest {
     void assistantFailureShouldNotOpenConversation() throws Exception {
         TrackingAudioPipeline audio = new TrackingAudioPipeline();
         ConversationSession session = new ConversationSession();
-        AssistantPipeline assistant = new AssistantPipeline(new TrackingAssistantEngine(),
-                staticRouter(Capability.GENERAL, ignored -> {
+        AssistantPipeline assistant = new AssistantPipeline(staticRouter(Capability.GENERAL, ignored -> {
                     throw new IllegalStateException("assistant");
                 }));
 
@@ -282,22 +277,20 @@ class SpeechProcessingServiceTest {
     }
 
     @Test
-    void closePhraseShouldCloseSessionResetAssistantAndSpeakConfirmation() throws Exception {
+    void closePhraseShouldCloseSessionAndSpeakConfirmation() throws Exception {
         TrackingAudioPipeline audio = new TrackingAudioPipeline();
         ConversationSession session = new ConversationSession();
         session.openOrRefresh(conversationSnapshot());
-        TrackingAssistantEngine engine = new TrackingAssistantEngine();
         AtomicBoolean activationCalled = new AtomicBoolean();
 
         try (SpeechProcessingService service = service(stt(ignored -> transcription("eso es todo")), valid(true),
                 ignored -> { activationCalled.set(true); return ActivationResult.none(); },
-                session, audio, request -> UtteranceDecision.OTHER, engine)) {
+                session, audio, request -> UtteranceDecision.OTHER)) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
 
         assertFalse(session.isActive());
-        assertTrue(engine.reset.get());
         assertFalse(activationCalled.get());
         assertEquals("Conversación terminada", audio.spokenText.get());
         assertTrue(session.getSnapshot().isEmpty());
@@ -333,8 +326,92 @@ class SpeechProcessingServiceTest {
         assertEquals(0, assistant.normalCalls.get());
         assertEquals(1, assistant.followUpCalls.get());
         assertEquals(Capability.GENERAL, assistant.followUpOwner.get());
+        assertEquals("token-contexto", assistant.followUpToken.get());
         assertEquals("¿y por qué?", command.get());
         assertEquals("seguimos", audio.spokenText.get());
+    }
+
+    @Test
+    void followUpShouldUseSessionTokenAndReplaceItWithResponseToken() throws Exception {
+        TrackingAudioPipeline audio = new TrackingAudioPipeline();
+        ConversationSession session = new ConversationSession();
+        session.openOrRefresh(new ConversationSnapshot(
+                Capability.GENERAL, "Explica RSA", "RSA es...", "token-anterior"));
+        AtomicReference<String> receivedToken = new AtomicReference<>();
+        Skill contextualSkill = new Skill() {
+            @Override
+            public AssistantResult execute(String command) {
+                return execute(command, null);
+            }
+
+            @Override
+            public AssistantResult execute(String command, String continuationToken) {
+                receivedToken.set(continuationToken);
+                return new AssistantResult("respuesta siguiente", "token-siguiente");
+            }
+
+            @Override
+            public ConversationPolicy getConversationPolicy() {
+                return ConversationPolicy.KEEP_OPEN;
+            }
+        };
+        AssistantPipeline assistant = new AssistantPipeline(
+                staticRouter(Capability.GENERAL, contextualSkill));
+
+        try (SpeechProcessingService service = new SpeechProcessingService(
+                stt(ignored -> transcription("Y para que sirve?")), assistant,
+                ignored -> ActivationResult.none(), session, audio, valid(true),
+                request -> UtteranceDecision.FOLLOW_UP)) {
+            service.onSpeechSegment(segment);
+            assertTrue(audio.awaitFinished());
+        }
+
+        assertEquals("token-anterior", receivedToken.get());
+        ConversationSnapshot updated = session.getSnapshot().orElseThrow();
+        assertEquals("token-siguiente", updated.getContinuationToken());
+        assertEquals("Y para que sirve?", updated.getPreviousUserText());
+        assertEquals("respuesta siguiente", updated.getPreviousAssistantText());
+    }
+
+    @Test
+    void newRequestShouldNotReusePreviousTokenAndShouldStartANewChain() throws Exception {
+        TrackingAudioPipeline audio = new TrackingAudioPipeline();
+        ConversationSession session = new ConversationSession();
+        session.openOrRefresh(new ConversationSnapshot(
+                Capability.GENERAL, "Explica RSA", "RSA es...", "token-rsa"));
+        AtomicReference<String> receivedToken = new AtomicReference<>("not-called");
+        Skill conversationalSkill = new Skill() {
+            @Override
+            public AssistantResult execute(String command) {
+                return execute(command, null);
+            }
+
+            @Override
+            public AssistantResult execute(String command, String continuationToken) {
+                receivedToken.set(continuationToken);
+                return new AssistantResult("AES es...", "token-aes");
+            }
+
+            @Override
+            public ConversationPolicy getConversationPolicy() {
+                return ConversationPolicy.KEEP_OPEN;
+            }
+        };
+        AssistantPipeline assistant = new AssistantPipeline(
+                staticRouter(Capability.GENERAL, conversationalSkill));
+
+        try (SpeechProcessingService service = new SpeechProcessingService(
+                stt(ignored -> transcription("Explica AES")), assistant,
+                ignored -> ActivationResult.none(), session, audio, valid(true),
+                request -> UtteranceDecision.NEW_REQUEST)) {
+            service.onSpeechSegment(segment);
+            assertTrue(audio.awaitFinished());
+        }
+
+        assertNull(receivedToken.get());
+        ConversationSnapshot updated = session.getSnapshot().orElseThrow();
+        assertEquals("token-aes", updated.getContinuationToken());
+        assertEquals("Explica AES", updated.getPreviousUserText());
     }
 
     @Test
@@ -346,8 +423,7 @@ class SpeechProcessingServiceTest {
         long originalDeadline = activeUntil(session);
         AtomicBoolean assistantCalled = new AtomicBoolean();
         AtomicReference<UtteranceClassificationRequest> contextRequest = new AtomicReference<>();
-        AssistantPipeline assistant = new AssistantPipeline(new TrackingAssistantEngine(),
-                staticRouter(Capability.GENERAL, command -> {
+        AssistantPipeline assistant = new AssistantPipeline(staticRouter(Capability.GENERAL, command -> {
             assistantCalled.set(true);
             return new AssistantResult("no debería ejecutarse");
         }));
@@ -372,21 +448,19 @@ class SpeechProcessingServiceTest {
     }
 
     @Test
-    void expiredConversationShouldResetAssistantBeforeIgnoringNonActivatedText() throws Exception {
+    void expiredConversationShouldClearSnapshotBeforeIgnoringNonActivatedText() throws Exception {
         TrackingAudioPipeline audio = new TrackingAudioPipeline();
         ConversationSession session = new ConversationSession();
         session.openOrRefresh(conversationSnapshot());
         expire(session);
-        TrackingAssistantEngine engine = new TrackingAssistantEngine();
 
         try (SpeechProcessingService service = service(stt(ignored -> transcription("comentario")), valid(true),
                 ignored -> ActivationResult.none(), session, audio,
-                request -> UtteranceDecision.OTHER, engine)) {
+                request -> UtteranceDecision.OTHER)) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
 
-        assertTrue(engine.reset.get());
         assertFalse(session.isActive());
         assertTrue(session.getSnapshot().isEmpty());
         assertNull(audio.spokenText.get());
@@ -398,7 +472,7 @@ class SpeechProcessingServiceTest {
 
         try (SpeechProcessingService service = service(stt(ignored -> { throw new IllegalStateException("stt"); }),
                 valid(true), ignored -> ActivationResult.none(), new ConversationSession(), audio,
-                request -> UtteranceDecision.OTHER, new TrackingAssistantEngine())) {
+                request -> UtteranceDecision.OTHER)) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -418,8 +492,7 @@ class SpeechProcessingServiceTest {
 
         try (SpeechProcessingService service = service(stt(ignored -> transcription("hola")), validator,
                 ignored -> ActivationResult.none(), new ConversationSession(), audio,
-                request -> UtteranceDecision.OTHER,
-                new TrackingAssistantEngine())) {
+                request -> UtteranceDecision.OTHER)) {
             service.onSpeechSegment(segment);
         }
 
@@ -429,10 +502,9 @@ class SpeechProcessingServiceTest {
 
     private SpeechProcessingService service(SttEngine stt, SpeechSegmentValidator validator,
                                             ActivationDetector activationDetector, ConversationSession session,
-                                            TrackingAudioPipeline audio, UtteranceClassifier utteranceClassifier,
-                                            TrackingAssistantEngine engine) {
+                                            TrackingAudioPipeline audio, UtteranceClassifier utteranceClassifier) {
         AssistantPipeline assistant = new AssistantPipeline(
-                engine, staticRouter(Capability.GENERAL, cmd -> new AssistantResult("ok")));
+                staticRouter(Capability.GENERAL, cmd -> new AssistantResult("ok")));
         return new SpeechProcessingService(stt, assistant, activationDetector, session, audio, validator,
                 utteranceClassifier);
     }
@@ -458,7 +530,7 @@ class SpeechProcessingServiceTest {
 
     private ConversationSnapshot conversationSnapshot() {
         return new ConversationSnapshot(Capability.GENERAL, "Explícame RSA",
-                "RSA usa criptografía de clave pública.");
+                "RSA usa criptografía de clave pública.", "token-contexto");
     }
 
     private void expire(ConversationSession session) throws ReflectiveOperationException {
@@ -491,20 +563,15 @@ class SpeechProcessingServiceTest {
         };
     }
 
-    private static final class TrackingAssistantEngine implements AssistantEngine {
-        private final AtomicBoolean reset = new AtomicBoolean();
-        @Override public AssistantResult process(AssistantRequest request) { return new AssistantResult("ok"); }
-        @Override public void resetConversation() { reset.set(true); }
-    }
-
     private static final class TrackingAssistantPipeline extends AssistantPipeline {
         private final AtomicReference<ActivationResult> activation = new AtomicReference<>();
         private final AtomicReference<Capability> followUpOwner = new AtomicReference<>();
+        private final AtomicReference<String> followUpToken = new AtomicReference<>();
         private final AtomicInteger normalCalls = new AtomicInteger();
         private final AtomicInteger followUpCalls = new AtomicInteger();
 
         private TrackingAssistantPipeline(Skill skill) {
-            super(new TrackingAssistantEngine(), staticRouter(Capability.GENERAL, skill));
+            super(staticRouter(Capability.GENERAL, skill));
         }
 
         @Override
@@ -515,11 +582,13 @@ class SpeechProcessingServiceTest {
         }
 
         @Override
-        public AssistantExecutionResult processFollowUp(ActivationResult activationResult, Capability owner) {
+        public AssistantExecutionResult processFollowUp(ActivationResult activationResult,
+                                                        ConversationSnapshot conversationSnapshot) {
             activation.set(activationResult);
-            followUpOwner.set(owner);
+            followUpOwner.set(conversationSnapshot.getOwner());
+            followUpToken.set(conversationSnapshot.getContinuationToken());
             followUpCalls.incrementAndGet();
-            return super.processFollowUp(activationResult, owner);
+            return super.processFollowUp(activationResult, conversationSnapshot);
         }
     }
 

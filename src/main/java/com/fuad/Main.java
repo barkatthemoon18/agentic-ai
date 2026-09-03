@@ -88,7 +88,7 @@ public class Main {
                 Capability.OS_COMMAND, osCommandSkill,
                 Capability.CURRENT_RESEARCH, new UnsupportedSkill(Capability.CURRENT_RESEARCH)));
         SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);
-        AssistantPipeline assistantPipeline = new AssistantPipeline(assistantEngine, skillRouter);
+        AssistantPipeline assistantPipeline = new AssistantPipeline(skillRouter);
         WakeWordMatcher wakeWordMatcher = new WakeWordMatcher(
                 AppConfig.wakeWords, AppConfig.WAKE_HIGH_THRESHOLD, AppConfig.WAKE_LOW_THRESHOLD);
         WakeClassifier wakeClassifier = new GraniteWakeClassifier(localAiClient);
