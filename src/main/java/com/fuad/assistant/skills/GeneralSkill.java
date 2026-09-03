@@ -22,7 +22,7 @@ public class GeneralSkill implements Skill {
     }
 
     @Override
-    public ConversationPolicy conversationPolicy() {
+    public ConversationPolicy getConversationPolicy() {
         return ConversationPolicy.KEEP_OPEN;
     }
 }

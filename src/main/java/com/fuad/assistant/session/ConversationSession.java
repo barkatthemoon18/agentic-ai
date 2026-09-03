@@ -1,5 +1,7 @@
 package com.fuad.assistant.session;
 
+import com.fuad.enums.Capability;
+
 import java.util.Objects;
 import java.util.Optional;
 
@@ -8,8 +10,12 @@ public class ConversationSession {
     private long activeUntil = 0;
     private ConversationSnapshot conversationSnapshot;
 
+    public Optional<Capability> getOwner() {
+        return getSnapshot().map(ConversationSnapshot::getOwner);
+    }
+
     public void openOrRefresh(ConversationSnapshot conversationSnapshot) {
-        this.conversationSnapshot = Objects.requireNonNull(conversationSnapshot, "conversationSnapshot cannot be null");
+        this.conversationSnapshot = Objects.requireNonNull(conversationSnapshot, "Snapshot cannot be null");
         activeUntil = System.currentTimeMillis() + TIMEOUT_MS;
     }
 

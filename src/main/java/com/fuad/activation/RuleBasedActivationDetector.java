@@ -1,6 +1,5 @@
 package com.fuad.activation;
 
-import com.fuad.activation.semantic.SemanticActivationClassifier;
 import com.fuad.activation.wake.WakeClassifier;
 import com.fuad.activation.wake.WakeWordMatch;
 import com.fuad.activation.wake.WakeWordMatcher;
@@ -15,15 +14,13 @@ import java.util.Locale;
 public class RuleBasedActivationDetector implements ActivationDetector {
     private final WakeWordMatcher wakeWordMatcher;
     private final WakeClassifier wakeClassifier;
-    private final SemanticActivationClassifier semanticActivationClassifier;
     private final List<String> intentPhrases;
 
-    public  RuleBasedActivationDetector(WakeWordMatcher wakeWordMatcher, WakeClassifier wakeClassifier,
-                                        SemanticActivationClassifier semanticActivationClassifier, List<String> intentPhrases) {
+    public RuleBasedActivationDetector(WakeWordMatcher wakeWordMatcher, WakeClassifier wakeClassifier,
+                                       List<String> intentPhrases) {
         this.wakeWordMatcher = wakeWordMatcher;
         this.wakeClassifier = wakeClassifier;
-        this.semanticActivationClassifier = semanticActivationClassifier;
-        this.intentPhrases = intentPhrases;
+        this.intentPhrases = List.copyOf(intentPhrases);
     }
 
     @Override
@@ -54,11 +51,6 @@ public class RuleBasedActivationDetector implements ActivationDetector {
                 System.out.println("ACTIVATION -> INTENT_PHRASE | phrase='" + phrase + "'");
                 return new ActivationResult(true, ActivationType.INTENT_PHRASE, original);
             }
-        }
-        boolean semanticIntent = semanticActivationClassifier.shouldActivate(original);
-        System.out.println("ACTIVATION AI -> " + (semanticIntent ? "ACTIVATE" : "NONE"));
-        if (semanticIntent) {
-            return new ActivationResult(true, ActivationType.SEMANTIC_INTENT, original);
         }
         return ActivationResult.none();
     }

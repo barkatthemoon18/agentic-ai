@@ -5,7 +5,7 @@ import com.fuad.enums.ConversationPolicy;
 
 public interface Skill {
     AssistantResult execute(String command);
-    default ConversationPolicy conversationPolicy() {
+    default ConversationPolicy getConversationPolicy() {
         return ConversationPolicy.PRESERVE;
     }
 }

@@ -2,17 +2,14 @@ package com.fuad.speech;
 
 import com.fuad.activation.ActivationDetector;
 import com.fuad.activation.ActivationResult;
-import com.fuad.activation.context.ContextContinuationClassifier;
-import com.fuad.activation.context.ContextContinuationRequest;
+import com.fuad.activation.utterance.UtteranceClassificationRequest;
+import com.fuad.activation.utterance.UtteranceClassifier;
 import com.fuad.assistant.AssistantExecutionResult;
 import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.session.ConversationControlDetector;
 import com.fuad.assistant.session.ConversationSession;
 import com.fuad.assistant.session.ConversationSnapshot;
-import com.fuad.enums.ActivationType;
-import com.fuad.enums.ContextContinuationDecision;
-import com.fuad.enums.ConversationControl;
-import com.fuad.enums.ConversationPolicy;
+import com.fuad.enums.*;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.speech.validation.SpeechSegmentValidator;
@@ -31,20 +28,20 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
     private final ConversationSession conversationSession;
     private final AudioPipeline audioPipeline;
     private final SpeechSegmentValidator speechValidator;
-    private final ContextContinuationClassifier contextContinuationClassifier;
+    private final UtteranceClassifier utteranceClassifier;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     public SpeechProcessingService(SttEngine sttEngine, AssistantPipeline assistantPipeline,
                                    ActivationDetector activationDetector, ConversationSession session,
                                    AudioPipeline audioPipeline, SpeechSegmentValidator speechValidator,
-                                   ContextContinuationClassifier contextContinuationClassifier) {
+                                   UtteranceClassifier utteranceClassifier) {
         this.sttEngine = sttEngine;
         this.assistantPipeline = assistantPipeline;
         this.activationDetector = activationDetector;
         this.conversationSession = session;
         this.audioPipeline = audioPipeline;
         this.speechValidator = speechValidator;
-        this.contextContinuationClassifier = contextContinuationClassifier;
+        this.utteranceClassifier = utteranceClassifier;
     }
 
     @Override
@@ -106,31 +103,32 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                 conversationSession.close();
                 assistantPipeline.resetConversation();
             }
-            ActivationResult detected = activationDetector.detect(result);
-            if (detected.isActivated()) {
-                activationResult = detected;
-            }
-            else if (conversationSession.isActive()) {
-                ConversationSnapshot conversationSnapshot = conversationSession.getSnapshot().orElseThrow(() ->
-                        new IllegalStateException("Active conversation has no snapshot"));
-                ContextContinuationRequest continuationRequest = new ContextContinuationRequest(conversationSnapshot, text);
-                ContextContinuationDecision continuationDecision = contextContinuationClassifier.classify(continuationRequest);
-                System.out.println("CONTEXT AI -> " + continuationDecision);
-                activationResult = continuationDecision == ContextContinuationDecision.CONTINUE ?
-                        new ActivationResult(true, ActivationType.CONTEXTUAL, text) : ActivationResult.none();
+            ActivationResult explicitActivation = activationDetector.detect(result);
+            if (explicitActivation.isActivated()) {
+                activationResult = explicitActivation;
             }
             else {
-                activationResult = ActivationResult.none();
+                UtteranceClassificationRequest request = buildClassificationRequest(text);
+                UtteranceDecision decision = utteranceClassifier.classify(request);
+                System.out.println("UTTERANCE AI -> " + decision);
+                activationResult = mapDecision(decision, text);
             }
             if (!activationResult.isActivated()) {
                 System.out.println("Activation ignored");
                 return;
             }
-            AssistantExecutionResult executionResult = assistantPipeline.process(activationResult);
+            AssistantExecutionResult executionResult;
+            if (activationResult.getType() == ActivationType.CONTEXTUAL) {
+                Capability owner = conversationSession.getOwner().orElseThrow(() -> new IllegalStateException("Contextual activation without context owner"));
+                executionResult = assistantPipeline.processFollowUp(activationResult, owner);
+            }
+            else {
+                executionResult = assistantPipeline.process(activationResult);
+            }
             AssistantResult response = executionResult.getResponse();
             System.out.println("ASSISTANT: " + response.getText());
             audioPipeline.speak(response.getText());
-            applyConversationPolicy(executionResult.getConversationPolicy(), activationResult.getCommand(),
+            applyConversationPolicy(executionResult, activationResult.getCommand(),
                     response.getText());
         }
         catch (Exception e) {
@@ -142,15 +140,36 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
         }
     }
 
-    private void applyConversationPolicy(ConversationPolicy conversationPolicy, String userText, String assistantText) {
-        switch (conversationPolicy) {
+    private void applyConversationPolicy(AssistantExecutionResult executionResult, String userText, String assistantText) {
+        switch (executionResult.getConversationPolicy()) {
             case KEEP_OPEN -> {
-                ConversationSnapshot conversationSnapshot = new ConversationSnapshot(userText, assistantText);
+                ConversationSnapshot conversationSnapshot = new ConversationSnapshot(executionResult.getCapability(),
+                        userText, assistantText);
                 boolean wasActive = conversationSession.isActive();
                 conversationSession.openOrRefresh(conversationSnapshot);
                 System.out.println("CONVERSATION POLICY: -> " + (wasActive ? "CONVERSATION -> REFRESHED" : "CONVERSATION -> OPENED"));
             }
             case PRESERVE -> System.out.println("PRESERVE. Nothing to do");
         }
+    }
+
+    private UtteranceClassificationRequest buildClassificationRequest(String text) {
+        return conversationSession.getSnapshot().map(snapshot ->
+                UtteranceClassificationRequest.withContext(text, snapshot)).orElseGet(() ->
+                UtteranceClassificationRequest.withoutContext(text));
+    }
+
+    private ActivationResult mapDecision(UtteranceDecision utteranceDecision, String text) {
+        return switch(utteranceDecision) {
+            case NEW_REQUEST -> new ActivationResult(true, ActivationType.SEMANTIC_INTENT, text);
+            case FOLLOW_UP -> {
+                if (conversationSession.getOwner().isEmpty()) {
+                    System.out.println("FOLLOW_UP rejected: no active context owner");
+                    yield ActivationResult.none();
+                }
+                yield new ActivationResult(true, ActivationType.CONTEXTUAL, text);
+            }
+            case OTHER -> ActivationResult.none();
+        };
     }
 }

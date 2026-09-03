@@ -1,5 +1,6 @@
 package com.fuad.assistant;
 
+import com.fuad.enums.Capability;
 import com.fuad.enums.ConversationPolicy;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -9,4 +10,5 @@ import lombok.Getter;
 public class AssistantExecutionResult {
     AssistantResult response;
     ConversationPolicy conversationPolicy;
+    Capability capability;
 }

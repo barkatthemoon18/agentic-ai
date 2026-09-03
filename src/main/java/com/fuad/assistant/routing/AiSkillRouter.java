@@ -2,6 +2,7 @@ package com.fuad.assistant.routing;
 
 import com.fuad.assistant.skills.Skill;
 import com.fuad.assistant.skills.SkillRegistry;
+import com.fuad.assistant.skills.SkillRoute;
 import com.fuad.assistant.skills.SkillRouter;
 import com.fuad.enums.Capability;
 
@@ -15,9 +16,15 @@ public class AiSkillRouter implements SkillRouter {
     }
 
     @Override
-    public Skill route(String command) {
+    public SkillRoute route(String command) {
         Capability capability = semanticRouter.classify(command);
         System.out.println("CAPABILITY -> " + capability);
-        return skillRegistry.get(capability);
+        return routeTo(capability);
+    }
+
+    @Override
+    public SkillRoute routeTo(Capability capability) {
+        Skill skill = skillRegistry.get(capability);
+        return new SkillRoute(capability, skill);
     }
 }
