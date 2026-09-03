@@ -13,6 +13,7 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.11.4</junit.version>
+        <junit.excluded.tags>model-evaluation</junit.excluded.tags>
     </properties>
 
     <dependencies>
@@ -48,8 +49,20 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.2</version>
+                <configuration>
+                    <excludedGroups>${junit.excluded.tags}</excludedGroups>
+                </configuration>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>model-evaluation</id>
+            <properties>
+                <junit.excluded.tags>none</junit.excluded.tags>
+            </properties>
+        </profile>
+    </profiles>
 
 </project>
