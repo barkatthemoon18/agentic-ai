@@ -2,7 +2,6 @@ package com.fuad.assistant.routing;
 
 import com.fuad.enums.Capability;
 import com.openai.client.OpenAIClient;
-import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 
@@ -50,66 +49,74 @@ public class GraniteSemanticRouter implements SemanticRouter {
         "¿Qué día fue el 11 de septiembre de 2001?" -> general
 
 
-        ==================================================
+            ==================================================
         audio-control
         ==================================================
-
-        ÚNICAMENTE cuando el usuario pide MODIFICAR directamente
-        propiedades del audio local.
-
+        
+        Para solicitudes directas destinadas a MODIFICAR el nivel de volumen
+        o el estado de silencio de una salida de audio.
+        
         Incluye:
-
-        - subir volumen;
-        - bajar volumen;
+        
         - establecer un nivel de volumen;
+        - aumentar o reducir el volumen;
         - silenciar;
-        - quitar silencio;
-        - modificar directamente el volumen de una aplicación.
-
-        Ejemplos:
-
-        "Pon el volumen al 40%." -> audio-control
-        "Sube el volumen." -> audio-control
-        "Está demasiado fuerte, bájalo." -> audio-control
-        "Silencia el audio." -> audio-control
-        "Quita el silencio." -> audio-control
+        - quitar el silencio;
+        - modificar el volumen de la voz de Ares;
+        - modificar el volumen del sistema o de una aplicación.
+       
+        IMPORTANTE:
+        
+        Esta clasificación identifica el DOMINIO de la solicitud.
+        No determina si Ares puede ejecutar el control solicitado.
+        
+        El skill de audio decidirá posteriormente si el objetivo está soportado.
+        Por tanto, una orden sobre Windows, Spotify, TIDAL u otra aplicación
+        sigue siendo audio-control, aunque actualmente Ares sólo pueda modificar
+        su propia voz.
+        
+        Ejemplos sobre la voz de Ares:
+        
+        "Pon tu volumen al 40%." -> audio-control
+        "Sube tu volumen." -> audio-control
+        "Habla más fuerte." -> audio-control
+        "Habla más bajo." -> audio-control
+        "Baja un poco tu voz." -> audio-control
+        "Silencia tu voz." -> audio-control
+        "Vuelve a hablar." -> audio-control
+        "Quita tu silencio." -> audio-control
+        
+        Ejemplos con un objetivo no soportado actualmente:
+        
+        "Baja el volumen de Windows." -> audio-control
+        "Silencia el sistema." -> audio-control
         "Baja el volumen de Spotify." -> audio-control
         "Silencia Spotify." -> audio-control
-
+        
         IMPORTANTE:
-
-        audio-control se refiere a PROPIEDADES DE AUDIO.
-
-        Abrir, cerrar, iniciar, terminar, reiniciar o cambiar el estado
-        de ejecución de una aplicación NO es audio-control.
-
-        El hecho de que una aplicación reproduzca audio NO cambia esta regla.
-
-        Spotify, TIDAL, VLC, YouTube Music u otras aplicaciones multimedia
-        siguen siendo aplicaciones locales cuando el usuario pide abrirlas,
-        cerrarlas, iniciarlas o terminarlas.
-
-        Ejemplos:
-
-        "Abre Spotify." -> os-command
+        
+        Modificar el volumen o el silencio de una aplicación es audio-control.
+        Modificar el ciclo de vida de una aplicación es os-command.
+        
+        "Silencia Spotify." -> audio-control
         "Cierra Spotify." -> os-command
-        "Termina Spotify." -> os-command
-        "Reinicia Spotify." -> os-command
-        "Abre TIDAL." -> os-command
-        "Cierra VLC." -> os-command
-
-        IMPORTANTE:
-
-        Hablar SOBRE un problema de audio NO es audio-control
-        si el usuario no está solicitando modificar directamente el audio.
-
-        Ejemplos:
-
+        
+        Hablar SOBRE el audio no es audio-control cuando el usuario no solicita
+        una modificación directa.
+        
         "¿Por qué Windows me baja solo el volumen?" -> general
         "¿Por qué no se escucha mi micrófono?" -> general
         "¿Cómo funciona el volumen de Windows?" -> general
         "Spotify no tiene sonido." -> general
         "¿Por qué Spotify no tiene sonido?" -> general
+        "La voz de Ares está demasiado baja." -> general
+        
+        Las solicitudes sobre propiedades distintas del volumen o del silencio
+        no pertenecen actualmente a audio-control.
+        
+        "Habla más lento." -> general
+        "Cambia tu voz." -> general
+        "¿Cómo generas tu voz?" -> general
 
 
         ==================================================
@@ -289,8 +296,8 @@ public class GraniteSemanticRouter implements SemanticRouter {
            una aplicación o proceso local
            -> os-command.
 
-        3. Modificar volumen, mute, unmute u otra propiedad
-           directa del audio
+        3. Establecer, aumentar o reducir el volumen, silenciar
+           o quitar el silencio de Ares, del sistema o de una aplicación
            -> audio-control.
 
         4. Consultar información específica del equipo local,
@@ -305,9 +312,9 @@ public class GraniteSemanticRouter implements SemanticRouter {
            -> general.
 
         En caso de ambigüedad entre audio-control y os-command:
-
-        - si modifica el AUDIO -> audio-control;
-        - si modifica el ESTADO DE UNA APLICACIÓN -> os-command.
+        
+        - si modifica volumen o silencio -> audio-control;
+        - si abre, cierra, inicia, termina o reinicia una aplicación -> os-command.
 
         En caso de ambigüedad entre os-command y current-research:
 
@@ -336,9 +343,8 @@ public class GraniteSemanticRouter implements SemanticRouter {
                 .maxCompletionTokens(8)
                 .build();
         ChatCompletion completion = client.chat().completions().create(params);
-        String result = completion.choices().getFirst().message().content().orElseThrow(() -> new IllegalStateException(
-                "Granite returned no classification"
-        )).trim();
+        String result = completion.choices().getFirst().message().content().orElseThrow(() ->
+                new IllegalStateException("Granite returned no classification")).trim();
         return Capability.fromValue(result);
     }
 }

@@ -18,6 +18,9 @@ import com.fuad.assistant.skills.SkillRegistry;
 import com.fuad.assistant.skills.SkillRouter;
 import com.fuad.assistant.skills.SystemTimeSkill;
 import com.fuad.assistant.skills.UnsupportedSkill;
+import com.fuad.assistant.skills.audio.AudioControlParser;
+import com.fuad.assistant.skills.audio.AudioControlSkill;
+import com.fuad.assistant.skills.audio.GraniteAudioControlParser;
 import com.fuad.assistant.skills.os.ApplicationController;
 import com.fuad.assistant.skills.os.ApplicationDefinition;
 import com.fuad.assistant.skills.os.ApplicationRegistry;
@@ -67,6 +70,8 @@ public class Main {
                 .apiKey("lm-studio")
                 .build();
         final OsCommandParser osCommandParser = new GraniteOsCommandParser(localAiClient);
+        final AudioControlParser audioControlParser = new GraniteAudioControlParser(localAiClient);
+        final AssistantAudioController audioController = new AssistantAudioController();
         final ApplicationDefinition spotify = new ApplicationDefinition("spotify", "Spotify",
                 List.of("cmd.exe", "/c", "start", "", "spotify:"), "Spotify.exe");
         final ApplicationRegistry applicationRegistry = new ApplicationRegistry(Map.of("spotify", spotify));
@@ -81,10 +86,11 @@ public class Main {
         SemanticRouter semanticRouter = new GraniteSemanticRouter(localAiClient);
         SystemTimeSkill systemTimeSkill = new SystemTimeSkill();
         GeneralSkill generalSkill = new GeneralSkill(assistantEngine);
+        AudioControlSkill audioControlSkill = new AudioControlSkill(audioControlParser, audioController);
         SkillRegistry skillRegistry = new SkillRegistry(Map.of(
                 Capability.SYSTEM_TIME, systemTimeSkill,
                 Capability.GENERAL, generalSkill,
-                Capability.AUDIO_CONTROL, new UnsupportedSkill(Capability.AUDIO_CONTROL),
+                Capability.AUDIO_CONTROL, audioControlSkill,
                 Capability.OS_COMMAND, osCommandSkill,
                 Capability.CURRENT_RESEARCH, new UnsupportedSkill(Capability.CURRENT_RESEARCH)));
         SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);
@@ -96,18 +102,6 @@ public class Main {
         ActivationDetector activationDetector = new RuleBasedActivationDetector(
                 wakeWordMatcher, wakeClassifier, AppConfig.intentPhrases);
         final SileroVadEngine vad = new SileroVadEngine(AppConfig.SILERO_MODEL_PATH, AppConfig.VAD_THRESHOLD);
-        AssistantAudioController controller = new AssistantAudioController();
-
-        System.out.println(controller.getGain());
-        controller.setVolume(50);
-        System.out.println(controller.getGain());
-        controller.decreaseVolume();
-        System.out.println(controller.getGain());
-        controller.mute();
-        System.out.println(controller.getGain());
-        controller.unmute();
-        System.out.println(controller.getGain());
-
         try {
             client.start();
             piperClient.start();
@@ -125,11 +119,8 @@ public class Main {
                     .findFirst()
                     .orElseThrow();
 
-            AudioPipeline audioPipeline = new AudioPipeline(tts, playbackService, deviceOutFocusrite, controller);
-            controller.setVolume(100);
-            audioPipeline.speak("Prueba al 100");
-            controller.setVolume(50);
-            audioPipeline.speak("Prueba al 20");
+            AudioPipeline audioPipeline = new AudioPipeline(
+                    tts, playbackService, deviceOutFocusrite, audioController);
 
             speechProcessor = new SpeechProcessingService(stt, assistantPipeline, activationDetector,
                     new ConversationSession(), audioPipeline, speechSegmentValidator, utteranceClassifier);

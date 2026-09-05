@@ -2,5 +2,7 @@ package com.fuad.enums;
 
 public enum AudioScope {
     ASSISTANT,
-    SYSTEM
+    SYSTEM,
+    APPLICATION,
+    UNKNOWN
 }
