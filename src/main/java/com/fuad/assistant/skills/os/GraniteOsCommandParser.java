@@ -1,14 +1,18 @@
 package com.fuad.assistant.skills.os;
 
+import com.fuad.config.AppConfig;
 import com.fuad.enums.OsAction;
+import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 
-import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
 
 public class GraniteOsCommandParser implements OsCommandParser {
-    private static final String MODEL = "granite-router";
+    private static final Set<String> LABELS = Set.of(
+            "open_application|spotify", "close_application|spotify", "unsupported|unknown");
     private static final String SYSTEM_PROMPT = """
         You are a restricted OS command intent parser.
         The user speaks Spanish.
@@ -82,23 +86,30 @@ public class GraniteOsCommandParser implements OsCommandParser {
         Return only one allowed value.
         """;
     private final OpenAIClient client;
+    private final String model;
 
     public GraniteOsCommandParser(OpenAIClient client) {
-        this.client = client;
+        this(client, AppConfig.LOCAL_MODEL_ID);
+    }
+
+    public GraniteOsCommandParser(OpenAIClient client, String model) {
+        this.client = Objects.requireNonNull(client, "client cannot be null");
+        this.model = LocalModelOutput.requireModelId(model);
     }
 
     @Override
     public OsCommandIntent parse(String command) {
         ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-                .model(MODEL)
+                .model(model)
                 .addSystemMessage(SYSTEM_PROMPT)
                 .addUserMessage(command)
                 .temperature(0.0)
                 .maxCompletionTokens(8)
                 .build();
         ChatCompletion completion = client.chat().completions().create(params);
-        String result = completion.choices().getFirst().message().content().orElseThrow(() ->
-                new IllegalStateException("Granite returned no OS command classification")).trim().toLowerCase(Locale.ROOT);
+        String output = completion.choices().getFirst().message().content().orElseThrow(() ->
+                new IllegalStateException("Local model returned no OS command classification"));
+        String result = LocalModelOutput.extractLeadingLabel(output, LABELS, "OS command classification");
         return switch (result) {
             case "open_application|spotify" -> new OsCommandIntent(OsAction.OPEN_APPLICATION, "spotify");
             case "close_application|spotify" -> new OsCommandIntent(OsAction.CLOSE_APPLICATION, "spotify");

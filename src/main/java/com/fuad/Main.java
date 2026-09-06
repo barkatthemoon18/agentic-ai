@@ -11,6 +11,7 @@ import com.fuad.assistant.AssistantEngine;
 import com.fuad.assistant.GptAssistantEngine;
 import com.fuad.assistant.routing.AiSkillRouter;
 import com.fuad.assistant.routing.GraniteSemanticRouter;
+import com.fuad.assistant.routing.GuardedSemanticRouter;
 import com.fuad.assistant.routing.SemanticRouter;
 import com.fuad.assistant.session.ConversationSession;
 import com.fuad.assistant.skills.GeneralSkill;
@@ -67,8 +68,8 @@ public class Main {
         final TtsEngine tts = new PiperTtsEngine(piperClient);
         final SpeechSegmentValidator speechSegmentValidator = new BasicSpeechSegmentValidator(300, 0.008, 0.02);
         final OpenAIClient localAiClient = OpenAIOkHttpClient.builder()
-                .baseUrl("http://localhost:1234/v1")
-                .apiKey("lm-studio")
+                .baseUrl(AppConfig.LOCAL_AI_BASE_URL)
+                .apiKey(AppConfig.LOCAL_AI_API_KEY)
                 .build();
         final OsCommandParser osCommandParser = new GraniteOsCommandParser(localAiClient);
         final AudioControlParser audioControlParser = new GraniteAudioControlParser(localAiClient);
@@ -87,7 +88,7 @@ public class Main {
 
         OpenAIClient openAiClient = OpenAIOkHttpClient.fromEnv();
         AssistantEngine assistantEngine = new GptAssistantEngine(openAiClient);
-        SemanticRouter semanticRouter = new GraniteSemanticRouter(localAiClient);
+        SemanticRouter semanticRouter = new GuardedSemanticRouter(new GraniteSemanticRouter(localAiClient));
         SystemTimeSkill systemTimeSkill = new SystemTimeSkill();
         GeneralSkill generalSkill = new GeneralSkill(assistantEngine);
         AudioControlSkill audioControlSkill = new AudioControlSkill(audioControlParser, audioController);
