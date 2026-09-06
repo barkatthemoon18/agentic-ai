@@ -16,6 +16,7 @@ public class AppConfig {
     public static final List<String> wakeWords = List.of("Ares", "oye ares");
     public static final List<String> intentPhrases = List.of("puedes revisar", "necesito que", "ayúdame con",
             "podrías buscar", "puedes buscar");
+    public static final int TEXT_UI_VOLUME_THRESHOLD = 20;
 
     private AppConfig() {
         /* Empty intentionally */

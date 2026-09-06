@@ -12,37 +12,38 @@ import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.*;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
+import com.fuad.presentation.AssistantOutputCoordinator;
 import com.fuad.speech.validation.SpeechSegmentValidator;
 import com.fuad.speech.validation.SpeechValidationResult;
 import com.fuad.stt.SttEngine;
 import com.fuad.stt.TranscriptionResult;
+import lombok.AllArgsConstructor;
+import lombok.NonNull;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+@AllArgsConstructor
 public class SpeechProcessingService implements SpeechSegmentListener, AutoCloseable {
+    @NonNull
     private final SttEngine sttEngine;
+    @NonNull
     private final AssistantPipeline assistantPipeline;
+    @NonNull
     private final ActivationDetector activationDetector;
+    @NonNull
     private final ConversationSession conversationSession;
+    @NonNull
     private final AudioPipeline audioPipeline;
+    @NonNull
     private final SpeechSegmentValidator speechValidator;
+    @NonNull
     private final UtteranceClassifier utteranceClassifier;
+    @NonNull
+    private final AssistantOutputCoordinator assistantOutputCoordinator;
+    @NonNull
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
-
-    public SpeechProcessingService(SttEngine sttEngine, AssistantPipeline assistantPipeline,
-                                   ActivationDetector activationDetector, ConversationSession session,
-                                   AudioPipeline audioPipeline, SpeechSegmentValidator speechValidator,
-                                   UtteranceClassifier utteranceClassifier) {
-        this.sttEngine = sttEngine;
-        this.assistantPipeline = assistantPipeline;
-        this.activationDetector = activationDetector;
-        this.conversationSession = session;
-        this.audioPipeline = audioPipeline;
-        this.speechValidator = speechValidator;
-        this.utteranceClassifier = utteranceClassifier;
-    }
 
     @Override
     public void onSpeechSegment(SpeechSegment segment) {
@@ -94,7 +95,8 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             if (conversationControl == ConversationControl.CLOSE) {
                 System.out.println("CONVERSATION -> FORCE CLOSE");
                 conversationSession.close();
-                audioPipeline.speak("Conversación terminada");
+                assistantOutputCoordinator.present("Conversación terminada");
+                // audioPipeline.speak("Conversación terminada");
                 return;
             }
             if (conversationSession.hasExpired()) {
@@ -126,7 +128,8 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             }
             AssistantResult response = executionResult.getResponse();
             System.out.println("ASSISTANT: " + response.getText());
-            audioPipeline.speak(response.getText());
+            // audioPipeline.speak(response.getText());
+            assistantOutputCoordinator.present(response.getText());
             applyConversationPolicy(executionResult, activationResult.getCommand(),
                     response.getText());
         }

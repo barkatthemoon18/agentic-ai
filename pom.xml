@@ -14,6 +14,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.11.4</junit.version>
         <junit.excluded.tags>model-evaluation</junit.excluded.tags>
+        <javafx.version>21.0.10</javafx.version>
     </properties>
 
     <dependencies>
@@ -41,6 +42,11 @@
             <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -51,6 +57,14 @@
                 <version>3.5.2</version>
                 <configuration>
                     <excludedGroups>${junit.excluded.tags}</excludedGroups>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.8</version>
+                <configuration>
+                    <mainClass>com.fuad.Main</mainClass>
                 </configuration>
             </plugin>
         </plugins>

@@ -67,7 +67,11 @@ public class AssistantAudioController {
     }
 
     public synchronized float getGain() {
-        return muted ? 0.0f : volume / 100.0f;
+        return getSnapshot().getGain();
+    }
+
+    public synchronized AssistantAudioSnapshot getSnapshot() {
+        return new AssistantAudioSnapshot(volume, muted);
     }
 
     private void requirePositiveStep(int step) {

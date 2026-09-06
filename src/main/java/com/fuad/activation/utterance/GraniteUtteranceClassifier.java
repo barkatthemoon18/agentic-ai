@@ -124,13 +124,20 @@ public class GraniteUtteranceClassifier implements UtteranceClassifier {
             other
             """;
     private final OpenAIClient openAIClient;
+    private final UtteranceShapeDetector shapeDetector;
 
     public GraniteUtteranceClassifier(OpenAIClient openAIClient) {
         this.openAIClient = openAIClient;
+        this.shapeDetector = new UtteranceShapeDetector();
     }
 
     @Override
     public UtteranceDecision classify(UtteranceClassificationRequest request) {
+        UtteranceDecision deterministicDecision = shapeDetector.classify(request).orElse(null);
+        if (deterministicDecision != null) {
+            return deterministicDecision;
+        }
+
         ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
                 .model(MODEL)
                 .addSystemMessage(SYSTEM_PROMPT)
@@ -141,12 +148,15 @@ public class GraniteUtteranceClassifier implements UtteranceClassifier {
         ChatCompletion completion = openAIClient.chat().completions().create(params);
         String result = completion.choices().getFirst().message().content().orElseThrow(() ->
                 new IllegalStateException("Granite returned no utterance")).trim().toLowerCase(Locale.ROOT);
-        return switch (result) {
+        UtteranceDecision decision = switch (result) {
             case "new_request" -> UtteranceDecision.NEW_REQUEST;
             case "follow_up" -> UtteranceDecision.FOLLOW_UP;
             case "other"  -> UtteranceDecision.OTHER;
             default -> throw new IllegalStateException("Unknown utterance classification: " + result);
         };
+        return decision == UtteranceDecision.FOLLOW_UP && request.getPreviousTurn().isEmpty()
+                ? UtteranceDecision.OTHER
+                : decision;
     }
 
     private String buildInput(UtteranceClassificationRequest request) {

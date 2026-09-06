@@ -18,6 +18,10 @@ import com.fuad.enums.ConversationPolicy;
 import com.fuad.enums.UtteranceDecision;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
+import com.fuad.presentation.AssistantOutputCoordinator;
+import com.fuad.presentation.OutputPresentationPolicy;
+import com.fuad.presentation.VisualMessage;
+import com.fuad.presentation.VisualOutput;
 import com.fuad.speech.validation.SpeechSegmentValidator;
 import com.fuad.speech.validation.SpeechValidationResult;
 import com.fuad.stt.SttEngine;
@@ -87,7 +91,7 @@ class SpeechProcessingServiceTest {
                 audio, valid(true), request -> {
                     utteranceClassifierCalled.set(true);
                     return UtteranceDecision.OTHER;
-                })) {
+                }, outputCoordinator(audio))) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -116,7 +120,7 @@ class SpeechProcessingServiceTest {
                     classifications.incrementAndGet();
                     requestSeen.set(request);
                     return UtteranceDecision.NEW_REQUEST;
-                })) {
+                }, outputCoordinator(audio))) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -145,7 +149,7 @@ class SpeechProcessingServiceTest {
                 audio, valid(true), request -> {
                     requestSeen.set(request);
                     return UtteranceDecision.NEW_REQUEST;
-                })) {
+                }, outputCoordinator(audio))) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -168,7 +172,8 @@ class SpeechProcessingServiceTest {
 
         try (SpeechProcessingService service = new SpeechProcessingService(
                 stt(ignored -> transcription("Y por que?")), assistant, ignored -> ActivationResult.none(),
-                new ConversationSession(), audio, valid(true), request -> UtteranceDecision.FOLLOW_UP)) {
+                new ConversationSession(), audio, valid(true), request -> UtteranceDecision.FOLLOW_UP,
+                outputCoordinator(audio))) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -188,7 +193,7 @@ class SpeechProcessingServiceTest {
         try (SpeechProcessingService service = new SpeechProcessingService(
                 stt(ignored -> transcription("abre Spotify")), assistant,
                 ignored -> new ActivationResult(true, ActivationType.SEMANTIC_INTENT, "abre Spotify"), session,
-                audio, valid(true), request -> UtteranceDecision.OTHER)) {
+                audio, valid(true), request -> UtteranceDecision.OTHER, outputCoordinator(audio))) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -214,7 +219,7 @@ class SpeechProcessingServiceTest {
         try (SpeechProcessingService service = new SpeechProcessingService(
                 stt(ignored -> transcription("abre Spotify")), assistant,
                 ignored -> new ActivationResult(true, ActivationType.SEMANTIC_INTENT, "abre Spotify"), session,
-                audio, valid(true), request -> UtteranceDecision.OTHER)) {
+                audio, valid(true), request -> UtteranceDecision.OTHER, outputCoordinator(audio))) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -242,7 +247,7 @@ class SpeechProcessingServiceTest {
         try (SpeechProcessingService service = new SpeechProcessingService(
                 stt(ignored -> transcription("explica RSA")), assistant,
                 ignored -> new ActivationResult(true, ActivationType.SEMANTIC_INTENT, "explica RSA"), session,
-                audio, valid(true), request -> UtteranceDecision.OTHER)) {
+                audio, valid(true), request -> UtteranceDecision.OTHER, outputCoordinator(audio))) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -266,7 +271,7 @@ class SpeechProcessingServiceTest {
         try (SpeechProcessingService service = new SpeechProcessingService(
                 stt(ignored -> transcription("explica RSA")), assistant,
                 ignored -> new ActivationResult(true, ActivationType.SEMANTIC_INTENT, "explica RSA"), session,
-                audio, valid(true), request -> UtteranceDecision.OTHER)) {
+                audio, valid(true), request -> UtteranceDecision.OTHER, outputCoordinator(audio))) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -314,7 +319,7 @@ class SpeechProcessingServiceTest {
                 audio, valid(true), request -> {
                     contextRequest.set(request);
                     return UtteranceDecision.FOLLOW_UP;
-                })) {
+                }, outputCoordinator(audio))) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -361,7 +366,7 @@ class SpeechProcessingServiceTest {
         try (SpeechProcessingService service = new SpeechProcessingService(
                 stt(ignored -> transcription("Y para que sirve?")), assistant,
                 ignored -> ActivationResult.none(), session, audio, valid(true),
-                request -> UtteranceDecision.FOLLOW_UP)) {
+                request -> UtteranceDecision.FOLLOW_UP, outputCoordinator(audio))) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -403,7 +408,7 @@ class SpeechProcessingServiceTest {
         try (SpeechProcessingService service = new SpeechProcessingService(
                 stt(ignored -> transcription("Explica AES")), assistant,
                 ignored -> ActivationResult.none(), session, audio, valid(true),
-                request -> UtteranceDecision.NEW_REQUEST)) {
+                request -> UtteranceDecision.NEW_REQUEST, outputCoordinator(audio))) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -433,7 +438,7 @@ class SpeechProcessingServiceTest {
                 ignored -> ActivationResult.none(), session, audio, valid(true), request -> {
                     contextRequest.set(request);
                     return UtteranceDecision.OTHER;
-                })) {
+                }, outputCoordinator(audio))) {
             service.onSpeechSegment(segment);
             assertTrue(audio.awaitFinished());
         }
@@ -506,7 +511,18 @@ class SpeechProcessingServiceTest {
         AssistantPipeline assistant = new AssistantPipeline(
                 staticRouter(Capability.GENERAL, cmd -> new AssistantResult("ok")));
         return new SpeechProcessingService(stt, assistant, activationDetector, session, audio, validator,
-                utteranceClassifier);
+                utteranceClassifier, outputCoordinator(audio));
+    }
+
+    private AssistantOutputCoordinator outputCoordinator(TrackingAudioPipeline audio) {
+        return new AssistantOutputCoordinator(
+                audio.audioController,
+                new OutputPresentationPolicy(20),
+                audio,
+                new VisualOutput() {
+                    @Override public void show(VisualMessage visualMessage) { }
+                    @Override public void hide() { }
+                });
     }
 
     private SttEngine stt(java.util.function.Function<SpeechSegment, TranscriptionResult> function) {
@@ -593,16 +609,22 @@ class SpeechProcessingServiceTest {
     }
 
     private static final class TrackingAudioPipeline extends AudioPipeline {
+        private final AssistantAudioController audioController;
         private final CountDownLatch finished = new CountDownLatch(1);
         private final AtomicInteger finishCount = new AtomicInteger();
         private final AtomicReference<String> spokenText = new AtomicReference<>();
         private boolean beginResult = true;
 
         private TrackingAudioPipeline() {
+            this(new AssistantAudioController());
+        }
+
+        private TrackingAudioPipeline(AssistantAudioController audioController) {
             super(new TtsEngine() {
                 @Override public TtsAudio synthesize(String text) { return new TtsAudio(new float[0], 16_000); }
                 @Override public void close() { }
-            }, new AudioPlaybackService(), null, new AssistantAudioController());
+            }, new AudioPlaybackService(), null, audioController);
+            this.audioController = audioController;
         }
 
         @Override public synchronized boolean beginProcessing() { return beginResult; }

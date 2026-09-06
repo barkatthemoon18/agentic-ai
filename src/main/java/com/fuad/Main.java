@@ -39,6 +39,7 @@ import com.fuad.enums.Capability;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.pipeline.VoicePipeline;
+import com.fuad.presentation.*;
 import com.fuad.speech.SpeechBuffer;
 import com.fuad.speech.SpeechProcessingService;
 import com.fuad.speech.validation.BasicSpeechSegmentValidator;
@@ -80,6 +81,9 @@ public class Main {
         OsCommandSkill osCommandSkill = new OsCommandSkill(
                 osCommandParser, applicationRegistry, applicationController, safetyGuard);
         SpeechProcessingService speechProcessor = null;
+        OutputPresentationPolicy presentationPolicy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
+        VisualOutput visualOutput = createVisualOutput();
+        AssistantOutputCoordinator outputCoordinator = null;
 
         OpenAIClient openAiClient = OpenAIOkHttpClient.fromEnv();
         AssistantEngine assistantEngine = new GptAssistantEngine(openAiClient);
@@ -121,9 +125,11 @@ public class Main {
 
             AudioPipeline audioPipeline = new AudioPipeline(
                     tts, playbackService, deviceOutFocusrite, audioController);
+            outputCoordinator = new AssistantOutputCoordinator(audioController,
+                    presentationPolicy, audioPipeline, visualOutput);
 
             speechProcessor = new SpeechProcessingService(stt, assistantPipeline, activationDetector,
-                    new ConversationSession(), audioPipeline, speechSegmentValidator, utteranceClassifier);
+                    new ConversationSession(), audioPipeline, speechSegmentValidator, utteranceClassifier, outputCoordinator);
             VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline);
 
             captureService.start(deviceFocusrite, pipeline::process);
@@ -143,6 +149,9 @@ public class Main {
             }
             try {
                 tts.close();
+                if (outputCoordinator != null) {
+                    outputCoordinator.close();
+                }
             }
             catch (Exception e) {
                 System.out.println("Unable to close TTS: " + e.getMessage());
@@ -151,5 +160,15 @@ public class Main {
             stt.close();
             vad.close();
         }
+    }
+
+    private static VisualOutput createVisualOutput() {
+        try {
+            return new JavaFxVisualOutput();
+        }
+        catch (Exception e) {
+            System.err.println("Unable to initialize JavaFX visual output: " + e.getMessage());
+        }
+        return new ConsoleVisualOutput();
     }
 }
