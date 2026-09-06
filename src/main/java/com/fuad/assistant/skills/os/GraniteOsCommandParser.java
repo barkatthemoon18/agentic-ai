@@ -1,14 +1,15 @@
 package com.fuad.assistant.skills.os;
 
+import com.fuad.config.AppConfig;
 import com.fuad.enums.OsAction;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 
 import java.util.Locale;
+import java.util.Objects;
 
 public class GraniteOsCommandParser implements OsCommandParser {
-    private static final String MODEL = "granite-router";
     private static final String SYSTEM_PROMPT = """
         You are a restricted OS command intent parser.
         The user speaks Spanish.
@@ -82,15 +83,21 @@ public class GraniteOsCommandParser implements OsCommandParser {
         Return only one allowed value.
         """;
     private final OpenAIClient client;
+    private final String model;
 
     public GraniteOsCommandParser(OpenAIClient client) {
-        this.client = client;
+        this(client, AppConfig.LOCAL_MODEL_ID);
+    }
+
+    public GraniteOsCommandParser(OpenAIClient client, String model) {
+        this.client = Objects.requireNonNull(client, "client cannot be null");
+        this.model = requireModel(model);
     }
 
     @Override
     public OsCommandIntent parse(String command) {
         ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-                .model(MODEL)
+                .model(model)
                 .addSystemMessage(SYSTEM_PROMPT)
                 .addUserMessage(command)
                 .temperature(0.0)
@@ -98,12 +105,31 @@ public class GraniteOsCommandParser implements OsCommandParser {
                 .build();
         ChatCompletion completion = client.chat().completions().create(params);
         String result = completion.choices().getFirst().message().content().orElseThrow(() ->
-                new IllegalStateException("Granite returned no OS command classification")).trim().toLowerCase(Locale.ROOT);
+                new IllegalStateException("Local model returned no OS command classification"));
+        result = normalizeClassification(result);
         return switch (result) {
             case "open_application|spotify" -> new OsCommandIntent(OsAction.OPEN_APPLICATION, "spotify");
             case "close_application|spotify" -> new OsCommandIntent(OsAction.CLOSE_APPLICATION, "spotify");
             case "unsupported|unknown" -> OsCommandIntent.unsupported();
             default -> throw new IllegalStateException("Unknown OS command classification: " + result);
         };
+    }
+
+    private String normalizeClassification(String value) {
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if (normalized.length() >= 2
+                && ((normalized.startsWith("\"") && normalized.endsWith("\""))
+                || (normalized.startsWith("'") && normalized.endsWith("'")))) {
+            return normalized.substring(1, normalized.length() - 1).trim();
+        }
+        return normalized;
+    }
+
+    private String requireModel(String value) {
+        String normalized = Objects.requireNonNull(value, "model cannot be null").trim();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("model cannot be empty");
+        }
+        return normalized;
     }
 }

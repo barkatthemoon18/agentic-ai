@@ -1,15 +1,16 @@
 package com.fuad.activation.utterance;
 
 import com.fuad.assistant.session.ConversationSnapshot;
+import com.fuad.config.AppConfig;
 import com.fuad.enums.UtteranceDecision;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 
 import java.util.Locale;
+import java.util.Objects;
 
 public class GraniteUtteranceClassifier implements UtteranceClassifier {
-    private static final String MODEL = "granite-router";
     private static final String SYSTEM_PROMPT = """
             You classify Spanish utterances for an always-listening
             voice assistant named Ares.
@@ -124,15 +125,21 @@ public class GraniteUtteranceClassifier implements UtteranceClassifier {
             other
             """;
     private final OpenAIClient openAIClient;
+    private final String model;
 
     public GraniteUtteranceClassifier(OpenAIClient openAIClient) {
-        this.openAIClient = openAIClient;
+        this(openAIClient, AppConfig.LOCAL_MODEL_ID);
+    }
+
+    public GraniteUtteranceClassifier(OpenAIClient openAIClient, String model) {
+        this.openAIClient = Objects.requireNonNull(openAIClient, "openAIClient cannot be null");
+        this.model = requireModel(model);
     }
 
     @Override
     public UtteranceDecision classify(UtteranceClassificationRequest request) {
         ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-                .model(MODEL)
+                .model(model)
                 .addSystemMessage(SYSTEM_PROMPT)
                 .addUserMessage(buildInput(request))
                 .temperature(0.0)
@@ -140,13 +147,17 @@ public class GraniteUtteranceClassifier implements UtteranceClassifier {
                 .build();
         ChatCompletion completion = openAIClient.chat().completions().create(params);
         String result = completion.choices().getFirst().message().content().orElseThrow(() ->
-                new IllegalStateException("Granite returned no utterance")).trim().toLowerCase(Locale.ROOT);
-        return switch (result) {
+                new IllegalStateException("Local model returned no utterance classification"));
+        result = normalizeClassification(result);
+        UtteranceDecision decision = switch (result) {
             case "new_request" -> UtteranceDecision.NEW_REQUEST;
             case "follow_up" -> UtteranceDecision.FOLLOW_UP;
             case "other"  -> UtteranceDecision.OTHER;
             default -> throw new IllegalStateException("Unknown utterance classification: " + result);
         };
+        return decision == UtteranceDecision.FOLLOW_UP && request.getPreviousTurn().isEmpty()
+                ? UtteranceDecision.OTHER
+                : decision;
     }
 
     private String buildInput(UtteranceClassificationRequest request) {
@@ -182,5 +193,23 @@ public class GraniteUtteranceClassifier implements UtteranceClassifier {
                 %s
                 </current_utterance>
                 """.formatted(text);
+    }
+
+    private String requireModel(String value) {
+        String normalized = Objects.requireNonNull(value, "model cannot be null").trim();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("model cannot be empty");
+        }
+        return normalized;
+    }
+
+    private String normalizeClassification(String value) {
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if (normalized.length() >= 2
+                && ((normalized.startsWith("\"") && normalized.endsWith("\""))
+                || (normalized.startsWith("'") && normalized.endsWith("'")))) {
+            return normalized.substring(1, normalized.length() - 1).trim();
+        }
+        return normalized;
     }
 }

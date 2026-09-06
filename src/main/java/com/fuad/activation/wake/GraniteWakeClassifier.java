@@ -1,14 +1,15 @@
 package com.fuad.activation.wake;
 
+import com.fuad.config.AppConfig;
 import com.fuad.enums.WakeResolution;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 
 import java.util.Locale;
+import java.util.Objects;
 
 public class GraniteWakeClassifier implements WakeClassifier {
-    private static final String MODEL = "granite-router";
     private static final String SYSTEM_PROMPT = """
         You classify ambiguous voice-assistant activations for an assistant named Ares.
 
@@ -71,9 +72,15 @@ public class GraniteWakeClassifier implements WakeClassifier {
         Return only: wake, intent, or none.
         """;
     private final OpenAIClient client;
+    private final String model;
 
     public GraniteWakeClassifier(OpenAIClient client) {
-        this.client = client;
+        this(client, AppConfig.LOCAL_MODEL_ID);
+    }
+
+    public GraniteWakeClassifier(OpenAIClient client, String model) {
+        this.client = Objects.requireNonNull(client, "client cannot be null");
+        this.model = requireModel(model);
     }
 
     @Override
@@ -83,7 +90,7 @@ public class GraniteWakeClassifier implements WakeClassifier {
                 remainder: %s
                 """.formatted(candidate, remainder);
         ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-                .model(MODEL)
+                .model(model)
                 .addSystemMessage(SYSTEM_PROMPT)
                 .addUserMessage(input)
                 .temperature(0.0)
@@ -91,12 +98,31 @@ public class GraniteWakeClassifier implements WakeClassifier {
                 .build();
         ChatCompletion completion = client.chat().completions().create(params);
         String result = completion.choices().getFirst().message().content().orElseThrow(() ->
-                new IllegalStateException("Granite returned no wake classification")).trim().toLowerCase(Locale.ROOT);
+                new IllegalStateException("Local model returned no wake classification"));
+        result = normalizeClassification(result);
         return switch (result) {
             case "wake" -> WakeResolution.WAKE;
             case "intent" -> WakeResolution.SEMANTIC_INTENT;
             case "none" -> WakeResolution.NONE;
-            default -> throw new IllegalStateException("Unknown Granite wake classification: " + result);
+            default -> throw new IllegalStateException("Unknown local-model wake classification: " + result);
         };
+    }
+
+    private String normalizeClassification(String value) {
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if (normalized.length() >= 2
+                && ((normalized.startsWith("\"") && normalized.endsWith("\""))
+                || (normalized.startsWith("'") && normalized.endsWith("'")))) {
+            return normalized.substring(1, normalized.length() - 1).trim();
+        }
+        return normalized;
+    }
+
+    private String requireModel(String value) {
+        String normalized = Objects.requireNonNull(value, "model cannot be null").trim();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("model cannot be empty");
+        }
+        return normalized;
     }
 }

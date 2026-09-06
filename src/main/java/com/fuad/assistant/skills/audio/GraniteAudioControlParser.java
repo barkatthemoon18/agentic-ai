@@ -1,6 +1,7 @@
 package com.fuad.assistant.skills.audio;
 
 import com.fuad.audio.AudioControlIntent;
+import com.fuad.config.AppConfig;
 import com.fuad.enums.AudioAction;
 import com.fuad.enums.AudioScope;
 import com.openai.client.OpenAIClient;
@@ -9,9 +10,9 @@ import com.openai.models.chat.completions.ChatCompletionCreateParams;
 
 import java.util.Locale;
 import java.util.Objects;
+import java.text.Normalizer;
 
 public class GraniteAudioControlParser implements AudioControlParser {
-    private static final String MODEL = "granite-router";
     private static final String SYSTEM_PROMPT = """
         Eres un parser restringido de controles de audio para Ares.
         El usuario habla español.
@@ -73,9 +74,15 @@ public class GraniteAudioControlParser implements AudioControlParser {
         """;
 
     private final OpenAIClient client;
+    private final String model;
 
     public GraniteAudioControlParser(OpenAIClient client) {
-        this.client = Objects.requireNonNull(client, "client");
+        this(client, AppConfig.LOCAL_MODEL_ID);
+    }
+
+    public GraniteAudioControlParser(OpenAIClient client, String model) {
+        this.client = Objects.requireNonNull(client, "client cannot be null");
+        this.model = requireModel(model);
     }
 
     @Override
@@ -83,8 +90,15 @@ public class GraniteAudioControlParser implements AudioControlParser {
         if (command == null || command.isBlank()) {
             return AudioControlIntent.unsupported(AudioScope.UNKNOWN);
         }
+        String normalizedCommand = normalizeCommand(command);
+        if (normalizedCommand.matches("^¿?(?:por que|como)\\b.*")) {
+            return AudioControlIntent.unsupported(detectScope(normalizedCommand));
+        }
+        if (normalizedCommand.matches("^.*\\b(?:mas lento|mas rapido|velocidad)\\b.*$")) {
+            return AudioControlIntent.unsupported(detectScope(normalizedCommand));
+        }
         ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-                .model(MODEL)
+                .model(model)
                 .addSystemMessage(SYSTEM_PROMPT)
                 .addUserMessage(command)
                 .temperature(0.0)
@@ -99,7 +113,13 @@ public class GraniteAudioControlParser implements AudioControlParser {
         if (classification == null) {
             return AudioControlIntent.unsupported(AudioScope.UNKNOWN);
         }
-        String[] fields = classification.trim().toLowerCase(Locale.ROOT).split("\\|", -1);
+        String normalized = classification.trim().toLowerCase(Locale.ROOT);
+        if (normalized.length() >= 2
+                && ((normalized.startsWith("\"") && normalized.endsWith("\""))
+                || (normalized.startsWith("'") && normalized.endsWith("'")))) {
+            normalized = normalized.substring(1, normalized.length() - 1).trim();
+        }
+        String[] fields = normalized.split("\\|", -1);
         if (fields.length != 3) {
             return AudioControlIntent.unsupported(AudioScope.UNKNOWN);
         }
@@ -150,5 +170,32 @@ public class GraniteAudioControlParser implements AudioControlParser {
             throw new IllegalArgumentException("Unexpected audio value");
         }
         return null;
+    }
+
+    private String requireModel(String value) {
+        String normalized = Objects.requireNonNull(value, "model cannot be null").trim();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("model cannot be empty");
+        }
+        return normalized;
+    }
+
+    private AudioScope detectScope(String command) {
+        if (command.contains("spotify") || command.contains("tidal") || command.contains("vlc")) {
+            return AudioScope.APPLICATION;
+        }
+        if (command.contains("windows") || command.contains("sistema") || command.contains("equipo")) {
+            return AudioScope.SYSTEM;
+        }
+        if (command.contains("tu voz") || command.contains("tu volumen") || command.startsWith("habla")) {
+            return AudioScope.ASSISTANT;
+        }
+        return AudioScope.UNKNOWN;
+    }
+
+    private String normalizeCommand(String command) {
+        return Normalizer.normalize(command, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
     }
 }

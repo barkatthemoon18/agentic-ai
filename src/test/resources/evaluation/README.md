@@ -65,6 +65,7 @@ Propiedades opcionales:
 
 - `evaluation.base-url`, por defecto `http://localhost:1234/v1`.
 - `evaluation.api-key`, por defecto `lm-studio`.
+- `evaluation.model`, por defecto el modelo local configurado en `AppConfig`.
 - `evaluation.minimum-cases`, por defecto `30`.
 - `evaluation.minimum-macro-f1`, por defecto `0.90`.
 - `evaluation.minimum-recall`, por defecto `0.85`.
@@ -74,3 +75,26 @@ Propiedades opcionales:
 El reporte incluye accuracy, macro-F1, precision/recall/F1 por etiqueta,
 matriz de confusión, falsas activaciones desde `OTHER`, errores del modelo,
 casos fallidos y latencias p50/p95.
+
+## Routing semántico
+
+El router puede evaluarse con sus guardas deterministas activadas:
+
+```powershell
+mvn -Pmodel-evaluation `
+    -Dtest=LocalSemanticRouterCorpusTest `
+    -Devaluation.model=granite-router test
+```
+
+Para medir el modelo sin las guardas, añade
+`-Devaluation.semantic-guarded=false`. Usa `-Devaluation.report-only=true`
+para comparar accuracy y latencias sin aplicar el umbral.
+
+Wake, parser de comandos OS y parser de audio se pueden medir juntos con:
+
+```powershell
+mvn -Pmodel-evaluation `
+    -Dtest=LocalStructuredClassifiersBenchmarkTest `
+    -Devaluation.model=granite-router `
+    -Devaluation.report-only=true test
+```

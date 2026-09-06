@@ -10,6 +10,7 @@ import com.fuad.stt.TranscriptionResult;
 
 import java.util.List;
 import java.util.Locale;
+import java.text.Normalizer;
 
 public class RuleBasedActivationDetector implements ActivationDetector {
     private final WakeWordMatcher wakeWordMatcher;
@@ -40,6 +41,10 @@ public class RuleBasedActivationDetector implements ActivationDetector {
             WakeResolution resolution = wakeClassifier.classify(wakeWordMatch.getCandidate(), wakeWordMatch.getCommand());
             System.out.println("WAKE AI -> " + resolution);
             if (resolution == WakeResolution.WAKE) {
+                if (looksLikeMisheardOpenCommand(wakeWordMatch)) {
+                    System.out.println("WAKE -> REJECTED AMBIGUOUS ACTION");
+                    return ActivationResult.none();
+                }
                 return new ActivationResult(true, ActivationType.WAKE_WORD, wakeWordMatch.getCommand());
             }
             if (resolution == WakeResolution.SEMANTIC_INTENT) {
@@ -53,5 +58,18 @@ public class RuleBasedActivationDetector implements ActivationDetector {
             }
         }
         return ActivationResult.none();
+    }
+
+    private boolean looksLikeMisheardOpenCommand(WakeWordMatch match) {
+        String candidate = normalize(match.getCandidate());
+        String command = match.getCommand().trim();
+        return candidate.matches("avr?es?|abr?es?")
+                && command.matches("(?U)[\\p{L}\\p{N}._-]+");
+    }
+
+    private String normalize(String value) {
+        return Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT);
     }
 }

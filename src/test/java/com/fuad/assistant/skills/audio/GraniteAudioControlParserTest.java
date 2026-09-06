@@ -17,6 +17,8 @@ class GraniteAudioControlParserTest {
                 "increase_volume|assistant|15");
         AudioControlIntent defaultRelative = GraniteAudioControlParser.parseClassification(
                 "decrease_volume|assistant|default");
+        AudioControlIntent quoted = GraniteAudioControlParser.parseClassification(
+                "\"mute|assistant|none\"");
 
         assertEquals(AudioAction.SET_VOLUME, absolute.getAudioAction());
         assertEquals(40, absolute.getValue());
@@ -24,6 +26,7 @@ class GraniteAudioControlParserTest {
         assertEquals(15, relative.getValue());
         assertEquals(AudioAction.DECREASE_VOLUME, defaultRelative.getAudioAction());
         assertNull(defaultRelative.getValue());
+        assertEquals(AudioAction.MUTE, quoted.getAudioAction());
     }
 
     @Test

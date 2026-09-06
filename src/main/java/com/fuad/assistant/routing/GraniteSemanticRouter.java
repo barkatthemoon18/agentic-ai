@@ -1,12 +1,19 @@
 package com.fuad.assistant.routing;
 
+import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 
+import java.util.Locale;
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 public class GraniteSemanticRouter implements SemanticRouter {
-    private static final String MODEL = "granite-router";
+    private static final Pattern ALLOWED_CLASSIFICATION = Pattern.compile(
+            "^(system-time|audio-control|os-command|current-research|general)(?:$|[\\s:;(])");
     private static final String SYSTEM_PROMPT = """
         Eres un router semántico de capacidades para un asistente llamado Ares.
 
@@ -328,15 +335,21 @@ public class GraniteSemanticRouter implements SemanticRouter {
         Devuelve únicamente el identificador de la categoría.
         """;
     private final OpenAIClient client;
+    private final String model;
 
     public GraniteSemanticRouter(OpenAIClient client) {
-        this.client = client;
+        this(client, AppConfig.LOCAL_MODEL_ID);
+    }
+
+    public GraniteSemanticRouter(OpenAIClient client, String model) {
+        this.client = Objects.requireNonNull(client, "client cannot be null");
+        this.model = requireModel(model);
     }
 
     @Override
     public Capability classify(String command) {
         ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-                .model(MODEL)
+                .model(model)
                 .addSystemMessage(SYSTEM_PROMPT)
                 .addUserMessage(command)
                 .temperature(0.0)
@@ -345,6 +358,29 @@ public class GraniteSemanticRouter implements SemanticRouter {
         ChatCompletion completion = client.chat().completions().create(params);
         String result = completion.choices().getFirst().message().content().orElseThrow(() ->
                 new IllegalStateException("Granite returned no classification")).trim();
-        return Capability.fromValue(result);
+        return parseClassification(result);
+    }
+
+    static Capability parseClassification(String result) {
+        String normalized = Objects.requireNonNull(result, "result cannot be null")
+                .trim().toLowerCase(Locale.ROOT);
+        if (normalized.length() >= 2
+                && ((normalized.startsWith("\"") && normalized.endsWith("\""))
+                || (normalized.startsWith("'") && normalized.endsWith("'")))) {
+            normalized = normalized.substring(1, normalized.length() - 1).trim();
+        }
+        Matcher matcher = ALLOWED_CLASSIFICATION.matcher(normalized);
+        if (!matcher.find()) {
+            throw new IllegalArgumentException("Unknown routing skill: " + result);
+        }
+        return Capability.fromValue(matcher.group(1));
+    }
+
+    private String requireModel(String value) {
+        String normalized = Objects.requireNonNull(value, "model cannot be null").trim();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("model cannot be empty");
+        }
+        return normalized;
     }
 }
