@@ -1,15 +1,18 @@
 package com.fuad.activation.utterance;
 
 import com.fuad.assistant.session.ConversationSnapshot;
+import com.fuad.config.AppConfig;
 import com.fuad.enums.UtteranceDecision;
+import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 
-import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
 
-public class GraniteUtteranceClassifier implements UtteranceClassifier {
-    private static final String MODEL = "granite-router";
+public class LocalUtteranceClassifier implements UtteranceClassifier {
+    private static final Set<String> LABELS = Set.of("new_request", "follow_up", "other");
     private static final String SYSTEM_PROMPT = """
             You classify Spanish utterances for an always-listening
             voice assistant named Ares.
@@ -34,6 +37,11 @@ public class GraniteUtteranceClassifier implements UtteranceClassifier {
             Use new_request even when previous context exists if
             the current request is independently understandable.
 
+            A request is independently understandable when it names
+            its own subject or target. An explicit subject wins over
+            an unrelated previous topic. Do not classify a complete
+            request as follow_up merely because context is available.
+
             Examples:
 
             "¿Qué hora es?" -> new_request
@@ -47,15 +55,17 @@ public class GraniteUtteranceClassifier implements UtteranceClassifier {
             ==================================================
 
             Use follow_up only when previous context is available
-            and the current utterance plausibly continues that
-            specific exchange.
+            and the current utterance needs, points to, transforms or
+            challenges information from that specific exchange.
 
             A follow-up may:
             - refer to something from the previous exchange;
             - request clarification, expansion or reformulation;
             - correct or challenge the previous response;
             - depend on an unresolved reference;
-            - be semantically compatible with the previous topic.
+            Topic compatibility alone is not enough. A follow-up must
+            contain an omitted or referential element whose meaning is
+            supplied by the previous exchange.
 
             Examples:
 
@@ -107,8 +117,9 @@ public class GraniteUtteranceClassifier implements UtteranceClassifier {
             1. If it is independently understandable and requests
                an answer or action, return new_request.
 
-            2. Otherwise, if previous context exists and the current
-               utterance plausibly continues it, return follow_up.
+            2. Otherwise, if previous context exists, verify that it
+               supplies the missing referent or content. Only then
+               return follow_up.
 
             3. Otherwise, return other.
 
@@ -125,10 +136,16 @@ public class GraniteUtteranceClassifier implements UtteranceClassifier {
             """;
     private final OpenAIClient openAIClient;
     private final UtteranceShapeDetector shapeDetector;
+    private final String model;
 
-    public GraniteUtteranceClassifier(OpenAIClient openAIClient) {
-        this.openAIClient = openAIClient;
+    public LocalUtteranceClassifier(OpenAIClient openAIClient) {
+        this(openAIClient, AppConfig.LOCAL_MODEL_ID);
+    }
+
+    public LocalUtteranceClassifier(OpenAIClient openAIClient, String model) {
+        this.openAIClient = Objects.requireNonNull(openAIClient, "openAIClient cannot be null");
         this.shapeDetector = new UtteranceShapeDetector();
+        this.model = LocalModelOutput.requireModelId(model);
     }
 
     @Override
@@ -139,15 +156,16 @@ public class GraniteUtteranceClassifier implements UtteranceClassifier {
         }
 
         ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-                .model(MODEL)
+                .model(model)
                 .addSystemMessage(SYSTEM_PROMPT)
                 .addUserMessage(buildInput(request))
                 .temperature(0.0)
                 .maxCompletionTokens(8)
                 .build();
         ChatCompletion completion = openAIClient.chat().completions().create(params);
-        String result = completion.choices().getFirst().message().content().orElseThrow(() ->
-                new IllegalStateException("Granite returned no utterance")).trim().toLowerCase(Locale.ROOT);
+        String output = completion.choices().getFirst().message().content().orElseThrow(() ->
+                new IllegalStateException("Local model returned no utterance classification"));
+        String result = LocalModelOutput.extractLeadingLabel(output, LABELS, "utterance classification");
         UtteranceDecision decision = switch (result) {
             case "new_request" -> UtteranceDecision.NEW_REQUEST;
             case "follow_up" -> UtteranceDecision.FOLLOW_UP;

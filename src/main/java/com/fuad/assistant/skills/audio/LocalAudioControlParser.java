@@ -1,8 +1,10 @@
 package com.fuad.assistant.skills.audio;
 
 import com.fuad.audio.AudioControlIntent;
+import com.fuad.config.AppConfig;
 import com.fuad.enums.AudioAction;
 import com.fuad.enums.AudioScope;
+import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
@@ -10,8 +12,7 @@ import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import java.util.Locale;
 import java.util.Objects;
 
-public class GraniteAudioControlParser implements AudioControlParser {
-    private static final String MODEL = "granite-router";
+public class LocalAudioControlParser implements AudioControlParser {
     private static final String SYSTEM_PROMPT = """
         Eres un parser restringido de controles de audio para Ares.
         El usuario habla español.
@@ -73,9 +74,15 @@ public class GraniteAudioControlParser implements AudioControlParser {
         """;
 
     private final OpenAIClient client;
+    private final String model;
 
-    public GraniteAudioControlParser(OpenAIClient client) {
-        this.client = Objects.requireNonNull(client, "client");
+    public LocalAudioControlParser(OpenAIClient client) {
+        this(client, AppConfig.LOCAL_MODEL_ID);
+    }
+
+    public LocalAudioControlParser(OpenAIClient client, String model) {
+        this.client = Objects.requireNonNull(client, "client cannot be null");
+        this.model = LocalModelOutput.requireModelId(model);
     }
 
     @Override
@@ -84,14 +91,15 @@ public class GraniteAudioControlParser implements AudioControlParser {
             return AudioControlIntent.unsupported(AudioScope.UNKNOWN);
         }
         ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-                .model(MODEL)
+                .model(model)
                 .addSystemMessage(SYSTEM_PROMPT)
                 .addUserMessage(command)
                 .temperature(0.0)
                 .maxCompletionTokens(16)
                 .build();
         ChatCompletion completion = client.chat().completions().create(params);
-        String result = completion.choices().getFirst().message().content().orElse("");
+        String result = LocalModelOutput.firstContractLine(
+                completion.choices().getFirst().message().content().orElse(""));
         return parseClassification(result);
     }
 

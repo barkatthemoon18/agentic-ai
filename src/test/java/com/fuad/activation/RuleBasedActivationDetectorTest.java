@@ -69,6 +69,15 @@ class RuleBasedActivationDetectorTest {
     }
 
     @Test
+    void shouldRejectAmbiguousWakeThatCouldBeAMisheardOpenCommand() {
+        ActivationResult result = detector((candidate, command) -> WakeResolution.WAKE)
+                .detect(transcription("Avres Spotify"));
+
+        assertFalse(result.isActivated());
+        assertEquals(ActivationType.NONE, result.getType());
+    }
+
+    @Test
     void shouldActivateConfiguredIntentPhraseIgnoringCase() {
         ActivationResult result = detector((candidate, command) -> WakeResolution.NONE)
                 .detect(transcription("NECESITO QUE revises esto"));

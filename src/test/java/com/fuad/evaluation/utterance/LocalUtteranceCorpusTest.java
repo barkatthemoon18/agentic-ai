@@ -1,6 +1,7 @@
 package com.fuad.evaluation.utterance;
 
-import com.fuad.activation.utterance.GraniteUtteranceClassifier;
+import com.fuad.activation.utterance.LocalUtteranceClassifier;
+import com.fuad.config.AppConfig;
 import com.fuad.enums.UtteranceDecision;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
@@ -14,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("model-evaluation")
-class GraniteUtteranceCorpusTest {
+class LocalUtteranceCorpusTest {
 
     @Test
     void classifierShouldMeetCorpusThresholds() {
@@ -29,10 +30,12 @@ class GraniteUtteranceCorpusTest {
                 .baseUrl(System.getProperty("evaluation.base-url", "http://localhost:1234/v1"))
                 .apiKey(System.getProperty("evaluation.api-key", "lm-studio"))
                 .build();
+        String model = System.getProperty("evaluation.model", AppConfig.LOCAL_MODEL_ID);
 
         UtteranceEvaluationReport report = new UtteranceCorpusEvaluator()
-                .evaluate(new GraniteUtteranceClassifier(client), cases);
+                .evaluate(new LocalUtteranceClassifier(client, model), cases);
 
+        System.out.println("model=" + model);
         System.out.println(report.format());
         if (Boolean.getBoolean("evaluation.report-only")) {
             return;

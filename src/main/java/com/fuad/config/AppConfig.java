@@ -3,6 +3,12 @@ package com.fuad.config;
 import java.util.List;
 
 public class AppConfig {
+    public static final String LOCAL_AI_BASE_URL = System.getProperty(
+            "ares.local-base-url", "http://localhost:1234/v1");
+    public static final String LOCAL_AI_API_KEY = System.getProperty(
+            "ares.local-api-key", "lm-studio");
+    public static final String LOCAL_MODEL_ID = System.getProperty(
+            "ares.local-model", "phi-router");
     public static final double WAKE_HIGH_THRESHOLD = 0.85;
     public static final double WAKE_LOW_THRESHOLD = 0.55;
     public static final float VAD_THRESHOLD = 0.5f;

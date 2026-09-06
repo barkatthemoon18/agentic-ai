@@ -8,14 +8,14 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-class GraniteAudioControlParserTest {
+class LocalAudioControlParserTest {
     @Test
     void shouldParseAbsoluteAndRelativeVolumeUsingClosedContract() {
-        AudioControlIntent absolute = GraniteAudioControlParser.parseClassification(
+        AudioControlIntent absolute = LocalAudioControlParser.parseClassification(
                 "set_volume|assistant|40");
-        AudioControlIntent relative = GraniteAudioControlParser.parseClassification(
+        AudioControlIntent relative = LocalAudioControlParser.parseClassification(
                 "increase_volume|assistant|15");
-        AudioControlIntent defaultRelative = GraniteAudioControlParser.parseClassification(
+        AudioControlIntent defaultRelative = LocalAudioControlParser.parseClassification(
                 "decrease_volume|assistant|default");
 
         assertEquals(AudioAction.SET_VOLUME, absolute.getAudioAction());
@@ -28,8 +28,8 @@ class GraniteAudioControlParserTest {
 
     @Test
     void shouldPreserveUnsupportedScopesForSkillAuthorization() {
-        AudioControlIntent system = GraniteAudioControlParser.parseClassification("mute|system|none");
-        AudioControlIntent application = GraniteAudioControlParser.parseClassification(
+        AudioControlIntent system = LocalAudioControlParser.parseClassification("mute|system|none");
+        AudioControlIntent application = LocalAudioControlParser.parseClassification(
                 "set_volume|application|30");
 
         assertEquals(AudioScope.SYSTEM, system.getAudioScope());
@@ -40,11 +40,11 @@ class GraniteAudioControlParserTest {
 
     @Test
     void malformedOrOutOfRangeOutputShouldFailClosed() {
-        assertUnsupported(GraniteAudioControlParser.parseClassification("set_volume|assistant|101"));
-        assertUnsupported(GraniteAudioControlParser.parseClassification("increase_volume|assistant|-10"));
-        assertUnsupported(GraniteAudioControlParser.parseClassification("mute|assistant|10"));
-        assertUnsupported(GraniteAudioControlParser.parseClassification("```mute|assistant|none```"));
-        assertUnsupported(GraniteAudioControlParser.parseClassification("anything else"));
+        assertUnsupported(LocalAudioControlParser.parseClassification("set_volume|assistant|101"));
+        assertUnsupported(LocalAudioControlParser.parseClassification("increase_volume|assistant|-10"));
+        assertUnsupported(LocalAudioControlParser.parseClassification("mute|assistant|10"));
+        assertUnsupported(LocalAudioControlParser.parseClassification("```mute|assistant|none```"));
+        assertUnsupported(LocalAudioControlParser.parseClassification("anything else"));
     }
 
     private void assertUnsupported(AudioControlIntent intent) {
