@@ -44,7 +44,7 @@ CURRENT_RESEARCH
 GENERAL
 ```
 
-`GraniteSemanticRouter` decide **qué tipo de tarea** representa la frase. No ejecuta acciones.
+`LocalSemanticRouter` decide **qué tipo de tarea** representa la frase. No ejecuta acciones.
 
 Contrato conceptual:
 
@@ -67,7 +67,7 @@ general
 
 ### Separación crítica: audio vs estado de una aplicación
 
-Se detectó que Granite podía asociar Spotify con audio y clasificar:
+En pruebas históricas con el modelo anterior se detectó una asociación de Spotify con audio que producía esta clasificación; este resultado no corresponde a una evaluación de Phi-3.5 Mini Instruct:
 
 ```text
 "Cierra Spotify"
@@ -138,7 +138,7 @@ OsCommandSkill
     ↓
 OsCommandSafetyGuard
     ↓
-GraniteOsCommandParser
+LocalOsCommandParser
     ↓
 ApplicationRegistry
     ↓
@@ -226,7 +226,7 @@ Esto evita depender de comandos arbitrarios como `taskkill` producidos por un LL
 
 ## 4. `OsCommandSafetyGuard`
 
-Granite mostró tendencia a asociar `cerrar/cerrado` con `CLOSE_APPLICATION` incluso cuando no había una orden.
+En pruebas históricas, el modelo anterior mostró tendencia a asociar `cerrar/cerrado` con `CLOSE_APPLICATION` incluso cuando no había una orden. Esta observación no constituye un resultado medido de Phi-3.5 Mini Instruct.
 
 Ejemplos incorrectos del parser:
 
@@ -594,7 +594,7 @@ OTHER
 
 `RuleBasedActivationDetector` conserva la precedencia para wake word y frases explícitas. Sólo cuando no hay activación determinista se invoca `UtteranceClassifier`.
 
-La orquestación posterior a cada decisión está cubierta por tests deterministas. La precisión lingüística real de Granite se evalúa por separado contra corpus estables de desarrollo y holdout.
+La orquestación posterior a cada decisión está cubierta por tests deterministas. La precisión lingüística real de Phi-3.5 Mini Instruct se evalúa por separado contra corpus estables de desarrollo y holdout.
 
 ### 11.1. Corpus JSONL de evaluación
 
@@ -676,7 +676,7 @@ si expected = follow_up
 → contextAvailable debe ser true
 ```
 
-La suite normal carga los recursos pero excluye las llamadas reales al modelo. La evaluación con Granite continúa aislada detrás del perfil `model-evaluation` y genera accuracy, macro-F1, métricas por etiqueta, matriz de confusión, falsas activaciones y latencias.
+La suite normal carga los recursos pero excluye las llamadas reales al modelo. La evaluación con Phi-3.5 Mini Instruct continúa aislada detrás del perfil `model-evaluation` y genera accuracy, macro-F1, métricas por etiqueta, matriz de confusión, falsas activaciones y latencias.
 
 ---
 
@@ -692,7 +692,7 @@ UtteranceShapeDetector
    ├─ CONTEXT_DEPENDENT
    └─ UNKNOWN
           ↓
-        Granite
+        Phi-3.5 Mini Instruct
 ```
 
 Java resolvería sólo casos de alta confianza.
@@ -719,10 +719,12 @@ La implementación se **postergó** porque no bloquea el desarrollo actual y con
 
 ## 13. Evaluación futura de otros modelos locales
 
-Se planteó comparar:
+El modelo local actual es Phi-3.5 Mini Instruct, servido con el identificador `phi-router`. Las clases usan el prefijo `Local` y el modelo se configura mediante `ares.local-model`; las evaluaciones permiten sobrescribirlo con `evaluation.model`.
+
+Se propone compararlo con otros modelos locales:
 
 ```text
-Granite 3.3 2B
+Phi-3.5 Mini Instruct
 Gemma 3 1B IT
 Qwen3 1.7B
 ```
@@ -853,9 +855,9 @@ No:
 Ruta de interpretación y autorización:
 
 ```text
-GraniteSemanticRouter
+LocalSemanticRouter
   ↓ AUDIO_CONTROL
-GraniteAudioControlParser
+LocalAudioControlParser
   ↓ AudioControlIntent
 AudioControlSkill
   ↓ autoriza sólo ASSISTANT
@@ -1316,7 +1318,7 @@ evita que un intent malformado llegue al controlador.
 
 ---
 
-## 23. `GraniteAudioControlParser`
+## 23. `LocalAudioControlParser`
 
 El parser local usa una salida cerrada de tres campos:
 
@@ -1381,7 +1383,7 @@ UNSUPPORTED | UNKNOWN | null
 Flujo:
 
 ```text
-GraniteAudioControlParser
+LocalAudioControlParser
 → AudioControlIntent validado
 → AudioControlSkill
 → autorización de scope
@@ -1492,7 +1494,7 @@ volumen cero implica mute
 pasos negativos o cero rechazados
 Ganancia aplicada al playback PCM
 AudioControlIntent con invariantes validadas
-GraniteAudioControlParser con salida cerrada
+LocalAudioControlParser con salida cerrada
 distinción entre nivel absoluto y variación relativa
 AudioScope ASSISTANT / SYSTEM / APPLICATION / UNKNOWN
 autorización exclusiva de ASSISTANT en AudioControlSkill
@@ -1532,7 +1534,7 @@ Validación focalizada de audio:
 ```text
 AssistantAudioControllerTest      4/4
 AudioControlIntentTest            2/2
-GraniteAudioControlParserTest     3/3
+LocalAudioControlParserTest     3/3
 AudioControlSkillTest             5/5
 AudioPipelineTest                 5/5
 Total                            19/19
@@ -1555,7 +1557,7 @@ Dos sesiones que comparten engine no intercambian sus tokens.
 El corpus JSONL tiene DTO, carga validada, métricas, reporte y 72 casos etiquetados.
 Development y holdout cubren por separado NEW_REQUEST, FOLLOW_UP y OTHER.
 Las fronteras críticas están etiquetadas para exigir exactitud del 100 %.
-La evaluación real de Granite se ejecuta sólo con el perfil model-evaluation.
+La evaluación real de Phi-3.5 Mini Instruct se ejecuta sólo con el perfil model-evaluation.
 AudioControlIntent rechaza combinaciones inválidas de acción y valor.
 El parser transforma salidas desconocidas o fuera de rango en UNSUPPORTED.
 AudioControlSkill nunca ejecuta scopes SYSTEM, APPLICATION o UNKNOWN.
@@ -1575,22 +1577,22 @@ Las pruebas manuales de volumen fueron retiradas del arranque.
 
 4. Validar dependencias obligatorias en constructores.
 
-5. Ejecutar los corpus contra Granite y ajustar el prompt con development;
+5. Ejecutar los corpus contra Phi-3.5 Mini Instruct y ajustar el prompt con development;
    reservar holdout para validar exactitud, estabilidad y latencia finales.
 ```
 
 ## Funcional pero pendiente de evaluación
 
 ```text
-GraniteUtteranceClassifier
+LocalUtteranceClassifier
 → contrato unificado implementado
 → orquestación cubierta por tests
 → precisión real del modelo aún no medida sistemáticamente
 
-GraniteSemanticRouter
+LocalSemanticRouter
 → funcional tras reforzar OS_COMMAND vs AUDIO_CONTROL
 
-GraniteAudioControlParser
+LocalAudioControlParser
 → contrato cerrado y validación determinista implementados
 → interpretación lingüística real pendiente de evaluación sistemática
 ```
@@ -1600,11 +1602,11 @@ GraniteAudioControlParser
 ```text
 CURRENT_RESEARCH
 más aplicaciones OS
-corpus específico para evaluar GraniteAudioControlParser
+corpus específico para evaluar LocalAudioControlParser
 persistencia del volumen entre ejecuciones
 evaluar curva perceptual de ganancia frente a la curva lineal actual
 posible soporte futuro para scopes SYSTEM y APPLICATION
-comparar Granite / Gemma / Qwen
+comparar Phi-3.5 Mini Instruct / Gemma / Qwen
 UtteranceShapeDetector híbrido
 ModelRouter local vs GPT
 métricas de coste/latencia por backend
@@ -1616,7 +1618,7 @@ métricas de coste/latencia por backend
 
 ```text
 1. Java decide lo determinista.
-2. Granite interpreta lenguaje, no ejecuta comandos.
+2. Phi-3.5 Mini Instruct interpreta lenguaje, no ejecuta comandos.
 3. GPT se reserva para razonamiento/contenido donde aporta valor.
 4. Los modelos nunca generan shell arbitrario.
 5. Los targets OS deben estar whitelisteados.

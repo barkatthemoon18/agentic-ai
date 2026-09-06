@@ -8,7 +8,7 @@ public class AppConfig {
     public static final String LOCAL_AI_API_KEY = System.getProperty(
             "ares.local-api-key", "lm-studio");
     public static final String LOCAL_MODEL_ID = System.getProperty(
-            "ares.local-model", "granite-router");
+            "ares.local-model", "phi-router");
     public static final double WAKE_HIGH_THRESHOLD = 0.85;
     public static final double WAKE_LOW_THRESHOLD = 0.55;
     public static final float VAD_THRESHOLD = 0.5f;

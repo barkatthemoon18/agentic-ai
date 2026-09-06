@@ -10,7 +10,7 @@ import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import java.util.Objects;
 import java.util.Set;
 
-public class GraniteSemanticRouter implements SemanticRouter {
+public class LocalSemanticRouter implements SemanticRouter {
     private static final Set<String> LABELS = Set.of(
             "system-time", "audio-control", "os-command", "current-research", "general");
     private static final String SYSTEM_PROMPT = """
@@ -336,11 +336,11 @@ public class GraniteSemanticRouter implements SemanticRouter {
     private final OpenAIClient client;
     private final String model;
 
-    public GraniteSemanticRouter(OpenAIClient client) {
+    public LocalSemanticRouter(OpenAIClient client) {
         this(client, AppConfig.LOCAL_MODEL_ID);
     }
 
-    public GraniteSemanticRouter(OpenAIClient client, String model) {
+    public LocalSemanticRouter(OpenAIClient client, String model) {
         this.client = Objects.requireNonNull(client, "client cannot be null");
         this.model = LocalModelOutput.requireModelId(model);
     }

@@ -2,15 +2,15 @@ package com.fuad;
 
 import com.fuad.activation.ActivationDetector;
 import com.fuad.activation.RuleBasedActivationDetector;
-import com.fuad.activation.utterance.GraniteUtteranceClassifier;
+import com.fuad.activation.utterance.LocalUtteranceClassifier;
 import com.fuad.activation.utterance.UtteranceClassifier;
-import com.fuad.activation.wake.GraniteWakeClassifier;
+import com.fuad.activation.wake.LocalWakeClassifier;
 import com.fuad.activation.wake.WakeClassifier;
 import com.fuad.activation.wake.WakeWordMatcher;
 import com.fuad.assistant.AssistantEngine;
 import com.fuad.assistant.GptAssistantEngine;
 import com.fuad.assistant.routing.AiSkillRouter;
-import com.fuad.assistant.routing.GraniteSemanticRouter;
+import com.fuad.assistant.routing.LocalSemanticRouter;
 import com.fuad.assistant.routing.GuardedSemanticRouter;
 import com.fuad.assistant.routing.SemanticRouter;
 import com.fuad.assistant.session.ConversationSession;
@@ -21,11 +21,11 @@ import com.fuad.assistant.skills.SystemTimeSkill;
 import com.fuad.assistant.skills.UnsupportedSkill;
 import com.fuad.assistant.skills.audio.AudioControlParser;
 import com.fuad.assistant.skills.audio.AudioControlSkill;
-import com.fuad.assistant.skills.audio.GraniteAudioControlParser;
+import com.fuad.assistant.skills.audio.LocalAudioControlParser;
 import com.fuad.assistant.skills.os.ApplicationController;
 import com.fuad.assistant.skills.os.ApplicationDefinition;
 import com.fuad.assistant.skills.os.ApplicationRegistry;
-import com.fuad.assistant.skills.os.GraniteOsCommandParser;
+import com.fuad.assistant.skills.os.LocalOsCommandParser;
 import com.fuad.assistant.skills.os.OsCommandParser;
 import com.fuad.assistant.skills.os.OsCommandSafetyGuard;
 import com.fuad.assistant.skills.os.OsCommandSkill;
@@ -71,8 +71,8 @@ public class Main {
                 .baseUrl(AppConfig.LOCAL_AI_BASE_URL)
                 .apiKey(AppConfig.LOCAL_AI_API_KEY)
                 .build();
-        final OsCommandParser osCommandParser = new GraniteOsCommandParser(localAiClient);
-        final AudioControlParser audioControlParser = new GraniteAudioControlParser(localAiClient);
+        final OsCommandParser osCommandParser = new LocalOsCommandParser(localAiClient);
+        final AudioControlParser audioControlParser = new LocalAudioControlParser(localAiClient);
         final AssistantAudioController audioController = new AssistantAudioController();
         final ApplicationDefinition spotify = new ApplicationDefinition("spotify", "Spotify",
                 List.of("cmd.exe", "/c", "start", "", "spotify:"), "Spotify.exe");
@@ -88,7 +88,7 @@ public class Main {
 
         OpenAIClient openAiClient = OpenAIOkHttpClient.fromEnv();
         AssistantEngine assistantEngine = new GptAssistantEngine(openAiClient);
-        SemanticRouter semanticRouter = new GuardedSemanticRouter(new GraniteSemanticRouter(localAiClient));
+        SemanticRouter semanticRouter = new GuardedSemanticRouter(new LocalSemanticRouter(localAiClient));
         SystemTimeSkill systemTimeSkill = new SystemTimeSkill();
         GeneralSkill generalSkill = new GeneralSkill(assistantEngine);
         AudioControlSkill audioControlSkill = new AudioControlSkill(audioControlParser, audioController);
@@ -102,8 +102,8 @@ public class Main {
         AssistantPipeline assistantPipeline = new AssistantPipeline(skillRouter);
         WakeWordMatcher wakeWordMatcher = new WakeWordMatcher(
                 AppConfig.wakeWords, AppConfig.WAKE_HIGH_THRESHOLD, AppConfig.WAKE_LOW_THRESHOLD);
-        WakeClassifier wakeClassifier = new GraniteWakeClassifier(localAiClient);
-        UtteranceClassifier utteranceClassifier = new GraniteUtteranceClassifier(localAiClient);
+        WakeClassifier wakeClassifier = new LocalWakeClassifier(localAiClient);
+        UtteranceClassifier utteranceClassifier = new LocalUtteranceClassifier(localAiClient);
         ActivationDetector activationDetector = new RuleBasedActivationDetector(
                 wakeWordMatcher, wakeClassifier, AppConfig.intentPhrases);
         final SileroVadEngine vad = new SileroVadEngine(AppConfig.SILERO_MODEL_PATH, AppConfig.VAD_THRESHOLD);

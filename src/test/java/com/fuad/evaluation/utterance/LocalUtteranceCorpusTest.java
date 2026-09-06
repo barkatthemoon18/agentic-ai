@@ -1,6 +1,6 @@
 package com.fuad.evaluation.utterance;
 
-import com.fuad.activation.utterance.GraniteUtteranceClassifier;
+import com.fuad.activation.utterance.LocalUtteranceClassifier;
 import com.fuad.config.AppConfig;
 import com.fuad.enums.UtteranceDecision;
 import com.openai.client.OpenAIClient;
@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("model-evaluation")
-class GraniteUtteranceCorpusTest {
+class LocalUtteranceCorpusTest {
 
     @Test
     void classifierShouldMeetCorpusThresholds() {
@@ -33,7 +33,7 @@ class GraniteUtteranceCorpusTest {
         String model = System.getProperty("evaluation.model", AppConfig.LOCAL_MODEL_ID);
 
         UtteranceEvaluationReport report = new UtteranceCorpusEvaluator()
-                .evaluate(new GraniteUtteranceClassifier(client, model), cases);
+                .evaluate(new LocalUtteranceClassifier(client, model), cases);
 
         System.out.println("model=" + model);
         System.out.println(report.format());

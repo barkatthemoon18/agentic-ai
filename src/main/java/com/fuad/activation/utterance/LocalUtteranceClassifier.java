@@ -11,7 +11,7 @@ import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import java.util.Objects;
 import java.util.Set;
 
-public class GraniteUtteranceClassifier implements UtteranceClassifier {
+public class LocalUtteranceClassifier implements UtteranceClassifier {
     private static final Set<String> LABELS = Set.of("new_request", "follow_up", "other");
     private static final String SYSTEM_PROMPT = """
             You classify Spanish utterances for an always-listening
@@ -138,11 +138,11 @@ public class GraniteUtteranceClassifier implements UtteranceClassifier {
     private final UtteranceShapeDetector shapeDetector;
     private final String model;
 
-    public GraniteUtteranceClassifier(OpenAIClient openAIClient) {
+    public LocalUtteranceClassifier(OpenAIClient openAIClient) {
         this(openAIClient, AppConfig.LOCAL_MODEL_ID);
     }
 
-    public GraniteUtteranceClassifier(OpenAIClient openAIClient, String model) {
+    public LocalUtteranceClassifier(OpenAIClient openAIClient, String model) {
         this.openAIClient = Objects.requireNonNull(openAIClient, "openAIClient cannot be null");
         this.shapeDetector = new UtteranceShapeDetector();
         this.model = LocalModelOutput.requireModelId(model);

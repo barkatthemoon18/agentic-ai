@@ -12,7 +12,7 @@ import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import java.util.Locale;
 import java.util.Objects;
 
-public class GraniteAudioControlParser implements AudioControlParser {
+public class LocalAudioControlParser implements AudioControlParser {
     private static final String SYSTEM_PROMPT = """
         Eres un parser restringido de controles de audio para Ares.
         El usuario habla español.
@@ -76,11 +76,11 @@ public class GraniteAudioControlParser implements AudioControlParser {
     private final OpenAIClient client;
     private final String model;
 
-    public GraniteAudioControlParser(OpenAIClient client) {
+    public LocalAudioControlParser(OpenAIClient client) {
         this(client, AppConfig.LOCAL_MODEL_ID);
     }
 
-    public GraniteAudioControlParser(OpenAIClient client, String model) {
+    public LocalAudioControlParser(OpenAIClient client, String model) {
         this.client = Objects.requireNonNull(client, "client cannot be null");
         this.model = LocalModelOutput.requireModelId(model);
     }

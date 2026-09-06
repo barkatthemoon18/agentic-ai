@@ -10,7 +10,7 @@ import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import java.util.Objects;
 import java.util.Set;
 
-public class GraniteWakeClassifier implements WakeClassifier {
+public class LocalWakeClassifier implements WakeClassifier {
     private static final Set<String> LABELS = Set.of("wake", "intent", "none");
     private static final String SYSTEM_PROMPT = """
         You classify ambiguous voice-assistant activations for an assistant named Ares.
@@ -76,11 +76,11 @@ public class GraniteWakeClassifier implements WakeClassifier {
     private final OpenAIClient client;
     private final String model;
 
-    public GraniteWakeClassifier(OpenAIClient client) {
+    public LocalWakeClassifier(OpenAIClient client) {
         this(client, AppConfig.LOCAL_MODEL_ID);
     }
 
-    public GraniteWakeClassifier(OpenAIClient client, String model) {
+    public LocalWakeClassifier(OpenAIClient client, String model) {
         this.client = Objects.requireNonNull(client, "client cannot be null");
         this.model = LocalModelOutput.requireModelId(model);
     }

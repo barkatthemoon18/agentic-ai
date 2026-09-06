@@ -10,7 +10,7 @@ import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import java.util.Objects;
 import java.util.Set;
 
-public class GraniteOsCommandParser implements OsCommandParser {
+public class LocalOsCommandParser implements OsCommandParser {
     private static final Set<String> LABELS = Set.of(
             "open_application|spotify", "close_application|spotify", "unsupported|unknown");
     private static final String SYSTEM_PROMPT = """
@@ -88,11 +88,11 @@ public class GraniteOsCommandParser implements OsCommandParser {
     private final OpenAIClient client;
     private final String model;
 
-    public GraniteOsCommandParser(OpenAIClient client) {
+    public LocalOsCommandParser(OpenAIClient client) {
         this(client, AppConfig.LOCAL_MODEL_ID);
     }
 
-    public GraniteOsCommandParser(OpenAIClient client, String model) {
+    public LocalOsCommandParser(OpenAIClient client, String model) {
         this.client = Objects.requireNonNull(client, "client cannot be null");
         this.model = LocalModelOutput.requireModelId(model);
     }

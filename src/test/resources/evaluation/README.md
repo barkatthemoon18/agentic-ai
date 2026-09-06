@@ -40,7 +40,7 @@ Baseline informativo sobre desarrollo, sin aplicar umbrales:
 
 ```powershell
 mvn -Pmodel-evaluation `
-    -Dtest=GraniteUtteranceCorpusTest `
+    -Dtest=LocalUtteranceCorpusTest `
     -Devaluation.corpus=development `
     -Devaluation.report-only=true test
 ```
@@ -49,7 +49,7 @@ Validación de desarrollo aplicando los umbrales:
 
 ```powershell
 mvn -Pmodel-evaluation `
-    -Dtest=GraniteUtteranceCorpusTest `
+    -Dtest=LocalUtteranceCorpusTest `
     -Devaluation.corpus=development test
 ```
 
@@ -57,7 +57,7 @@ Validación final del holdout:
 
 ```powershell
 mvn -Pmodel-evaluation `
-    -Dtest=GraniteUtteranceCorpusTest `
+    -Dtest=LocalUtteranceCorpusTest `
     -Devaluation.corpus=holdout test
 ```
 
@@ -65,7 +65,7 @@ Propiedades opcionales:
 
 - `evaluation.base-url`, por defecto `http://localhost:1234/v1`.
 - `evaluation.api-key`, por defecto `lm-studio`.
-- `evaluation.model`, por defecto el modelo local configurado en `AppConfig`.
+- `evaluation.model`, por defecto el modelo local configurado en `AppConfig`: `phi-router` (Phi-3.5 Mini Instruct), salvo override mediante `ares.local-model`. El servidor local debe exponer ese identificador.
 - `evaluation.minimum-cases`, por defecto `30`.
 - `evaluation.minimum-macro-f1`, por defecto `0.90`.
 - `evaluation.minimum-recall`, por defecto `0.85`.
@@ -83,7 +83,7 @@ Routing semántico protegido:
 ```powershell
 mvn -Pmodel-evaluation `
     -Dtest=LocalSemanticRouterCorpusTest `
-    -Devaluation.model=granite-router test
+    -Devaluation.model=phi-router test
 ```
 
 Para medir el modelo puro, añade `-Devaluation.semantic-guarded=false`.
@@ -92,5 +92,5 @@ Wake, parser OS y parser de audio se evalúan juntos con:
 ```powershell
 mvn -Pmodel-evaluation `
     -Dtest=LocalStructuredClassifiersBenchmarkTest `
-    -Devaluation.model=granite-router test
+    -Devaluation.model=phi-router test
 ```

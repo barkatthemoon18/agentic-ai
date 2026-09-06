@@ -1,8 +1,8 @@
 package com.fuad.evaluation.model;
 
-import com.fuad.activation.wake.GraniteWakeClassifier;
-import com.fuad.assistant.skills.audio.GraniteAudioControlParser;
-import com.fuad.assistant.skills.os.GraniteOsCommandParser;
+import com.fuad.activation.wake.LocalWakeClassifier;
+import com.fuad.assistant.skills.audio.LocalAudioControlParser;
+import com.fuad.assistant.skills.os.LocalOsCommandParser;
 import com.fuad.audio.AudioControlIntent;
 import com.fuad.config.AppConfig;
 import com.openai.client.OpenAIClient;
@@ -26,9 +26,9 @@ class LocalStructuredClassifiersBenchmarkTest {
         OpenAIClient client = OpenAIOkHttpClient.builder()
                 .baseUrl(System.getProperty("evaluation.base-url", AppConfig.LOCAL_AI_BASE_URL))
                 .apiKey(System.getProperty("evaluation.api-key", AppConfig.LOCAL_AI_API_KEY)).build();
-        GraniteWakeClassifier wake = new GraniteWakeClassifier(client, model);
-        GraniteOsCommandParser os = new GraniteOsCommandParser(client, model);
-        GraniteAudioControlParser audio = new GraniteAudioControlParser(client, model);
+        LocalWakeClassifier wake = new LocalWakeClassifier(client, model);
+        LocalOsCommandParser os = new LocalOsCommandParser(client, model);
+        LocalAudioControlParser audio = new LocalAudioControlParser(client, model);
         List<Case> cases = List.of(
                 new Case("wake", "wake-01", "WAKE", () -> wake.classify("Oeres", "abre Spotify").name()),
                 new Case("wake", "wake-02", "WAKE", () -> wake.classify("Oyares", "qué hora es").name()),

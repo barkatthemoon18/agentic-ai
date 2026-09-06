@@ -1,6 +1,6 @@
 package com.fuad.evaluation.routing;
 
-import com.fuad.assistant.routing.GraniteSemanticRouter;
+import com.fuad.assistant.routing.LocalSemanticRouter;
 import com.fuad.assistant.routing.GuardedSemanticRouter;
 import com.fuad.assistant.routing.SemanticRouter;
 import com.fuad.config.AppConfig;
@@ -54,7 +54,7 @@ class LocalSemanticRouterCorpusTest {
         OpenAIClient client = OpenAIOkHttpClient.builder()
                 .baseUrl(System.getProperty("evaluation.base-url", AppConfig.LOCAL_AI_BASE_URL))
                 .apiKey(System.getProperty("evaluation.api-key", AppConfig.LOCAL_AI_API_KEY)).build();
-        SemanticRouter raw = new GraniteSemanticRouter(client, model);
+        SemanticRouter raw = new LocalSemanticRouter(client, model);
         boolean guarded = Boolean.parseBoolean(System.getProperty("evaluation.semantic-guarded", "true"));
         SemanticRouter router = guarded ? new GuardedSemanticRouter(raw) : raw;
         List<RoutingResult> results = new ArrayList<>();

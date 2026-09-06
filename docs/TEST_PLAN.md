@@ -32,8 +32,8 @@ no se duplican pruebas de getters y setters sin lógica.
 
 ### OpenAI y LM Studio
 
-Clases: `GptAssistantEngine`, `GraniteSemanticRouter`, `GraniteSemanticActivationClassifier`,
-`GraniteContextContinuationClassifier`, `GraniteWakeClassifier` y `GraniteOsCommandParser`.
+Clases: `GptAssistantEngine`, `LocalSemanticRouter`, `LocalUtteranceClassifier`,
+`LocalWakeClassifier`, `LocalOsCommandParser` y `LocalAudioControlParser`.
 
 Casos de contrato recomendados contra un servidor HTTP simulado:
 
