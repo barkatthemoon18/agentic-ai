@@ -63,6 +63,9 @@ mvn -Pmodel-evaluation `
 
 Propiedades opcionales:
 
+- `evaluation.mode=hybrid|model-only|both`, por defecto `hybrid`.
+- `evaluation.repetitions`, entero positivo, por defecto `1`.
+
 - `evaluation.base-url`, por defecto `http://localhost:1234/v1`.
 - `evaluation.api-key`, por defecto `lm-studio`.
 - `evaluation.model`, por defecto el modelo local configurado en `AppConfig`: `phi-router` (Phi-3.5 Mini Instruct), salvo override mediante `ares.local-model`. El servidor local debe exponer ese identificador.
@@ -75,6 +78,43 @@ Propiedades opcionales:
 El reporte incluye accuracy, macro-F1, precision/recall/F1 por etiqueta,
 matriz de confusión, falsas activaciones desde `OTHER`, errores del modelo,
 casos fallidos y latencias p50/p95.
+
+## Comparación reproducible de variantes
+
+```powershell
+mvn -Pmodel-evaluation `
+    -Dtest=LocalUtteranceCorpusTest `
+    -Devaluation.corpus=development `
+    -Devaluation.mode=both `
+    -Devaluation.repetitions=3 `
+    -Devaluation.report-only=true test
+```
+
+Cada ejecución crea un directorio único en `target/model-evaluation`. Conserva el
+prompt exacto, sus huellas SHA-256 y las del corpus, modelo, fecha, parámetros,
+resultados por caso y repetición, errores, métricas y estabilidad. El reporte
+separa las rutas `rules` y `model`; la latencia global del híbrido incluye los
+casos resueltos por Java. Sus aciertos no deben atribuirse al modelo.
+
+`model-only` omite únicamente `UtteranceShapeDetector`: conserva el parser de
+salida y la protección que convierte FOLLOW_UP sin contexto en OTHER. Ambos
+modos comparten prompt, temperatura cero y límite de ocho tokens de salida.
+La estabilidad se expresa como proporción de IDs cuyo resultado cambia entre
+repeticiones; un error es un resultado distinto de cualquier etiqueta válida.
+Con una sola repetición se informa que no se midió estabilidad.
+
+Antes del corpus se comprueba el modelo expuesto y se registra una llamada de
+calentamiento por variante, fuera de las métricas. Fallos de disponibilidad o
+calentamiento detienen la evaluación con un archivo separado. Las llamadas usan
+un timeout de sesenta segundos y no reintentan; los errores durante el corpus
+se registran por caso.
+
+Para validar el candidato congelado, usar `evaluation.corpus=holdout`, ambos
+modos y tres repeticiones, omitiendo `evaluation.report-only=true`. Los umbrales
+se exigen en cada repetición híbrida; model-only es diagnóstico. Todos los
+reportes se guardan antes de comprobar los umbrales. Ajustar exclusivamente con
+development, como máximo tres revisiones del prompt; no editar corpus ni reglas
+para mejorar estas mediciones y no reajustar a partir de holdout.
 
 ## Benchmarks del modelo local
 

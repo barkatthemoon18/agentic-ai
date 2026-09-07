@@ -60,54 +60,57 @@ import java.util.Map;
 
 public class Main {
     public static void main(String[] args) {
-        final AudioCaptureService captureService = new AudioCaptureService();
-        final AudioPlaybackService playbackService = new AudioPlaybackService();
-        final FasterWhisperClient client = new FasterWhisperClient();
-        final SttEngine stt = new FasterWhisperSttEngine(client);
-        final PiperClient piperClient = new PiperClient();
-        final TtsEngine tts = new PiperTtsEngine(piperClient);
-        final SpeechSegmentValidator speechSegmentValidator = new BasicSpeechSegmentValidator(300, 0.008, 0.02);
-        final OpenAIClient localAiClient = OpenAIOkHttpClient.builder()
-                .baseUrl(AppConfig.LOCAL_AI_BASE_URL)
-                .apiKey(AppConfig.LOCAL_AI_API_KEY)
-                .build();
-        final OsCommandParser osCommandParser = new LocalOsCommandParser(localAiClient);
-        final AudioControlParser audioControlParser = new LocalAudioControlParser(localAiClient);
-        final AssistantAudioController audioController = new AssistantAudioController();
-        final ApplicationDefinition spotify = new ApplicationDefinition("spotify", "Spotify",
-                List.of("cmd.exe", "/c", "start", "", "spotify:"), "Spotify.exe");
-        final ApplicationRegistry applicationRegistry = new ApplicationRegistry(Map.of("spotify", spotify));
-        final ApplicationController applicationController = new WindowsApplicationController();
-        final OsCommandSafetyGuard safetyGuard = new OsCommandSafetyGuard();
-        OsCommandSkill osCommandSkill = new OsCommandSkill(
-                osCommandParser, applicationRegistry, applicationController, safetyGuard);
-        SpeechProcessingService speechProcessor = null;
-        OutputPresentationPolicy presentationPolicy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
-        VisualOutput visualOutput = createVisualOutput();
-        AssistantOutputCoordinator outputCoordinator = null;
+        try (ResourceCleanup cleanup = new ResourceCleanup()) {
+            final AudioCaptureService captureService = new AudioCaptureService();
+            cleanup.register(ResourceCleanup.Resource.CAPTURE, captureService::stop);
+            final AudioPlaybackService playbackService = new AudioPlaybackService();
+            final FasterWhisperClient client = new FasterWhisperClient();
+            final SttEngine stt = new FasterWhisperSttEngine(client);
+            cleanup.register(ResourceCleanup.Resource.STT, stt);
+            final PiperClient piperClient = new PiperClient();
+            final TtsEngine tts = new PiperTtsEngine(piperClient);
+            cleanup.register(ResourceCleanup.Resource.TTS, tts);
+            final SpeechSegmentValidator speechSegmentValidator = new BasicSpeechSegmentValidator(300, 0.008, 0.02);
+            final OpenAIClient localAiClient = OpenAIOkHttpClient.builder()
+                    .baseUrl(AppConfig.LOCAL_AI_BASE_URL)
+                    .apiKey(AppConfig.LOCAL_AI_API_KEY)
+                    .build();
+            final OsCommandParser osCommandParser = new LocalOsCommandParser(localAiClient);
+            final AudioControlParser audioControlParser = new LocalAudioControlParser(localAiClient);
+            final AssistantAudioController audioController = new AssistantAudioController();
+            final ApplicationDefinition spotify = new ApplicationDefinition("spotify", "Spotify",
+                    List.of("cmd.exe", "/c", "start", "", "spotify:"), "Spotify.exe");
+            final ApplicationRegistry applicationRegistry = new ApplicationRegistry(Map.of("spotify", spotify));
+            final ApplicationController applicationController = new WindowsApplicationController();
+            final OsCommandSafetyGuard safetyGuard = new OsCommandSafetyGuard();
+            OsCommandSkill osCommandSkill = new OsCommandSkill(
+                    osCommandParser, applicationRegistry, applicationController, safetyGuard);
+            OutputPresentationPolicy presentationPolicy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
+            VisualOutput visualOutput = createVisualOutput();
+            cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, visualOutput);
 
-        OpenAIClient openAiClient = OpenAIOkHttpClient.fromEnv();
-        AssistantEngine assistantEngine = new GptAssistantEngine(openAiClient);
-        SemanticRouter semanticRouter = new GuardedSemanticRouter(new LocalSemanticRouter(localAiClient));
-        SystemTimeSkill systemTimeSkill = new SystemTimeSkill();
-        GeneralSkill generalSkill = new GeneralSkill(assistantEngine);
-        AudioControlSkill audioControlSkill = new AudioControlSkill(audioControlParser, audioController);
-        SkillRegistry skillRegistry = new SkillRegistry(Map.of(
-                Capability.SYSTEM_TIME, systemTimeSkill,
-                Capability.GENERAL, generalSkill,
-                Capability.AUDIO_CONTROL, audioControlSkill,
-                Capability.OS_COMMAND, osCommandSkill,
-                Capability.CURRENT_RESEARCH, new UnsupportedSkill(Capability.CURRENT_RESEARCH)));
-        SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);
-        AssistantPipeline assistantPipeline = new AssistantPipeline(skillRouter);
-        WakeWordMatcher wakeWordMatcher = new WakeWordMatcher(
-                AppConfig.wakeWords, AppConfig.WAKE_HIGH_THRESHOLD, AppConfig.WAKE_LOW_THRESHOLD);
-        WakeClassifier wakeClassifier = new LocalWakeClassifier(localAiClient);
-        UtteranceClassifier utteranceClassifier = new LocalUtteranceClassifier(localAiClient);
-        ActivationDetector activationDetector = new RuleBasedActivationDetector(
-                wakeWordMatcher, wakeClassifier, AppConfig.intentPhrases);
-        final SileroVadEngine vad = new SileroVadEngine(AppConfig.SILERO_MODEL_PATH, AppConfig.VAD_THRESHOLD);
-        try {
+            OpenAIClient openAiClient = OpenAIOkHttpClient.fromEnv();
+            AssistantEngine assistantEngine = new GptAssistantEngine(openAiClient);
+            SemanticRouter semanticRouter = new GuardedSemanticRouter(new LocalSemanticRouter(localAiClient));
+            SystemTimeSkill systemTimeSkill = new SystemTimeSkill();
+            GeneralSkill generalSkill = new GeneralSkill(assistantEngine);
+            AudioControlSkill audioControlSkill = new AudioControlSkill(audioControlParser, audioController);
+            SkillRegistry skillRegistry = new SkillRegistry(Map.of(
+                    Capability.SYSTEM_TIME, systemTimeSkill,
+                    Capability.GENERAL, generalSkill,
+                    Capability.AUDIO_CONTROL, audioControlSkill,
+                    Capability.OS_COMMAND, osCommandSkill,
+                    Capability.CURRENT_RESEARCH, new UnsupportedSkill(Capability.CURRENT_RESEARCH)));
+            SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);
+            AssistantPipeline assistantPipeline = new AssistantPipeline(skillRouter);
+            WakeWordMatcher wakeWordMatcher = new WakeWordMatcher(
+                    AppConfig.wakeWords, AppConfig.WAKE_HIGH_THRESHOLD, AppConfig.WAKE_LOW_THRESHOLD);
+            WakeClassifier wakeClassifier = new LocalWakeClassifier(localAiClient);
+            UtteranceClassifier utteranceClassifier = new LocalUtteranceClassifier(localAiClient);
+            ActivationDetector activationDetector = new RuleBasedActivationDetector(
+                    wakeWordMatcher, wakeClassifier, AppConfig.intentPhrases);
+            final SileroVadEngine vad = new SileroVadEngine(AppConfig.SILERO_MODEL_PATH, AppConfig.VAD_THRESHOLD);
+            cleanup.register(ResourceCleanup.Resource.VAD, vad);
             client.start();
             piperClient.start();
             System.out.println("Workers running properly");
@@ -126,11 +129,13 @@ public class Main {
 
             AudioPipeline audioPipeline = new AudioPipeline(
                     tts, playbackService, deviceOutFocusrite, audioController);
-            outputCoordinator = new AssistantOutputCoordinator(audioController,
+            AssistantOutputCoordinator outputCoordinator = new AssistantOutputCoordinator(audioController,
                     presentationPolicy, audioPipeline, visualOutput);
+            cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, outputCoordinator);
 
-            speechProcessor = new SpeechProcessingService(stt, assistantPipeline, activationDetector,
+            SpeechProcessingService speechProcessor = new SpeechProcessingService(stt, assistantPipeline, activationDetector,
                     new ConversationSession(), audioPipeline, speechSegmentValidator, utteranceClassifier, outputCoordinator);
+            cleanup.register(ResourceCleanup.Resource.SPEECH_PROCESSOR, speechProcessor);
             VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline);
 
             captureService.start(deviceFocusrite, pipeline::process);
@@ -139,27 +144,13 @@ public class Main {
             System.out.println("Worker alive: " + client.isAlive());
             System.out.println("Ping: " + client.ping());
         }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("Ares interrupted");
+        }
         catch (Exception e) {
             System.out.println("Exception: " + e.getMessage());
             e.printStackTrace();
-        }
-        finally {
-            captureService.stop();
-            if (speechProcessor != null) {
-                speechProcessor.close();
-            }
-            try {
-                tts.close();
-                if (outputCoordinator != null) {
-                    outputCoordinator.close();
-                }
-            }
-            catch (Exception e) {
-                System.out.println("Unable to close TTS: " + e.getMessage());
-                e.printStackTrace();
-            }
-            stt.close();
-            vad.close();
         }
     }
 

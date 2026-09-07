@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-import java.util.List;
+import javafx.geometry.Rectangle2D;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -50,38 +52,43 @@ class JavaFxVisualOutputTest {
         assertThrows(IllegalArgumentException.class, () -> JavaFxVisualOutput.calculateDisplaySeconds(-1));
     }
 
-    @Test
-    void shouldCalculateClippedFrameGeometry() {
-        List<Double> points = JavaFxVisualOutput.calculateFramePoints(440.0, 132.0, 14.0);
-
-        assertEquals(List.of(
-                14.0, 0.0,
-                426.0, 0.0,
-                440.0, 14.0,
-                440.0, 118.0,
-                426.0, 132.0,
-                14.0, 132.0,
-                0.0, 118.0,
-                0.0, 14.0
-        ), points);
+    @ParameterizedTest
+    @CsvSource({"80, 132", "400, 400", "2000, 864"})
+    void shouldGrowUpwardAndCapAtScreenHeight(double preferred, double expected) {
+        Rectangle2D bounds = JavaFxVisualOutput.calculateOverlayBounds(
+                new Rectangle2D(0, 0, 1920, 1080), preferred);
+        assertEquals(560, bounds.getWidth());
+        assertEquals(expected, bounds.getHeight());
+        assertEquals(1896, bounds.getMaxX());
+        assertEquals(1056, bounds.getMaxY());
     }
 
     @Test
-    void shouldRejectInvalidFrameDimensions() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> JavaFxVisualOutput.calculateFramePoints(0.0, 132.0, 14.0));
+    void shouldFitSmallMonitorWithNegativeOrigin() {
+        Rectangle2D bounds = JavaFxVisualOutput.calculateOverlayBounds(
+                new Rectangle2D(-320, -200, 320, 200), 900);
+        assertEquals(new Rectangle2D(-296, -176, 272, 152), bounds);
     }
 
     @Test
-    void shouldRejectCornerCutLargerThanFrame() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> JavaFxVisualOutput.calculateFramePoints(20.0, 20.0, 11.0));
+    void shouldShrinkAfterLongResponse() {
+        Rectangle2D screen = new Rectangle2D(0, 0, 1280, 720);
+        assertEquals(576, JavaFxVisualOutput.calculateOverlayBounds(screen, 2000).getHeight());
+        assertEquals(132, JavaFxVisualOutput.calculateOverlayBounds(screen, 80).getHeight());
+    }
+
+    @Test
+    void shouldRejectInvalidDimensions() {
+        assertThrows(IllegalArgumentException.class, () -> JavaFxVisualOutput.calculateOverlayBounds(
+                new Rectangle2D(0, 0, 0, 720), 100));
+        assertThrows(IllegalArgumentException.class, () -> JavaFxVisualOutput.calculateOverlayBounds(
+                new Rectangle2D(0, 0, 1280, 720), Double.NaN));
     }
 
     @Test
     void shouldPackageOverlayStylesheet() {
-        assertNotNull(JavaFxVisualOutput.class.getResource("/ui/response.css"));
+        var stylesheet = JavaFxVisualOutput.class.getResource("/ui/response.css");
+        assertNotNull(stylesheet);
+        assertFalse(stylesheet.toExternalForm().contains("test-classes"));
     }
 }

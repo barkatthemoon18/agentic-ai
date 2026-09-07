@@ -9,11 +9,9 @@ import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.robot.Robot;
-import javafx.scene.shape.Polygon;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
@@ -28,18 +26,16 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class JavaFxVisualOutput implements VisualOutput {
-    private static final double OVERLAY_WIDTH = 440.0;
+    private static final double OVERLAY_WIDTH = 560.0;
     private static final double MINIMUM_HEIGHT = 132.0;
-    private static final double MAXIMUM_HEIGHT = 360.0;
     private static final double SCREEN_MARGIN = 24.0;
-    private static final double CORNER_CUT = 14.0;
+    private static final double HALO_PADDING = 24.0;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final AtomicBoolean TOOLKIT_START_REQUESTED = new AtomicBoolean(false);
     private static final CompletableFuture<Void> TOOLKIT_READY = new CompletableFuture<>();
     private final AtomicBoolean closed =  new AtomicBoolean(false);
     private Stage stage;
     private StackPane overlayRoot;
-    private Polygon frame;
     private Label statusLabel;
     private Label messageLabel;
     private Label timeLabel;
@@ -131,9 +127,9 @@ public class JavaFxVisualOutput implements VisualOutput {
 
         StackPane iconContainer = new StackPane(iconLabel);
         iconContainer.getStyleClass().add("ares-icon-container");
-        iconContainer.setMinSize(42.0, 42.0);
-        iconContainer.setPrefSize(42.0, 42.0);
-        iconContainer.setMaxSize(42.0, 42.0);
+        iconContainer.setMinSize(28.0, 28.0);
+        iconContainer.setPrefSize(28.0, 28.0);
+        iconContainer.setMaxSize(28.0, 28.0);
 
         messageLabel = new Label();
         messageLabel.getStyleClass().add("ares-message");
@@ -146,11 +142,13 @@ public class JavaFxVisualOutput implements VisualOutput {
         messageScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         messageScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         messageScroll.setPannable(true);
-        messageScroll.setMaxHeight(230.0);
+        messageScroll.setMinSize(0.0, 0.0);
+        messageScroll.setMaxHeight(Double.MAX_VALUE);
+        messageLabel.setMinHeight(Region.USE_PREF_SIZE);
 
         HBox.setHgrow(messageScroll, Priority.ALWAYS);
 
-        HBox body = new HBox(16.0, iconContainer, messageScroll);
+        HBox body = new HBox(10.0, iconContainer, messageScroll);
         body.setAlignment(Pos.TOP_LEFT);
         VBox.setVgrow(body, Priority.ALWAYS);
 
@@ -161,34 +159,23 @@ public class JavaFxVisualOutput implements VisualOutput {
         footer.setAlignment(Pos.CENTER_RIGHT);
 
         VBox content = new VBox(
-                13.0,
+                8.0,
                 header,
                 separator,
                 body,
                 footer
         );
-        content.getStyleClass().add("ares-content");
-        content.setPadding(new Insets(18.0, 20.0, 15.0, 20.0));
+        content.getStyleClass().addAll("ares-content", "ares-frame");
+        content.setMinWidth(0.0);
+        content.setPadding(new Insets(12.0, 20.0, 12.0, 20.0));
         content.setPrefWidth(OVERLAY_WIDTH);
         content.setMaxWidth(Double.MAX_VALUE);
 
-        frame = new Polygon();
-        frame.getStyleClass().add("ares-frame");
-        frame.setManaged(false);
-        frame.setMouseTransparent(true);
-        frame.setEffect(new DropShadow(18.0, Color.rgb(34, 207, 245, 0.34)));
-
-        overlayRoot = new StackPane(frame, content);
+        overlayRoot = new StackPane(content);
         overlayRoot.getStyleClass().add("ares-root");
+        overlayRoot.setPadding(new Insets(HALO_PADDING));
         overlayRoot.setPrefWidth(OVERLAY_WIDTH);
-        overlayRoot.setMinHeight(MINIMUM_HEIGHT);
-        overlayRoot.setMaxHeight(MAXIMUM_HEIGHT);
-
-        overlayRoot.widthProperty().addListener((observable, oldValue, newValue) ->
-                updateFrameShape());
-
-        overlayRoot.heightProperty().addListener((observable, oldValue, newValue) ->
-                        updateFrameShape());
+        overlayRoot.setMinSize(0.0, 0.0);
 
         Scene scene = new Scene(overlayRoot);
         scene.setFill(Color.TRANSPARENT);
@@ -211,10 +198,17 @@ public class JavaFxVisualOutput implements VisualOutput {
         dismissTimer.setOnFinished(
                 event -> hideInternal()
         );
+        overlayRoot.hoverProperty().addListener((observable, wasHovered, hovered) -> {
+            if (hovered && dismissTimer.getStatus() == Animation.Status.RUNNING) {
+                dismissTimer.pause();
+            }
+            else if (!hovered && dismissTimer.getStatus() == Animation.Status.PAUSED) {
+                dismissTimer.play();
+            }
+        });
 
         overlayRoot.applyCss();
         overlayRoot.layout();
-        updateFrameShape();
     }
 
     private void showInternal(VisualMessage visualMessage) {
@@ -226,20 +220,11 @@ public class JavaFxVisualOutput implements VisualOutput {
         messageScroll.setVvalue(0.0);
         overlayRoot.setOpacity(0.0);
         overlayRoot.setTranslateX(20.0);
+        Rectangle2D screenBounds = resolveTargetScreen().getVisualBounds();
+        sizeOverlay(screenBounds);
         if (!stage.isShowing()) {
             stage.show();
         }
-        overlayRoot.applyCss();
-        overlayRoot.layout();
-        stage.sizeToScene();
-
-        double effectiveHeight = Math.max(MINIMUM_HEIGHT, Math.min(MAXIMUM_HEIGHT, stage.getHeight()));
-
-        stage.setWidth(OVERLAY_WIDTH);
-        stage.setHeight(effectiveHeight);
-
-        positionStage();
-        updateFrameShape();
 
         FadeTransition fade = new FadeTransition(Duration.millis(180), overlayRoot);
         fade.setFromValue(0.0);
@@ -288,6 +273,9 @@ public class JavaFxVisualOutput implements VisualOutput {
         dismissTimer.stop();
         dismissTimer.setDuration(Duration.seconds(calculateDisplaySeconds(charCount)));
         dismissTimer.playFromStart();
+        if (overlayRoot.isHover()) {
+            dismissTimer.pause();
+        }
     }
 
     private void stopAnimations() {
@@ -300,12 +288,43 @@ public class JavaFxVisualOutput implements VisualOutput {
         }
     }
 
-    private void positionStage() {
-        Screen targetScreen = resolveTargetScreen();
-        Rectangle2D bounds = targetScreen.getVisualBounds();
+    private void sizeOverlay(Rectangle2D screenBounds) {
+        Rectangle2D maximum = calculateOverlayBounds(screenBounds, Double.MAX_VALUE);
+        // Measure without a scrollbar so a previous long response cannot affect wrapping.
+        messageScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        overlayRoot.setPrefHeight(Region.USE_COMPUTED_SIZE);
+        overlayRoot.applyCss();
+        overlayRoot.resize(maximum.getWidth(), maximum.getHeight());
+        overlayRoot.layout();
+        double textWidth = Math.max(1.0, messageScroll.getViewportBounds().getWidth());
+        Insets scrollInsets = messageScroll.getInsets();
+        double textHeight = Math.ceil(messageLabel.prefHeight(textWidth));
+        messageScroll.setPrefHeight(textHeight + scrollInsets.getTop() + scrollInsets.getBottom());
+        double preferredHeight = Math.ceil(overlayRoot.prefHeight(maximum.getWidth()));
+        Rectangle2D bounds = calculateOverlayBounds(screenBounds, preferredHeight);
+        messageScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        overlayRoot.setPrefSize(bounds.getWidth(), bounds.getHeight());
+        overlayRoot.resize(bounds.getWidth(), bounds.getHeight());
+        stage.setWidth(bounds.getWidth());
+        stage.setHeight(bounds.getHeight());
+        stage.setX(bounds.getMinX());
+        stage.setY(bounds.getMinY());
+        overlayRoot.layout();
+    }
 
-        stage.setX(bounds.getMaxX() - stage.getWidth() - SCREEN_MARGIN);
-        stage.setY(bounds.getMaxY() - stage.getHeight() - SCREEN_MARGIN);
+    static Rectangle2D calculateOverlayBounds(Rectangle2D screen, double preferredHeight) {
+        Objects.requireNonNull(screen, "screen must not be null");
+        if (screen.getWidth() <= 0 || screen.getHeight() <= 0
+                || !Double.isFinite(preferredHeight) || preferredHeight < 0) {
+            throw new IllegalArgumentException("Screen dimensions and preferred height must be valid");
+        }
+        double marginX = Math.min(SCREEN_MARGIN, screen.getWidth() / 4.0);
+        double marginY = Math.min(SCREEN_MARGIN, screen.getHeight() / 4.0);
+        double width = Math.min(OVERLAY_WIDTH, screen.getWidth() - 2 * marginX);
+        double maximumHeight = Math.min(screen.getHeight() * 0.8, screen.getHeight() - 2 * marginY);
+        double height = Math.min(maximumHeight, Math.max(MINIMUM_HEIGHT, preferredHeight));
+        return new Rectangle2D(screen.getMaxX() - width - marginX,
+                screen.getMaxY() - height - marginY, width, height);
     }
 
     private Screen resolveTargetScreen() {
@@ -326,20 +345,6 @@ public class JavaFxVisualOutput implements VisualOutput {
         return Screen.getPrimary();
     }
 
-    private void updateFrameShape() {
-        if (frame == null || overlayRoot == null) {
-            return;
-        }
-        double width = overlayRoot.getWidth();
-        double height = overlayRoot.getHeight();
-
-        if (width <= 0.0 || height <= 0.0) {
-            return;
-        }
-
-        frame.getPoints().setAll(calculateFramePoints(width, height, CORNER_CUT));
-    }
-
     static String buildStatusText(AssistantAudioSnapshot audioSnapshot) {
         Objects.requireNonNull(audioSnapshot, "audioSnapshot must not be null");
         return audioSnapshot.isMuted()
@@ -353,25 +358,6 @@ public class JavaFxVisualOutput implements VisualOutput {
         }
         double seconds = Math.ceil(charCount / 18.0) + 4.0;
         return Math.clamp(seconds, 6.0, 30.0);
-    }
-
-    static List<Double> calculateFramePoints(double width, double height, double cornerCut) {
-        if (width <= 0.0 || height <= 0.0) {
-            throw new IllegalArgumentException("Frame dimensions must be positive");
-        }
-        if (cornerCut <= 0.0 || cornerCut * 2.0 > Math.min(width, height)) {
-            throw new IllegalArgumentException("Corner cut does not fit inside the frame");
-        }
-        return List.of(
-                cornerCut, 0.0,
-                width - cornerCut, 0.0,
-                width, cornerCut,
-                width, height - cornerCut,
-                width - cornerCut, height,
-                cornerCut, height,
-                0.0, height - cornerCut,
-                0.0, cornerCut
-        );
     }
 
     private static void runAndWait(Runnable runnable) {

@@ -22,6 +22,7 @@ import lombok.NonNull;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 @AllArgsConstructor
@@ -51,7 +52,13 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             System.out.println("Speech segment ignored: audio pipeline busy");
             return;
         }
-        executorService.submit(() -> process(segment));
+        try {
+            executorService.submit(() -> process(segment));
+        }
+        catch (RejectedExecutionException e) {
+            audioPipeline.finishProcessing();
+            System.err.println("Speech segment ignored: executor rejected task: " + e.getMessage());
+        }
     }
 
     @Override

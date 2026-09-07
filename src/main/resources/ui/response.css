@@ -1,15 +1,15 @@
 .ares-root {
+    -fx-background-color: transparent;
     -fx-font-family: "Segoe UI";
 }
 
 .ares-frame {
-    -fx-fill: linear-gradient(to bottom right, rgba(4, 12, 20, 0.97), rgba(7, 31, 47, 0.94));
-    -fx-stroke: #22cff5;
-    -fx-stroke-width: 1.2;
-}
-
-.ares-content {
-    -fx-background-color: transparent;
+    -fx-background-color: linear-gradient(to bottom right, rgba(8, 20, 32, 0.94), rgba(12, 37, 51, 0.89));
+    -fx-background-radius: 24px;
+    -fx-border-radius: 24px;
+    -fx-border-color: rgba(120, 236, 255, 0.22);
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(34, 207, 245, 0.20), 18, 0.05, 0, 0);
 }
 
 .ares-title {
@@ -27,16 +27,12 @@
 }
 
 .ares-separator {
-    -fx-background-color: linear-gradient(to right, #22cff5, rgba(34, 207, 245, 0.08));
+    -fx-background-color: linear-gradient(to right, rgba(120, 236, 255, 0.30), rgba(34, 207, 245, 0.0));
 }
 
 .ares-icon-container {
-    -fx-background-color: rgba(13, 50, 70, 0.72);
-    -fx-border-color: #22cff5;
-    -fx-border-width: 1px;
-    -fx-background-radius: 8px;
-    -fx-border-radius: 8px;
-    -fx-effect: dropshadow(gaussian, rgba(34, 207, 245, 0.40), 10, 0.15, 0, 0);
+    -fx-background-color: transparent;
+    -fx-effect: dropshadow(gaussian, rgba(34, 207, 245, 0.30), 12, 0.05, 0, 0);
 }
 
 .ares-icon {
@@ -49,7 +45,7 @@
 .ares-message {
     -fx-font-family: "Segoe UI";
     -fx-font-size: 15px;
-    -fx-line-spacing: 4px;
+    -fx-line-spacing: 3px;
     -fx-text-fill: #eaf8fc;
 }
 

@@ -1572,13 +1572,13 @@ Las pruebas manuales de volumen fueron retiradas del arranque.
 
 2. Sustituir System.out/printStackTrace por logging estructurado.
 
-3. Proteger onSpeechSegment ante RejectedExecutionException:
-   si submit falla después de beginProcessing(), debe liberarse AudioPipeline.
+3. Resuelto el 7 de septiembre: onSpeechSegment libera AudioPipeline si submit
+   rechaza la tarea después de beginProcessing(), sin propagar el rechazo.
 
 4. Validar dependencias obligatorias en constructores.
 
-5. Ejecutar los corpus contra Phi-3.5 Mini Instruct y ajustar el prompt con development;
-   reservar holdout para validar exactitud, estabilidad y latencia finales.
+5. Medido el 7 de septiembre con el alias phi-router: comparar híbrido y sin
+   reglas, tres repeticiones por corpus. Véase el informe de evaluación enlazado abajo.
 ```
 
 ## Funcional pero pendiente de evaluación
@@ -1587,7 +1587,8 @@ Las pruebas manuales de volumen fueron retiradas del arranque.
 LocalUtteranceClassifier
 → contrato unificado implementado
 → orquestación cubierta por tests
-→ precisión real del modelo aún no medida sistemáticamente
+→ híbrido: 36/36 en development y holdout, tres repeticiones por corpus
+→ medir por separado las reglas y el modelo: los aciertos híbridos no son precisión del LLM
 
 LocalSemanticRouter
 → funcional tras reforzar OS_COMMAND vs AUDIO_CONTROL
@@ -1714,9 +1715,9 @@ El overlay reutiliza una única instancia de `Stage` transparente. Se ubica a
 `visualBounds` para no cubrir la barra de tareas.
 
 ```text
-ancho                         440 px
+ancho                         560 px
 alto mínimo                   132 px
-alto máximo                   360 px
+alto máximo                   80 % del área visible, acotado por márgenes
 cortes diagonales              14 px
 entrada                       fade + desplazamiento, 180 ms
 salida                        fade + desplazamiento, 140 ms
@@ -1744,9 +1745,32 @@ rechazo de argumentos inválidos
 empaquetado del stylesheet
 ```
 
-`JavaFxVisualOutputDemo` es una prueba manual ejecutable desde IntelliJ. Muestra
-secuencialmente un mensaje muted, uno de volumen bajo y otro extenso con scroll;
-luego prueba el ocultamiento y el cierre del runtime JavaFX.
+`JavaFxVisualOutputDemo` es una prueba manual interactiva ejecutable desde IntelliJ,
+con la raíz del proyecto como directorio de trabajo y el entorno Python de Piper.
+Requiere la salida `Altavoces` de Focusrite; si no está disponible o Piper falla,
+informa el motivo y termina. Comparte el controlador de volumen entre
+`AssistantOutputCoordinator` y `AudioPipeline`, con el umbral configurado en Ares.
+No utiliza micrófono, STT, modelos de lenguaje ni skills.
+
+El menú permite repetir mute al 40 %, volumen al 10 %, recuperación al 40 %,
+cero seguido de unmute, volumen exactamente en el umbral, texto extenso y texto
+corto. Cada presentación informa el modo esperado en consola. Las opciones 8 y 9
+demoran cinco segundos para comprobar foco/monitor y ocultamiento explícito con
+el cursor dentro, respectivamente. La opción 0 o EOF cierra el overlay y Piper;
+ambos recursos se liberan también ante errores. La síntesis y reproducción se
+ejecutan fuera del hilo JavaFX.
+
+El temporizador se pausa con el cursor dentro del panel y continúa el tiempo
+restante al salir. Un mensaje nuevo reinicia la duración y mantiene la pausa si
+el cursor sigue dentro. El ocultamiento explícito y el cierre no esperan al cursor.
+
+Validación manual: ejecutar 1 → 2 → 3 para comprobar texto → audio y texto → audio;
+4 para recuperar el último volumen audible desde cero; 5 para comprobar el umbral;
+6 para leer y usar scroll durante más de treinta segundos con el cursor dentro,
+luego retirarlo y comprobar el cierre; 7 para comprobar reducción tras texto largo.
+Con 8, volver al editor y escribir antes de aparecer el panel; repetir moviendo
+el puntero a cada monitor. Registrar si roba foco. Con 9, volver al panel antes de
+los cinco segundos y comprobar que el ocultamiento explícito funciona.
 
 La suite automática no crea ventanas ni depende de una pantalla disponible. La
 posición, animación, legibilidad, foco y comportamiento multimonitor se validan
@@ -1758,3 +1782,50 @@ JavaFX no garantiza por sí solo que un `Stage` transparente nunca tome foco en
 Windows. Si el demo evidencia robo de foco, una iteración posterior deberá
 aplicar la bandera nativa `WS_EX_NOACTIVATE`. Esto no modifica la política de
 salida ni el coordinador.
+
+## 29. Robustez del ciclo de vida — 7 de septiembre de 2026
+
+`SpeechProcessingService.onSpeechSegment()` captura `RejectedExecutionException`,
+libera el estado de audio y registra el segmento descartado sin reintentar ni
+propagar el rechazo al hilo de captura. Las tareas aceptadas mantienen su
+liberación en el `finally` de `process()`; si el audio ya está ocupado, no se
+libera el estado perteneciente a otra tarea.
+
+`Main` protege ahora la inicialización con `ResourceCleanup`, una utilidad interna
+que registra los recursos conforme se crean. Intenta los cierres en este orden:
+captura → procesador de segmentos → TTS → salida visual → STT → VAD. Cada excepción
+identifica el recurso y no impide intentar los cierres siguientes, incluso cuando
+el arranque quedó incompleto. El coordinador sustituye el cierre directo de la
+salida visual al construirse, evitando cierres duplicados. Las interrupciones de
+la espera principal y las excepciones de interrupción durante el cierre conservan
+la marca de interrupción del hilo.
+
+Las pruebas deterministas cubren rechazo tras cerrar el executor con estado real
+de audio, liberación única, rechazo por audio ocupado, orden de cierre, uno o
+varios fallos, arranque parcial, transferencia de ownership visual e interrupción.
+Se mantienen los tiempos de espera existentes; no se agregan timeouts a los
+workers ni un shutdown hook de la JVM. Estas pruebas no necesitan hardware.
+
+## 30. Evaluación comparativa de utterances — 7 de septiembre de 2026
+
+Se evaluó el alias local `phi-router` con tres repeticiones por variante y corpus.
+El clasificador actual ya usa `UtteranceShapeDetector` antes del LLM; la propuesta
+híbrida de la sección 12 es un registro histórico, no el estado actual del código.
+
+El híbrido obtuvo 36/36 en development y holdout en cada repetición, sin errores
+ni falsas activaciones. Java resolvió 26 casos de development y 15 de holdout.
+La variante sin reglas previas obtuvo 27/36 y 25/36, respectivamente. Conserva
+la validación de salida y la protección contra FOLLOW_UP sin contexto.
+
+Se probó una revisión más breve del prompt exclusivamente con development:
+redujo latencia, pero degradó el híbrido a 33/36. Se descartó y se congeló el
+original antes de holdout. No se cambiaron reglas, corpus ni etiquetas.
+
+El evaluador admite `evaluation.mode=hybrid|model-only|both` y
+`evaluation.repetitions`, con valores predeterminados `hybrid` y `1`. Guarda
+reportes únicos en `target/model-evaluation`, con huellas del prompt/corpus,
+resultados por caso, rutas Java/modelo, métricas, latencias y estabilidad.
+Los umbrales se aplican a cada repetición híbrida; sin reglas es diagnóstico.
+
+Resultados, límites y ubicación de artefactos:
+[Informe de evaluación](utterance_evaluacion_2026-09-07.md).

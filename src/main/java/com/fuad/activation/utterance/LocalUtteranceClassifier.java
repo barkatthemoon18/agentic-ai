@@ -137,20 +137,27 @@ public class LocalUtteranceClassifier implements UtteranceClassifier {
     private final OpenAIClient openAIClient;
     private final UtteranceShapeDetector shapeDetector;
     private final String model;
+    private final boolean useShapeDetector;
 
     public LocalUtteranceClassifier(OpenAIClient openAIClient) {
         this(openAIClient, AppConfig.LOCAL_MODEL_ID);
     }
 
     public LocalUtteranceClassifier(OpenAIClient openAIClient, String model) {
+        this(openAIClient, model, true);
+    }
+
+    public LocalUtteranceClassifier(OpenAIClient openAIClient, String model, boolean useShapeDetector) {
         this.openAIClient = Objects.requireNonNull(openAIClient, "openAIClient cannot be null");
         this.shapeDetector = new UtteranceShapeDetector();
         this.model = LocalModelOutput.requireModelId(model);
+        this.useShapeDetector = useShapeDetector;
     }
 
     @Override
     public UtteranceDecision classify(UtteranceClassificationRequest request) {
-        UtteranceDecision deterministicDecision = shapeDetector.classify(request).orElse(null);
+        Objects.requireNonNull(request, "request cannot be null");
+        UtteranceDecision deterministicDecision = useShapeDetector ? shapeDetector.classify(request).orElse(null) : null;
         if (deterministicDecision != null) {
             return deterministicDecision;
         }

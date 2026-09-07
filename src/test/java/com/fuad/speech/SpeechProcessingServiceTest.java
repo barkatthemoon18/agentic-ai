@@ -55,6 +55,7 @@ class SpeechProcessingServiceTest {
         }
 
         assertEquals(0, transcriptions.get());
+        assertEquals(1, audio.finishCount.get());
     }
 
     @Test
@@ -503,6 +504,37 @@ class SpeechProcessingServiceTest {
 
         assertEquals(0, validations.get());
         assertEquals(0, audio.finishCount.get());
+    }
+
+    @Test
+    void rejectedSubmissionShouldReleaseRealAudioStateExactlyOnceWithoutTranscribing() {
+        AtomicInteger transcriptions = new AtomicInteger();
+        AtomicInteger releases = new AtomicInteger();
+        AssistantAudioController controller = new AssistantAudioController();
+        AudioPipeline audio = new AudioPipeline(null, null, null, controller) {
+            @Override public synchronized void finishProcessing() {
+                releases.incrementAndGet();
+                super.finishProcessing();
+            }
+        };
+        VisualOutput visual = new VisualOutput() {
+            @Override public void show(VisualMessage message) { fail("Unexpected output"); }
+            @Override public void hide() { fail("Unexpected output"); }
+        };
+        SpeechProcessingService service = new SpeechProcessingService(
+                stt(ignored -> { transcriptions.incrementAndGet(); return transcription("hola"); }),
+                new AssistantPipeline(staticRouter(Capability.GENERAL, cmd -> new AssistantResult("ok"))),
+                ignored -> ActivationResult.none(), new ConversationSession(), audio, valid(true),
+                request -> UtteranceDecision.OTHER,
+                new AssistantOutputCoordinator(controller, new OutputPresentationPolicy(20), audio, visual));
+        service.close();
+
+        assertDoesNotThrow(() -> service.onSpeechSegment(segment));
+
+        assertEquals(1, releases.get());
+        assertEquals(0, transcriptions.get());
+        assertTrue(audio.canListen());
+        assertFalse(audio.isProcessing());
     }
 
     private SpeechProcessingService service(SttEngine stt, SpeechSegmentValidator validator,

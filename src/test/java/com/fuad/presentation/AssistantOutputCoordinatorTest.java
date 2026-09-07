@@ -8,6 +8,8 @@ import com.fuad.tts.TtsAudio;
 import com.fuad.tts.TtsEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,12 +22,15 @@ class AssistantOutputCoordinatorTest {
     private TrackingAudioPipeline audioPipeline;
     private TrackingVisualOutput visualOutput;
     private AssistantOutputCoordinator coordinator;
+    private final List<String> events = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
         audioController = new AssistantAudioController();
         audioPipeline = new TrackingAudioPipeline(audioController);
         visualOutput = new TrackingVisualOutput();
+        audioPipeline.events = events;
+        visualOutput.events = events;
         coordinator = new AssistantOutputCoordinator(
                 audioController,
                 new OutputPresentationPolicy(20),
@@ -150,7 +155,38 @@ class AssistantOutputCoordinatorTest {
         assertEquals(1, visualOutput.closeCalls);
     }
 
+    @Test
+    void shouldTransitionFromMutedThroughLowVolumeToAudioOnly() {
+        audioController.setVolume(40);
+        audioController.mute();
+        coordinator.present("Silencio");
+        audioController.setVolume(10);
+        coordinator.present("Volumen bajo");
+        audioController.setVolume(40);
+        coordinator.present("Volumen normal");
+
+        assertEquals(List.of("show", "show", "speak", "hide", "speak"), events);
+        assertEquals(2, audioPipeline.speakCalls);
+        assertEquals(2, visualOutput.showCalls);
+    }
+
+    @Test
+    void shouldRestoreAudibleVolumeAfterZeroAndHidePreviousText() {
+        audioController.setVolume(40);
+        audioController.setVolume(0);
+        coordinator.present("Cero");
+        assertEquals(0, audioPipeline.speakCalls);
+        assertEquals(0, visualOutput.lastMessage.getAudioSnapshot().getVolume());
+
+        audioController.unmute();
+        coordinator.present("Recuperado");
+
+        assertEquals(40, audioController.getVolume());
+        assertEquals(List.of("show", "hide", "speak"), events);
+    }
+
     private static final class TrackingVisualOutput implements VisualOutput {
+        private List<String> events;
         private int showCalls;
         private int hideCalls;
         private int closeCalls;
@@ -161,6 +197,7 @@ class AssistantOutputCoordinatorTest {
 
         @Override
         public void show(VisualMessage message) {
+            events.add("show");
             showCalls++;
             if (failOnShow) {
                 throw new IllegalStateException("show failure");
@@ -170,6 +207,7 @@ class AssistantOutputCoordinatorTest {
 
         @Override
         public void hide() {
+            events.add("hide");
             hideCalls++;
             if (failOnHide) {
                 throw new IllegalStateException("hide failure");
@@ -186,6 +224,7 @@ class AssistantOutputCoordinatorTest {
     }
 
     private static final class TrackingAudioPipeline extends AudioPipeline {
+        private List<String> events;
         private int speakCalls;
         private String spokenText;
 
@@ -199,6 +238,7 @@ class AssistantOutputCoordinatorTest {
 
         @Override
         public void speak(String text) {
+            events.add("speak");
             speakCalls++;
             spokenText = text;
         }
