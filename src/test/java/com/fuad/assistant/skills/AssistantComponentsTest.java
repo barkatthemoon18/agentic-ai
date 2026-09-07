@@ -10,6 +10,7 @@ import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.ActivationType;
 import com.fuad.enums.Capability;
 import com.fuad.enums.ConversationPolicy;
+import com.fuad.enums.ResearchDepth;
 import com.fuad.pipeline.AssistantPipeline;
 import org.junit.jupiter.api.Test;
 
@@ -164,6 +165,7 @@ class AssistantComponentsTest {
         assertEquals("explica RSA", captured.get().getCommand());
         assertEquals(300, captured.get().getMaxOutputTokens());
         assertNull(captured.get().getContinuationToken());
+        assertEquals(ResearchDepth.NONE, captured.get().getResearchDepth());
         assertFalse(captured.get().getInstructions().isBlank());
         assertEquals(ConversationPolicy.KEEP_OPEN, skill.getConversationPolicy());
     }

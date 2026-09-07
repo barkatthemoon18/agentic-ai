@@ -141,8 +141,14 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                     response.getText());
         }
         catch (Exception e) {
-            System.out.println("Error processing speech segment: " + e.getMessage());
+            System.err.println("Error processing speech segment: " + e.getMessage());
             e.printStackTrace();
+            try {
+                assistantOutputCoordinator.present("No pude completar la solicitud en este momento.");
+            }
+            catch (Exception presentationFailure) {
+                System.err.println("Unable to present processing failure: " + presentationFailure.getMessage());
+            }
         }
         finally {
             audioPipeline.finishProcessing();

@@ -18,7 +18,6 @@ import com.fuad.assistant.skills.GeneralSkill;
 import com.fuad.assistant.skills.SkillRegistry;
 import com.fuad.assistant.skills.SkillRouter;
 import com.fuad.assistant.skills.SystemTimeSkill;
-import com.fuad.assistant.skills.UnsupportedSkill;
 import com.fuad.assistant.skills.audio.AudioControlParser;
 import com.fuad.assistant.skills.audio.AudioControlSkill;
 import com.fuad.assistant.skills.audio.LocalAudioControlParser;
@@ -30,6 +29,9 @@ import com.fuad.assistant.skills.os.OsCommandParser;
 import com.fuad.assistant.skills.os.OsCommandSafetyGuard;
 import com.fuad.assistant.skills.os.OsCommandSkill;
 import com.fuad.assistant.skills.os.WindowsApplicationController;
+import com.fuad.assistant.skills.research.CurrentResearchSkill;
+import com.fuad.assistant.skills.research.LocalResearchDepthClassifier;
+import com.fuad.assistant.skills.research.ResearchDepthClassifier;
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.audio.AudioCaptureService;
 import com.fuad.audio.AudioDeviceInfo;
@@ -95,12 +97,15 @@ public class Main {
             SystemTimeSkill systemTimeSkill = new SystemTimeSkill();
             GeneralSkill generalSkill = new GeneralSkill(assistantEngine);
             AudioControlSkill audioControlSkill = new AudioControlSkill(audioControlParser, audioController);
+            ResearchDepthClassifier researchDepthClassifier = new LocalResearchDepthClassifier(localAiClient);
+            CurrentResearchSkill currentResearchSkill = new CurrentResearchSkill(
+                    assistantEngine, researchDepthClassifier);
             SkillRegistry skillRegistry = new SkillRegistry(Map.of(
                     Capability.SYSTEM_TIME, systemTimeSkill,
                     Capability.GENERAL, generalSkill,
                     Capability.AUDIO_CONTROL, audioControlSkill,
                     Capability.OS_COMMAND, osCommandSkill,
-                    Capability.CURRENT_RESEARCH, new UnsupportedSkill(Capability.CURRENT_RESEARCH)));
+                    Capability.CURRENT_RESEARCH, currentResearchSkill));
             SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);
             AssistantPipeline assistantPipeline = new AssistantPipeline(skillRouter);
             WakeWordMatcher wakeWordMatcher = new WakeWordMatcher(

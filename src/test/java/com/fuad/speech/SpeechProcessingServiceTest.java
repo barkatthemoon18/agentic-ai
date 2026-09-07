@@ -56,6 +56,7 @@ class SpeechProcessingServiceTest {
 
         assertEquals(0, transcriptions.get());
         assertEquals(1, audio.finishCount.get());
+        assertNull(audio.spokenText.get());
     }
 
     @Test
@@ -279,7 +280,7 @@ class SpeechProcessingServiceTest {
 
         assertFalse(session.isActive());
         assertEquals(0L, activeUntil(session));
-        assertNull(audio.spokenText.get());
+        assertEquals("No pude completar la solicitud en este momento.", audio.spokenText.get());
     }
 
     @Test
