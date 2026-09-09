@@ -13,7 +13,7 @@ import java.util.Set;
 public class LocalResearchDepthClassifier implements ResearchDepthClassifier {
     private static final Set<String> LABELS = Set.of("quick", "deep");
     private static final String SYSTEM_PROMPT = """
-            Clasifica la profundidad necesaria para una consulta web.
+            Clasifica la profundidad necesaria para una consulta de investigacion.
 
             Devuelve exclusivamente una etiqueta:
 

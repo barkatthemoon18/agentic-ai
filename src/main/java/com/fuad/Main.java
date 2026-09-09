@@ -30,7 +30,11 @@ import com.fuad.assistant.skills.os.OsCommandSafetyGuard;
 import com.fuad.assistant.skills.os.OsCommandSkill;
 import com.fuad.assistant.skills.os.WindowsApplicationController;
 import com.fuad.assistant.skills.research.CurrentResearchSkill;
+import com.fuad.assistant.skills.research.DefaultResearchBackendClassifier;
+import com.fuad.assistant.skills.research.GptWebResearchEngine;
 import com.fuad.assistant.skills.research.LocalResearchDepthClassifier;
+import com.fuad.assistant.skills.research.LocalQwenChatClient;
+import com.fuad.assistant.skills.research.QwenLocalResearchEngine;
 import com.fuad.assistant.skills.research.ResearchDepthClassifier;
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.audio.AudioCaptureService;
@@ -98,8 +102,15 @@ public class Main {
             GeneralSkill generalSkill = new GeneralSkill(assistantEngine);
             AudioControlSkill audioControlSkill = new AudioControlSkill(audioControlParser, audioController);
             ResearchDepthClassifier researchDepthClassifier = new LocalResearchDepthClassifier(localAiClient);
+            LocalQwenChatClient localQwenChatClient = new LocalQwenChatClient(
+                    AppConfig.LOCAL_QWEN_BASE_URL,
+                    AppConfig.LOCAL_AI_API_KEY,
+                    AppConfig.LOCAL_RESEARCH_MODEL_ID);
             CurrentResearchSkill currentResearchSkill = new CurrentResearchSkill(
-                    assistantEngine, researchDepthClassifier);
+                    new GptWebResearchEngine(assistantEngine),
+                    new QwenLocalResearchEngine(localQwenChatClient),
+                    researchDepthClassifier,
+                    new DefaultResearchBackendClassifier());
             SkillRegistry skillRegistry = new SkillRegistry(Map.of(
                     Capability.SYSTEM_TIME, systemTimeSkill,
                     Capability.GENERAL, generalSkill,

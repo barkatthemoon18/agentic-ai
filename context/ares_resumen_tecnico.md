@@ -1829,3 +1829,47 @@ Los umbrales se aplican a cada repetición híbrida; sin reglas es diagnóstico.
 
 Resultados, límites y ubicación de artefactos:
 [Informe de evaluación](utterance_evaluacion_2026-09-07.md).
+
+## 31. Qwen local y aislamiento del proveedor — 9 de septiembre de 2026
+
+La investigación local incorporó `QwenLocalResearchEngine` para responder con
+conocimiento interno cuando el usuario pide buscar localmente. La primera
+integración usaba `/v1/chat/completions` y limitaba las respuestas rápidas a
+500 tokens. Con Qwen 3.5, el modelo consumía ese presupuesto completo en
+`reasoning_content`, terminaba con `finish_reason=length` y devolvía `content`
+vacío. El modelo estaba cargado y la solicitud HTTP había sido procesada; el
+fallo se producía al no existir texto final para Ares.
+
+La comunicación quedó separada así:
+
+```text
+CurrentResearchSkill
+→ QwenLocalResearchEngine
+→ LocalQwenChatClient
+→ proveedor local de Qwen
+```
+
+`QwenLocalResearchEngine` conoce las instrucciones, la consulta y el historial
+de investigación. Convierte `ResearchMessage` al contrato neutral del cliente,
+solicita la respuesta y agrega el nuevo turno a `ResearchBranchState`. No conoce
+HTTP, JSON, endpoints, autenticación ni controles de razonamiento.
+
+`LocalQwenChatClient` representa el acceso de Ares al modelo Qwen local. Su
+contrato recibe un prompt de sistema, mensajes con roles `USER` y `ASSISTANT`,
+y el máximo de tokens; devuelve texto o informa un error descriptivo. La
+implementación actual adapta ese contrato a LM Studio mediante
+`POST /api/v1/chat`, con `reasoning: "off"` y `store: false`. De esta forma Qwen
+genera directamente la respuesta apta para voz y el estado conversacional sigue
+perteneciendo a Ares. Los bloques de razonamiento nunca se exponen al usuario.
+
+La URL del proveedor se configura con `ares.local-qwen-base-url`, cuyo valor
+predeterminado es `http://localhost:1234`. `ares.local-base-url` conserva el
+endpoint OpenAI-compatible usado por los clasificadores locales. Cuando Qwen se
+sirva con llama.cpp, la adaptación podrá cambiar dentro de
+`LocalQwenChatClient` sin modificar `QwenLocalResearchEngine` ni el skill.
+
+Las pruebas del cliente usan un servidor HTTP embebido y validan el payload de
+LM Studio, la selección exclusiva de bloques `message`, los estados no exitosos
+y las respuestas inválidas o vacías. Las pruebas del motor inyectan un cliente
+mock y cubren solamente la traducción de mensajes y la actualización inmutable
+del historial de investigación.

@@ -1,5 +1,6 @@
 package com.fuad.assistant.session;
 
+import com.fuad.assistant.skills.research.ResearchConversationState;
 import com.fuad.enums.Capability;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -15,8 +16,14 @@ public class ConversationSnapshot {
     @NonNull
     private final String previousAssistantText;
     private final String continuationToken;
+    private final ResearchConversationState researchConversationState;
 
     public ConversationSnapshot(Capability owner, String previousUserText, String previousAssistantText) {
-        this(owner, previousUserText, previousAssistantText, null);
+        this(owner, previousUserText, previousAssistantText, null, null);
+    }
+
+    public ConversationSnapshot(Capability owner, String previousUserText, String previousAssistantText,
+                                String continuationToken) {
+        this(owner, previousUserText, previousAssistantText, continuationToken, null);
     }
 }

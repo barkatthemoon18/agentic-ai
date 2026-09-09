@@ -22,6 +22,16 @@ class GuardedSemanticRouterTest {
         assertEquals(Capability.OS_COMMAND, router.classify("¿Puedes cerrar Spotify?"));
         assertEquals(Capability.CURRENT_RESEARCH,
                 router.classify("Busca las últimas noticias sobre OpenAI"));
+        assertEquals(Capability.CURRENT_RESEARCH,
+                router.classify("Busca globalmente quién fue Alan Turing"));
+        assertEquals(Capability.CURRENT_RESEARCH,
+                router.classify("Busca localmente quién fue Alan Turing"));
+        assertEquals(Capability.CURRENT_RESEARCH,
+                router.classify("¿Qué ocurrió hoy con NVIDIA?"));
+        assertEquals(Capability.CURRENT_RESEARCH,
+                router.classify("¿Cuál es el precio de Bitcoin?"));
+        assertEquals(Capability.CURRENT_RESEARCH,
+                router.classify("¿Cómo estará el clima en Santiago?"));
         assertFalse(called.get());
     }
 

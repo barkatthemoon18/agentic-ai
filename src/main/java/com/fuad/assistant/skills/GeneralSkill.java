@@ -18,7 +18,7 @@ public class GeneralSkill implements Skill {
 
     @Override
     public AssistantResult execute(String command) {
-        return execute(command, null);
+        return execute(command, (String) null);
     }
 
     @Override

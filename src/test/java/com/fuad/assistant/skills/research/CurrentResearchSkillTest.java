@@ -1,6 +1,5 @@
 package com.fuad.assistant.skills.research;
 
-import com.fuad.assistant.AssistantRequest;
 import com.fuad.assistant.AssistantResult;
 import com.fuad.enums.ConversationPolicy;
 import com.fuad.enums.ResearchDepth;
@@ -16,38 +15,44 @@ class CurrentResearchSkillTest {
 
     @Test
     void quickResearchShouldBuildVoiceRequestAndKeepConversationOpen() {
-        AtomicReference<AssistantRequest> captured = new AtomicReference<>();
-        CurrentResearchSkill skill = new CurrentResearchSkill(request -> {
+        AtomicReference<ResearchRequest> captured = new AtomicReference<>();
+        QuickResearchEngine engine = request -> {
             captured.set(request);
-            return new AssistantResult("respuesta", "token-nuevo");
-        }, query -> ResearchDepth.QUICK);
+            return new ResearchEngineResult("respuesta",
+                    new ResearchBranchState("token-nuevo", request.previousMessages()));
+        };
+        CurrentResearchSkill skill = new CurrentResearchSkill(engine, engine,
+                query -> ResearchDepth.QUICK, new DefaultResearchBackendClassifier());
 
         AssistantResult result = skill.execute("precio actual de Bitcoin");
 
         assertEquals("respuesta", result.getText());
         assertEquals("token-nuevo", result.getContinuationToken());
-        assertEquals("precio actual de Bitcoin", captured.get().getCommand());
-        assertEquals(ResearchDepth.QUICK, captured.get().getResearchDepth());
-        assertEquals(500, captured.get().getMaxOutputTokens());
-        assertNull(captured.get().getContinuationToken());
-        assertTrue(captured.get().getInstructions().contains("1 a 3 frases"));
+        assertEquals("precio actual de Bitcoin", captured.get().query());
+        assertEquals(ResearchDepth.QUICK, captured.get().depth());
+        assertEquals(500, captured.get().maxOutputTokens());
+        assertNull(captured.get().continuation().continuationToken());
+        assertTrue(captured.get().instructions().contains("1 a 3 frases"));
         assertEquals(ConversationPolicy.KEEP_OPEN, skill.getConversationPolicy());
     }
 
     @Test
     void deepResearchShouldForwardContinuationTokenAndUseLargerBudget() {
-        AtomicReference<AssistantRequest> captured = new AtomicReference<>();
-        CurrentResearchSkill skill = new CurrentResearchSkill(request -> {
+        AtomicReference<ResearchRequest> captured = new AtomicReference<>();
+        QuickResearchEngine engine = request -> {
             captured.set(request);
-            return new AssistantResult("analisis", "token-siguiente");
-        }, query -> ResearchDepth.DEEP);
+            return new ResearchEngineResult("analisis",
+                    new ResearchBranchState("token-siguiente", request.previousMessages()));
+        };
+        CurrentResearchSkill skill = new CurrentResearchSkill(engine, engine,
+                query -> ResearchDepth.DEEP, new DefaultResearchBackendClassifier());
 
         AssistantResult result = skill.execute("compara las noticias", "token-anterior");
 
         assertEquals("analisis", result.getText());
-        assertEquals(ResearchDepth.DEEP, captured.get().getResearchDepth());
-        assertEquals(1200, captured.get().getMaxOutputTokens());
-        assertEquals("token-anterior", captured.get().getContinuationToken());
-        assertTrue(captured.get().getInstructions().contains("Contrasta varias fuentes"));
+        assertEquals(ResearchDepth.DEEP, captured.get().depth());
+        assertEquals(1200, captured.get().maxOutputTokens());
+        assertEquals("token-anterior", captured.get().continuation().continuationToken());
+        assertTrue(captured.get().instructions().contains("Contrasta varias fuentes"));
     }
 }
