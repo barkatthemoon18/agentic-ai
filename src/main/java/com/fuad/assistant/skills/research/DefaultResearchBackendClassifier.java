@@ -9,10 +9,12 @@ public class DefaultResearchBackendClassifier implements ResearchBackendClassifi
     private static final Pattern LOCAL = Pattern.compile(
             ".*\\b(?:localmente|modelo local|con qwen|usando qwen)\\b.*");
     private static final Pattern GLOBAL = Pattern.compile(
-            ".*\\b(?:globalmente|en internet|en la web|busqueda web|busqueda global)\\b.*");
+            ".*\\b(?:globalmente|en internet|en la web|busqueda web|busqueda global"
+                    + "|fuente|fuentes|referencia|referencias)\\b.*");
     private static final Pattern CURRENT = Pattern.compile(
             ".*\\b(?:hoy|ahora|actual|actualmente|reciente|recientes|ultima|ultimas|ultimo|ultimos"
-                    + "|precio|cotizacion|noticia|noticias|clima|pronostico|version estable|release)\\b.*");
+                    + "|precio|cotizacion|noticia|noticias|clima|pronostico|version estable|release"
+                    + "|vigente|todavia|aun|sigue siendo)\\b.*");
 
     @Override
     public ResearchBackend classify(String query, ResearchBackend inheritedBackend) {

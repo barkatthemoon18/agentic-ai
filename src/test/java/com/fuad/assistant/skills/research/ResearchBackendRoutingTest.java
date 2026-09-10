@@ -29,6 +29,14 @@ class ResearchBackendRoutingTest {
                 classifier.classify("Busca informacion sobre Alan Turing", null));
         assertEquals(ResearchBackend.QWEN_LOCAL,
                 classifier.classify("Explicame mas", ResearchBackend.QWEN_LOCAL));
+        assertEquals(ResearchBackend.GPT_WEB,
+                classifier.classify("Dame las fuentes que encontraste", ResearchBackend.QWEN_LOCAL));
+        assertEquals(ResearchBackend.GPT_WEB,
+                classifier.classify("Verifica si eso sigue siendo cierto", ResearchBackend.QWEN_LOCAL));
+        assertEquals(ResearchBackend.GPT_WEB,
+                classifier.classify("Dame las fuentes", ResearchBackend.QWEN_LOCAL));
+        assertEquals(ResearchBackend.GPT_WEB,
+                classifier.classify("Verifica si sigue siendo cierto", ResearchBackend.QWEN_LOCAL));
     }
 
     @Test

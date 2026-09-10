@@ -1,6 +1,8 @@
 package com.fuad.assistant.skills.research;
 
 import com.fuad.assistant.AssistantResult;
+import com.fuad.assistant.session.ConversationSnapshot;
+import com.fuad.enums.Capability;
 import com.fuad.enums.ConversationPolicy;
 import com.fuad.enums.ResearchDepth;
 import org.junit.jupiter.api.Test;
@@ -54,5 +56,27 @@ class CurrentResearchSkillTest {
         assertEquals(1200, captured.get().maxOutputTokens());
         assertEquals("token-anterior", captured.get().continuation().continuationToken());
         assertTrue(captured.get().instructions().contains("Contrasta varias fuentes"));
+    }
+
+    @Test
+    void escalationFromGeneralShouldSeedVisibleContextAndIgnoreForeignToken() {
+        AtomicReference<ResearchRequest> captured = new AtomicReference<>();
+        QuickResearchEngine engine = request -> {
+            captured.set(request);
+            return new ResearchEngineResult("investigación",
+                    new ResearchBranchState("research-token", request.previousMessages()));
+        };
+        CurrentResearchSkill skill = new CurrentResearchSkill(engine, engine,
+                query -> ResearchDepth.QUICK, (query, inherited) -> ResearchBackend.GPT_WEB);
+        ConversationSnapshot generalSnapshot = new ConversationSnapshot(
+                Capability.GENERAL, "¿Quién fue Alan Turing?", "Fue un matemático.",
+                "general-gpt-token");
+
+        skill.executeFollowUp("Ahora búscalo en Internet", generalSnapshot);
+
+        assertNull(captured.get().continuation().continuationToken());
+        assertEquals(2, captured.get().previousMessages().size());
+        assertEquals("¿Quién fue Alan Turing?", captured.get().previousMessages().getFirst().content());
+        assertEquals("Fue un matemático.", captured.get().previousMessages().getLast().content());
     }
 }

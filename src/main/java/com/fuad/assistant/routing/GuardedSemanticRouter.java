@@ -32,9 +32,17 @@ public class GuardedSemanticRouter implements SemanticRouter {
                     + "|precio|cotizacion|noticia|noticias|clima|pronostico)\\b.*");
 
     private final SemanticRouter delegate;
+    private final ResearchEscalationDetector researchEscalationDetector;
 
     public GuardedSemanticRouter(SemanticRouter delegate) {
+        this(delegate, new ResearchEscalationDetector());
+    }
+
+    public GuardedSemanticRouter(SemanticRouter delegate,
+                                 ResearchEscalationDetector researchEscalationDetector) {
         this.delegate = Objects.requireNonNull(delegate, "delegate cannot be null");
+        this.researchEscalationDetector = Objects.requireNonNull(researchEscalationDetector,
+                "researchEscalationDetector cannot be null");
     }
 
     @Override
@@ -88,7 +96,8 @@ public class GuardedSemanticRouter implements SemanticRouter {
     }
 
     private boolean isCurrentResearchRequest(String command) {
-        return CURRENT_RESEARCH_REQUEST.matcher(command).matches()
+        return researchEscalationDetector.shouldEscalate(command)
+                || CURRENT_RESEARCH_REQUEST.matcher(command).matches()
                 || EXPLICIT_RESEARCH_REQUEST.matcher(command).matches()
                 || FRESH_INFORMATION_REQUEST.matcher(command).matches();
     }

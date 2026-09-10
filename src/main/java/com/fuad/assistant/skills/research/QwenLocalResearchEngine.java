@@ -1,5 +1,7 @@
 package com.fuad.assistant.skills.research;
 
+import com.fuad.assistant.local.LocalQwenChatClient;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;

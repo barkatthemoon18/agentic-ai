@@ -9,12 +9,17 @@ import com.fuad.activation.wake.WakeClassifier;
 import com.fuad.activation.wake.WakeWordMatcher;
 import com.fuad.assistant.AssistantEngine;
 import com.fuad.assistant.GptAssistantEngine;
+import com.fuad.assistant.local.LocalQwenChatClient;
 import com.fuad.assistant.routing.AiSkillRouter;
 import com.fuad.assistant.routing.LocalSemanticRouter;
 import com.fuad.assistant.routing.GuardedSemanticRouter;
 import com.fuad.assistant.routing.SemanticRouter;
 import com.fuad.assistant.session.ConversationSession;
 import com.fuad.assistant.skills.GeneralSkill;
+import com.fuad.assistant.skills.general.DefaultGeneralBackendSelector;
+import com.fuad.assistant.skills.general.GptGeneralEngine;
+import com.fuad.assistant.skills.general.LocalGeneralComplexityClassifier;
+import com.fuad.assistant.skills.general.QwenGeneralEngine;
 import com.fuad.assistant.skills.SkillRegistry;
 import com.fuad.assistant.skills.SkillRouter;
 import com.fuad.assistant.skills.SystemTimeSkill;
@@ -33,7 +38,6 @@ import com.fuad.assistant.skills.research.CurrentResearchSkill;
 import com.fuad.assistant.skills.research.DefaultResearchBackendClassifier;
 import com.fuad.assistant.skills.research.GptWebResearchEngine;
 import com.fuad.assistant.skills.research.LocalResearchDepthClassifier;
-import com.fuad.assistant.skills.research.LocalQwenChatClient;
 import com.fuad.assistant.skills.research.QwenLocalResearchEngine;
 import com.fuad.assistant.skills.research.ResearchDepthClassifier;
 import com.fuad.audio.AssistantAudioController;
@@ -99,13 +103,17 @@ public class Main {
             AssistantEngine assistantEngine = new GptAssistantEngine(openAiClient);
             SemanticRouter semanticRouter = new GuardedSemanticRouter(new LocalSemanticRouter(localAiClient));
             SystemTimeSkill systemTimeSkill = new SystemTimeSkill();
-            GeneralSkill generalSkill = new GeneralSkill(assistantEngine);
-            AudioControlSkill audioControlSkill = new AudioControlSkill(audioControlParser, audioController);
-            ResearchDepthClassifier researchDepthClassifier = new LocalResearchDepthClassifier(localAiClient);
             LocalQwenChatClient localQwenChatClient = new LocalQwenChatClient(
                     AppConfig.LOCAL_QWEN_BASE_URL,
                     AppConfig.LOCAL_AI_API_KEY,
-                    AppConfig.LOCAL_RESEARCH_MODEL_ID);
+                    AppConfig.LOCAL_QWEN_MODEL_ID);
+            GeneralSkill generalSkill = new GeneralSkill(
+                    new GptGeneralEngine(assistantEngine),
+                    new QwenGeneralEngine(localQwenChatClient),
+                    new DefaultGeneralBackendSelector(
+                            new LocalGeneralComplexityClassifier(localAiClient)));
+            AudioControlSkill audioControlSkill = new AudioControlSkill(audioControlParser, audioController);
+            ResearchDepthClassifier researchDepthClassifier = new LocalResearchDepthClassifier(localAiClient);
             CurrentResearchSkill currentResearchSkill = new CurrentResearchSkill(
                     new GptWebResearchEngine(assistantEngine),
                     new QwenLocalResearchEngine(localQwenChatClient),

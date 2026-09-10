@@ -1,4 +1,4 @@
-package com.fuad.assistant.skills.research;
+package com.fuad.assistant.local;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -9,10 +9,12 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -72,17 +74,22 @@ public class LocalQwenChatClient {
             HttpResponse<String> response = httpClient.send(
                     request.build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalStateException("Local Qwen request failed with HTTP "
-                        + response.statusCode() + ": " + summarize(response.body()));
+                throw responseError(response.statusCode(), response.body());
             }
             return readAssistantText(response.body());
         }
+        catch (HttpTimeoutException e) {
+            throw new LocalQwenException(LocalQwenException.Kind.UNAVAILABLE,
+                    "Local Qwen request timed out", e);
+        }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Local Qwen request was interrupted", e);
+            throw new LocalQwenException(LocalQwenException.Kind.FAILURE,
+                    "Local Qwen request was interrupted", e);
         }
         catch (IOException e) {
-            throw new IllegalStateException("Local Qwen request failed", e);
+            throw new LocalQwenException(LocalQwenException.Kind.UNAVAILABLE,
+                    "Local Qwen is unavailable", e);
         }
     }
 
@@ -91,7 +98,8 @@ public class LocalQwenChatClient {
             return objectMapper.writeValueAsString(payload);
         }
         catch (JsonProcessingException e) {
-            throw new IllegalStateException("Could not serialize local Qwen request", e);
+            throw new LocalQwenException(LocalQwenException.Kind.FAILURE,
+                    "Could not serialize local Qwen request", e);
         }
     }
 
@@ -99,11 +107,11 @@ public class LocalQwenChatClient {
         try {
             JsonNode root = objectMapper.readTree(body);
             if (root == null || !root.isObject()) {
-                throw new IllegalStateException("Local Qwen returned no JSON object");
+                throw failure("Local Qwen returned no JSON object");
             }
             JsonNode output = root.path("output");
             if (!output.isArray()) {
-                throw new IllegalStateException("Local Qwen returned no output array");
+                throw failure("Local Qwen returned no output array");
             }
             List<String> messageContents = new ArrayList<>();
             List<String> outputTypes = new ArrayList<>();
@@ -117,14 +125,38 @@ public class LocalQwenChatClient {
             }
             String text = String.join("\n", messageContents).trim();
             if (text.isEmpty()) {
-                throw new IllegalStateException("Local Qwen returned no assistant text; output types: "
+                throw failure("Local Qwen returned no assistant text; output types: "
                         + String.join(", ", outputTypes));
             }
             return text;
         }
         catch (JsonProcessingException e) {
-            throw new IllegalStateException("Local Qwen returned invalid JSON", e);
+            throw new LocalQwenException(LocalQwenException.Kind.FAILURE,
+                    "Local Qwen returned invalid JSON", e);
         }
+    }
+
+    private LocalQwenException responseError(int status, String body) {
+        String summary = summarize(body);
+        LocalQwenException.Kind kind = status == 502 || status == 503 || status == 504
+                || modelUnavailable(summary)
+                ? LocalQwenException.Kind.UNAVAILABLE
+                : LocalQwenException.Kind.FAILURE;
+        return new LocalQwenException(kind,
+                "Local Qwen request failed with HTTP " + status + ": " + summary);
+    }
+
+    private boolean modelUnavailable(String body) {
+        String normalized = body.toLowerCase(Locale.ROOT);
+        return normalized.contains("model not found")
+                || normalized.contains("model is not loaded")
+                || normalized.contains("model not loaded")
+                || normalized.contains("model unavailable")
+                || normalized.contains("no model loaded");
+    }
+
+    private LocalQwenException failure(String message) {
+        return new LocalQwenException(LocalQwenException.Kind.FAILURE, message);
     }
 
     private static String formatMessages(List<Message> messages) {

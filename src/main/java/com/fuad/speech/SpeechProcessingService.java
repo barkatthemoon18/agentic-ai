@@ -160,7 +160,8 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             case KEEP_OPEN -> {
                 ConversationSnapshot conversationSnapshot = new ConversationSnapshot(executionResult.getCapability(),
                         userText, assistantText, executionResult.getResponse().getContinuationToken(),
-                        executionResult.getResponse().getResearchConversationState());
+                        executionResult.getResponse().getResearchConversationState(),
+                        executionResult.getResponse().getGeneralConversationState());
                 boolean wasActive = conversationSession.isActive();
                 conversationSession.openOrRefresh(conversationSnapshot);
                 System.out.println("CONVERSATION POLICY: -> " + (wasActive ? "CONVERSATION -> REFRESHED" : "CONVERSATION -> OPENED"));

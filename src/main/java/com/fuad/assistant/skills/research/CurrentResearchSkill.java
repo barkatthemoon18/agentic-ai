@@ -94,7 +94,7 @@ public class CurrentResearchSkill implements Skill {
     }
 
     private ResearchConversationState stateFrom(ConversationSnapshot snapshot) {
-        if (snapshot == null) {
+        if (snapshot == null || snapshot.getOwner() != Capability.CURRENT_RESEARCH) {
             return ResearchConversationState.empty();
         }
         if (snapshot.getResearchConversationState() != null) {

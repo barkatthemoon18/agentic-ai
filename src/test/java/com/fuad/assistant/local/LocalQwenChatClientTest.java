@@ -1,4 +1,4 @@
-package com.fuad.assistant.skills.research;
+package com.fuad.assistant.local;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -85,21 +85,23 @@ class LocalQwenChatClientTest {
                 {"output":[{"type":"reasoning","content":"unfinished"}]}
                 """;
 
-        IllegalStateException exception = assertThrows(IllegalStateException.class,
+        LocalQwenException exception = assertThrows(LocalQwenException.class,
                 () -> client().chat("prompt", List.of(userMessage()), 100));
 
         assertTrue(exception.getMessage().contains("no assistant text"));
         assertTrue(exception.getMessage().contains("reasoning"));
+        assertEquals(LocalQwenException.Kind.FAILURE, exception.getKind());
     }
 
     @Test
     void shouldReportInvalidJson() {
         responseBody = "not-json";
 
-        IllegalStateException exception = assertThrows(IllegalStateException.class,
+        LocalQwenException exception = assertThrows(LocalQwenException.class,
                 () -> client().chat("prompt", List.of(userMessage()), 100));
 
         assertTrue(exception.getMessage().contains("invalid JSON"));
+        assertEquals(LocalQwenException.Kind.FAILURE, exception.getKind());
     }
 
     @Test
@@ -107,11 +109,29 @@ class LocalQwenChatClientTest {
         responseStatus = 503;
         responseBody = "{\"error\":\"model unavailable\"}";
 
-        IllegalStateException exception = assertThrows(IllegalStateException.class,
+        LocalQwenException exception = assertThrows(LocalQwenException.class,
                 () -> client().chat("prompt", List.of(userMessage()), 100));
 
         assertTrue(exception.getMessage().contains("HTTP 503"));
         assertTrue(exception.getMessage().contains("model unavailable"));
+        assertEquals(LocalQwenException.Kind.UNAVAILABLE, exception.getKind());
+    }
+
+    @Test
+    void shouldDistinguishAnUnavailableModelFromAProviderFailure() {
+        responseStatus = 400;
+        responseBody = "{\"error\":\"model is not loaded\"}";
+
+        LocalQwenException unavailable = assertThrows(LocalQwenException.class,
+                () -> client().chat("prompt", List.of(userMessage()), 100));
+
+        assertEquals(LocalQwenException.Kind.UNAVAILABLE, unavailable.getKind());
+
+        responseStatus = 500;
+        responseBody = "{\"error\":\"internal invariant failed\"}";
+        LocalQwenException failure = assertThrows(LocalQwenException.class,
+                () -> client().chat("prompt", List.of(userMessage()), 100));
+        assertEquals(LocalQwenException.Kind.FAILURE, failure.getKind());
     }
 
     private LocalQwenChatClient client() {

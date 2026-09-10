@@ -1840,19 +1840,23 @@ integración usaba `/v1/chat/completions` y limitaba las respuestas rápidas a
 vacío. El modelo estaba cargado y la solicitud HTTP había sido procesada; el
 fallo se producía al no existir texto final para Ares.
 
-La comunicación quedó separada así:
+La comunicación quedó separada por motores de dominio y un cliente compartido:
 
 ```text
-CurrentResearchSkill
-→ QwenLocalResearchEngine
-→ LocalQwenChatClient
-→ proveedor local de Qwen
+GeneralSkill → QwenGeneralEngine ───────────────┐
+                                                ├→ LocalQwenChatClient → proveedor local de Qwen
+CurrentResearchSkill → QwenLocalResearchEngine ┘
 ```
 
 `QwenLocalResearchEngine` conoce las instrucciones, la consulta y el historial
 de investigación. Convierte `ResearchMessage` al contrato neutral del cliente,
 solicita la respuesta y agrega el nuevo turno a `ResearchBranchState`. No conoce
 HTTP, JSON, endpoints, autenticación ni controles de razonamiento.
+
+`QwenGeneralEngine` realiza la misma adaptación para el historial propio de
+`GENERAL`, sin reutilizar los tipos ni el estado de Research. El cliente se movió
+al paquete neutral `com.fuad.assistant.local`, de modo que ambos motores comparten
+el acceso al proveedor sin acoplar sus políticas conversacionales.
 
 `LocalQwenChatClient` representa el acceso de Ares al modelo Qwen local. Su
 contrato recibe un prompt de sistema, mensajes con roles `USER` y `ASSISTANT`,
@@ -1867,9 +1871,157 @@ predeterminado es `http://localhost:1234`. `ares.local-base-url` conserva el
 endpoint OpenAI-compatible usado por los clasificadores locales. Cuando Qwen se
 sirva con llama.cpp, la adaptación podrá cambiar dentro de
 `LocalQwenChatClient` sin modificar `QwenLocalResearchEngine` ni el skill.
+El modelo compartido por General y Research se configura con
+`ares.local-qwen-model`; `ares.local-research-model` se conserva como alias
+compatible.
 
 Las pruebas del cliente usan un servidor HTTP embebido y validan el payload de
 LM Studio, la selección exclusiva de bloques `message`, los estados no exitosos
 y las respuestas inválidas o vacías. Las pruebas del motor inyectan un cliente
 mock y cubren solamente la traducción de mensajes y la actualización inmutable
 del historial de investigación.
+
+## 32. General local, ramas de backend y escalamiento a Research — 10 de septiembre de 2026
+
+`GENERAL` selecciona ahora entre Qwen local y GPT sin confundirse con
+`CURRENT_RESEARCH`. GPT dentro de `GeneralSkill` continúa usando
+`ResearchDepth.NONE`; no dispone de `web_search` y no equivale a GPT Web Research.
+
+### 32.1 Selección inicial de backend
+
+Una conversación nueva sigue este flujo:
+
+```text
+GENERAL
+  ↓
+override explícito Qwen/GPT
+  ├─ existe → backend solicitado / EXPLICIT
+  └─ no existe
+       ↓
+clasificador local de complejidad
+  ├─ local → Qwen / AUTOMATIC
+  ├─ gpt   → GPT / AUTOMATIC
+  └─ error → Qwen / AUTOMATIC
+```
+
+Los overrides se reconocen mediante lenguaje de preferencia o cambio de modelo,
+por ejemplo «usa Qwen», «respóndeme con GPT» o «vuelve a Qwen». Mencionar un
+modelo como tema —«¿qué es GPT?»— no constituye un override.
+
+El clasificador usa el modelo ligero configurado para clasificación, devuelve
+únicamente `local` o `gpt`, trabaja con temperatura cero y favorece `local` ante
+la duda. Sólo se ejecuta al abrir una conversación `GENERAL` sin override.
+
+### 32.2 Estado y ramas independientes
+
+`GeneralConversationState` contiene:
+
+```text
+activeBackend
+selectionOrigin     AUTOMATIC | EXPLICIT
+branches
+  ├─ QWEN_LOCAL → historial de GeneralMessage
+  └─ GPT        → continuationToken + historial auxiliar
+```
+
+Cada respuesta válida actualiza únicamente la rama utilizada y la convierte en
+activa. Un cambio explícito a una rama inexistente la inicia con el último
+intercambio visible. Si la rama ya existe, se retoma su contexto propio.
+
+La actualización es transaccional: seleccionar o intentar un backend no modifica
+el snapshot. `activeBackend`, `selectionOrigin` y la rama se confirman únicamente
+cuando ese backend devuelve una respuesta válida.
+
+### 32.3 Resolución de follow-ups
+
+```text
+FOLLOW_UP
+  ├─ señal determinista de Research
+  │    → GENERAL → CURRENT_RESEARCH
+  ├─ override explícito Qwen/GPT
+  │    → conserva GENERAL
+  │    → cambia de rama transaccionalmente
+  └─ follow-up normal
+       → conserva capability, backend y origen
+       → no ejecuta el clasificador de complejidad
+```
+
+`ResearchEscalationDetector` respalda la transición de capability con señales
+fuertes: buscar en Internet, investigar, pedir fuentes, verificar vigencia,
+consultar precios actuales o solicitar noticias recientes. También rechaza
+negaciones como «no lo busques en Internet» y menciones conceptuales como
+«¿qué fuentes de energía existen?».
+
+Una decisión probabilística del router semántico no puede cambiar por sí sola el
+owner durante un follow-up. `AiSkillRouter.routeFollowUp(...)` sólo permite por
+ahora la transición contextual `GENERAL → CURRENT_RESEARCH` cuando el detector
+determinista la confirma.
+
+Ejemplo:
+
+```text
+¿Quién fue Alan Turing?
+→ GENERAL / QWEN_LOCAL
+
+Ahora búscalo en Internet y dime qué fuentes encuentras
+→ CURRENT_RESEARCH / GPT_WEB
+```
+
+Al escalar, `CurrentResearchSkill` crea estado de Research y siembra la rama con
+el último intercambio visible. Los tokens y estados de General se ignoran; un
+token de General/GPT nunca se interpreta como continuación de GPT Web Research.
+Después de una respuesta válida, el owner pasa a ser `CURRENT_RESEARCH`.
+
+### 32.4 Política por ejecución
+
+La política declarada por un skill sigue siendo el valor predeterminado, pero
+`AssistantResult` puede sobrescribirla para una ejecución concreta.
+`AssistantResult.preserveConversation(text)` entrega una respuesta al usuario con
+política efectiva `PRESERVE`.
+
+En este contrato, `PRESERVE` significa:
+
+- no crear un snapshot;
+- no reemplazar el snapshot existente;
+- no refrescar su timeout;
+- no cerrar la conversación.
+
+Esto permite informar que Qwen, solicitado explícitamente, no está disponible
+sin perder ni alterar el contexto anterior.
+
+### 32.5 Errores y fallback
+
+`LocalQwenException` clasifica los errores del proveedor local como
+`UNAVAILABLE` o `FAILURE`. Conexión, timeout, modelo no cargado y HTTP
+502/503/504 representan indisponibilidad. Errores de parsing, contrato, respuesta
+inválida o fallos internos representan `FAILURE`.
+
+| Caso | Resultado | Estado conversacional |
+|---|---|---|
+| Qwen `AUTOMATIC` + `UNAVAILABLE` | fallback a GPT | GPT activo con origen `AUTOMATIC` después de responder |
+| Qwen `EXPLICIT` + `UNAVAILABLE` | mensaje específico, sin fallback | `PRESERVE`; snapshot idéntico |
+| Qwen + `FAILURE` | propagar y registrar | sin commit parcial |
+| Qwen no disponible y GPT fallback falla | propagar el fallo de GPT | snapshot original intacto |
+
+El fallback automático utiliza la rama GPT existente o la siembra desde el
+último intercambio visible. El usuario nunca queda marcado como si hubiera pedido
+GPT explícitamente cuando el cambio fue una decisión automática del sistema.
+
+### 32.6 Configuración, validación y límite conocido
+
+Qwen para General y Research usa `ares.local-qwen-model`. La propiedad anterior
+`ares.local-research-model` permanece como alias compatible. El clasificador de
+complejidad continúa usando el modelo ligero configurado mediante
+`ares.local-model`.
+
+La suite determinista cubre selección, overrides, ramas, fallback transaccional,
+`PRESERVE`, escalamiento y aislamiento entre General y Research. Se ejecutaron
+285 pruebas sin fallos. Existe además un corpus `model-evaluation` separado para
+medir el clasificador de complejidad con el modelo local activo; queda excluido de
+la suite normal.
+
+Limitación conocida: al volver a una rama existente se retoma su historial sin
+incorporar lo conversado posteriormente en la otra rama. Un trabajo futuro podrá
+añadir un handoff transitorio formado por el historial de la rama destino, el
+último intercambio visible y la consulta actual, sin fusionar permanentemente
+ambas ramas.

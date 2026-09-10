@@ -1,5 +1,6 @@
 package com.fuad.assistant.skills.research;
 
+import com.fuad.assistant.local.LocalQwenChatClient;
 import com.fuad.enums.ResearchDepth;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;

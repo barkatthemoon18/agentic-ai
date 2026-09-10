@@ -3,8 +3,10 @@ package com.fuad.config;
 import java.util.List;
 
 public class AppConfig {
-    public static final String LOCAL_RESEARCH_MODEL_ID = System.getProperty(
-            "ares.local-research-model", "qwen-main");
+    public static final String LOCAL_QWEN_MODEL_ID = System.getProperty(
+            "ares.local-qwen-model", System.getProperty("ares.local-research-model", "qwen-main"));
+    @Deprecated
+    public static final String LOCAL_RESEARCH_MODEL_ID = LOCAL_QWEN_MODEL_ID;
     public static final String LOCAL_QWEN_BASE_URL = System.getProperty(
             "ares.local-qwen-base-url", "http://localhost:1234");
     public static final String WEB_SEARCH_BASE_URL = System.getProperty(
