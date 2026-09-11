@@ -1,0 +1,20 @@
+{"id":"research-local-hold-01","query":"Con Qwen, investiga quién fue Hipatia","expected":"qwen_local","tags":["explicit","historical"],"rationale":"Qwen solicitado explícitamente"}
+{"id":"research-local-hold-02","query":"Busca con el modelo local el origen del telescopio","expected":"qwen_local","tags":["explicit","historical"],"rationale":"Backend local explícito"}
+{"id":"research-local-hold-03","query":"Investiga la historia del sistema métrico","expected":"qwen_local","tags":["default","historical"],"rationale":"Tema estable sin señal web"}
+{"id":"research-local-hold-04","query":"Busca información sobre la antigua Mesopotamia","expected":"qwen_local","tags":["default","historical"],"rationale":"Consulta histórica por defecto local"}
+{"id":"research-local-hold-05","query":"Dilo de otra manera","expected":"qwen_local","tags":["inheritance","follow-up"],"rationale":"Reformulación conserva rama local","inheritedBackend":"qwen_local"}
+{"id":"research-local-hold-06","query":"Qué consecuencias tuvo","expected":"qwen_local","tags":["inheritance","follow-up"],"rationale":"Follow-up neutro conserva local","inheritedBackend":"qwen_local"}
+{"id":"research-local-hold-07","query":"Vuelve al modelo local para responder","expected":"qwen_local","tags":["explicit","switch"],"rationale":"Cambio explícito a local","inheritedBackend":"gpt_web"}
+{"id":"research-local-hold-08","query":"Ahora investígalo usando Qwen","expected":"qwen_local","tags":["explicit","switch"],"rationale":"Cambio explícito a Qwen","inheritedBackend":"gpt_web"}
+{"id":"research-local-hold-09","query":"Localmente, qué puedes decir del precio actual","expected":"qwen_local","tags":["precedence","current"],"rationale":"Preferencia local domina señal de precio"}
+{"id":"research-local-hold-10","query":"Con Qwen y sin salir a la web, enumera las referencias clásicas","expected":"qwen_local","tags":["precedence","sources"],"rationale":"Qwen explícito domina referencias"}
+{"id":"research-web-hold-01","query":"Revisa en la web quién ocupa ese cargo","expected":"gpt_web","tags":["explicit","current"],"rationale":"Consulta web explícita"}
+{"id":"research-web-hold-02","query":"Busca globalmente información sobre el lanzamiento","expected":"gpt_web","tags":["explicit","release"],"rationale":"Búsqueda global explícita"}
+{"id":"research-web-hold-03","query":"Cuál es la cotización vigente del euro","expected":"gpt_web","tags":["current","price"],"rationale":"Cotización vigente requiere web"}
+{"id":"research-web-hold-04","query":"Dime las noticias más recientes de la compañía","expected":"gpt_web","tags":["current","news"],"rationale":"Noticias recientes requieren web"}
+{"id":"research-web-hold-05","query":"Muéstrame las referencias que respaldan eso","expected":"gpt_web","tags":["sources","switch"],"rationale":"Pedir referencias cambia desde local","inheritedBackend":"qwen_local"}
+{"id":"research-web-hold-06","query":"Comprueba si aún se aplica","expected":"gpt_web","tags":["verification","switch"],"rationale":"Comprobar vigencia cambia a web","inheritedBackend":"qwen_local"}
+{"id":"research-web-hold-07","query":"Y cuál es el valor actual","expected":"gpt_web","tags":["current","switch"],"rationale":"Valor actual domina rama local heredada","inheritedBackend":"qwen_local"}
+{"id":"research-web-hold-08","query":"Amplía la explicación anterior","expected":"gpt_web","tags":["inheritance","follow-up"],"rationale":"Follow-up neutro conserva web","inheritedBackend":"gpt_web"}
+{"id":"research-web-hold-09","query":"Qué otras implicancias tiene","expected":"gpt_web","tags":["inheritance","follow-up"],"rationale":"Continuación conserva rama web","inheritedBackend":"gpt_web"}
+{"id":"research-web-hold-10","query":"Qué pronóstico hay para este fin de semana","expected":"gpt_web","tags":["current","weather"],"rationale":"Pronóstico requiere web"}

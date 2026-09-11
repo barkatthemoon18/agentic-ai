@@ -10,6 +10,7 @@ import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.ActivationType;
 import com.fuad.enums.Capability;
 import com.fuad.enums.ConversationPolicy;
+import com.fuad.enums.ResearchDepth;
 import com.fuad.pipeline.AssistantPipeline;
 import org.junit.jupiter.api.Test;
 
@@ -67,6 +68,28 @@ class AssistantComponentsTest {
     }
 
     @Test
+    void followUpShouldEscalateFromGeneralToResearchOnlyOnStrongSignal() {
+        AtomicInteger classifications = new AtomicInteger();
+        Skill researchSkill = command -> new AssistantResult("investigación");
+        SkillRegistry registry = completeRegistryWith(Capability.CURRENT_RESEARCH, researchSkill);
+        AiSkillRouter router = new AiSkillRouter(command -> {
+            classifications.incrementAndGet();
+            return Capability.CURRENT_RESEARCH;
+        }, registry);
+        ConversationSnapshot general = new ConversationSnapshot(
+                Capability.GENERAL, "¿Quién fue Alan Turing?", "Fue un matemático.");
+
+        SkillRoute escalated = router.routeFollowUp(
+                "Ahora búscalo en Internet y dime qué fuentes encuentras", general);
+        SkillRoute preserved = router.routeFollowUp("¿Qué inventos hizo?", general);
+
+        assertEquals(Capability.CURRENT_RESEARCH, escalated.getCapability());
+        assertSame(researchSkill, escalated.getSkill());
+        assertEquals(Capability.GENERAL, preserved.getCapability());
+        assertEquals(0, classifications.get());
+    }
+
+    @Test
     void pipelineShouldRejectInactiveActivationInBothEntryPoints() {
         TrackingSkillRouter router = new TrackingSkillRouter(
                 Capability.GENERAL, ignored -> command -> new AssistantResult("ok"));
@@ -97,6 +120,28 @@ class AssistantComponentsTest {
         assertEquals("respuesta", result.getResponse().getText());
         assertEquals(ConversationPolicy.KEEP_OPEN, result.getConversationPolicy());
         assertEquals(Capability.GENERAL, result.getCapability());
+    }
+
+    @Test
+    void resultPolicyShouldOverrideTheSkillPolicyForOneExecution() {
+        Skill keepOpen = new Skill() {
+            @Override
+            public AssistantResult execute(String command) {
+                return AssistantResult.preserveConversation("modelo local no disponible");
+            }
+
+            @Override
+            public ConversationPolicy getConversationPolicy() {
+                return ConversationPolicy.KEEP_OPEN;
+            }
+        };
+        AssistantPipeline pipeline = new AssistantPipeline(
+                new TrackingSkillRouter(Capability.GENERAL, ignored -> keepOpen));
+
+        AssistantExecutionResult result = pipeline.process(
+                new ActivationResult(true, ActivationType.WAKE_WORD, "usa Qwen"));
+
+        assertEquals(ConversationPolicy.PRESERVE, result.getConversationPolicy());
     }
 
     @Test
@@ -164,6 +209,7 @@ class AssistantComponentsTest {
         assertEquals("explica RSA", captured.get().getCommand());
         assertEquals(300, captured.get().getMaxOutputTokens());
         assertNull(captured.get().getContinuationToken());
+        assertEquals(ResearchDepth.NONE, captured.get().getResearchDepth());
         assertFalse(captured.get().getInstructions().isBlank());
         assertEquals(ConversationPolicy.KEEP_OPEN, skill.getConversationPolicy());
     }

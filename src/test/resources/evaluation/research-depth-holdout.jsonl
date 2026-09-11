@@ -1,0 +1,20 @@
+{"id":"research-quick-hold-01","query":"¿A cuánto está el euro hoy?","expected":"quick","tags":["price","current"],"rationale":"Cotización puntual"}
+{"id":"research-quick-hold-02","query":"Dime la versión vigente de Node.js LTS","expected":"quick","tags":["version","current"],"rationale":"Versión concreta"}
+{"id":"research-quick-hold-03","query":"¿Cuándo es la próxima elección municipal en Santiago?","expected":"quick","tags":["date","event"],"rationale":"Fecha puntual"}
+{"id":"research-quick-hold-04","query":"Qué anunció ayer el Banco Central de Chile","expected":"quick","tags":["news","current"],"rationale":"Anuncio concreto reciente"}
+{"id":"research-quick-hold-05","query":"¿Sigue vigente esta ley?","expected":"quick","tags":["verification","current"],"rationale":"Comprobación binaria de vigencia"}
+{"id":"research-quick-hold-06","query":"Busca el pronóstico de lluvia para mañana","expected":"quick","tags":["weather","forecast"],"rationale":"Pronóstico puntual"}
+{"id":"research-quick-hold-07","query":"¿Quién dirige actualmente Microsoft?","expected":"quick","tags":["office-holder","current"],"rationale":"Cargo actual concreto"}
+{"id":"research-quick-hold-08","query":"Cuál es la tasa de desempleo más reciente","expected":"quick","tags":["indicator","current"],"rationale":"Indicador único"}
+{"id":"research-quick-hold-09","query":"Confirma si ya salió la nueva temporada de esa serie","expected":"quick","tags":["verification","release"],"rationale":"Estado puntual de lanzamiento"}
+{"id":"research-quick-hold-10","query":"Dame el marcador del partido de anoche","expected":"quick","tags":["sports","result"],"rationale":"Resultado único y reciente"}
+{"id":"research-deep-hold-01","query":"Compara cómo tres países regularon las plataformas digitales y evalúa los resultados","expected":"deep","tags":["comparison","regulation","impact"],"rationale":"Comparación internacional con evaluación"}
+{"id":"research-deep-hold-02","query":"Investiga las causas de la escasez de medicamentos y cómo evolucionó durante el último año","expected":"deep","tags":["causes","timeline","health"],"rationale":"Análisis causal y temporal"}
+{"id":"research-deep-hold-03","query":"Contrasta la evidencia disponible sobre semana laboral de cuatro días y productividad","expected":"deep","tags":["evidence","verification"],"rationale":"Síntesis de estudios diversos"}
+{"id":"research-deep-hold-04","query":"Arma una cronología de las negociaciones y explica por qué fracasaron","expected":"deep","tags":["timeline","causes"],"rationale":"Secuencia histórica y explicación causal"}
+{"id":"research-deep-hold-05","query":"Analiza ventajas, riesgos y costos de las principales tecnologías de captura de carbono","expected":"deep","tags":["comparison","analysis","constraints"],"rationale":"Evaluación multidimensional"}
+{"id":"research-deep-hold-06","query":"Verifica si la cobertura de prensa coincide con los datos oficiales y señala contradicciones","expected":"deep","tags":["verification","sources"],"rationale":"Contraste entre fuentes"}
+{"id":"research-deep-hold-07","query":"Explica la tendencia reciente de natalidad considerando economía, vivienda y cambios culturales","expected":"deep","tags":["trend","causes"],"rationale":"Fenómeno con múltiples causas"}
+{"id":"research-deep-hold-08","query":"Compara los planes de transición energética de cuatro empresas y su avance real","expected":"deep","tags":["comparison","verification","impact"],"rationale":"Comparación de promesas y resultados"}
+{"id":"research-deep-hold-09","query":"Investiga en profundidad el debate científico sobre los alimentos ultraprocesados","expected":"deep","tags":["explicit","controversy","health"],"rationale":"Debate amplio con incertidumbre"}
+{"id":"research-deep-hold-10","query":"Evalúa qué explica mejor esta crisis según fuentes académicas, oficiales y del sector","expected":"deep","tags":["causes","sources","analysis"],"rationale":"Evaluación de explicaciones entre fuentes"}

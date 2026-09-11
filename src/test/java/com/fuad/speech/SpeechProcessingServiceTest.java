@@ -56,6 +56,7 @@ class SpeechProcessingServiceTest {
 
         assertEquals(0, transcriptions.get());
         assertEquals(1, audio.finishCount.get());
+        assertNull(audio.spokenText.get());
     }
 
     @Test
@@ -184,10 +185,17 @@ class SpeechProcessingServiceTest {
     }
 
     @Test
-    void preservePolicyShouldNotOpenInactiveSession() throws Exception {
+    void perExecutionPreserveShouldNotOpenInactiveSession() throws Exception {
         TrackingAudioPipeline audio = new TrackingAudioPipeline();
         ConversationSession session = new ConversationSession();
-        Skill preservingSkill = command -> new AssistantResult("respuesta transaccional");
+        Skill preservingSkill = new Skill() {
+            @Override public AssistantResult execute(String command) {
+                return AssistantResult.preserveConversation("respuesta transaccional");
+            }
+            @Override public ConversationPolicy getConversationPolicy() {
+                return ConversationPolicy.KEEP_OPEN;
+            }
+        };
         AssistantPipeline assistant = new AssistantPipeline(
                 staticRouter(Capability.OS_COMMAND, preservingSkill));
 
@@ -229,6 +237,41 @@ class SpeechProcessingServiceTest {
         assertEquals(originalDeadline, activeUntil(session));
         assertSame(originalSnapshot, session.getSnapshot().orElseThrow());
         assertEquals(Capability.GENERAL, session.getOwner().orElseThrow());
+    }
+
+    @Test
+    void perExecutionPreserveShouldPresentResponseWithoutRefreshingConversation() throws Exception {
+        TrackingAudioPipeline audio = new TrackingAudioPipeline();
+        ConversationSession session = new ConversationSession();
+        ConversationSnapshot originalSnapshot = conversationSnapshot();
+        session.openOrRefresh(originalSnapshot);
+        long originalDeadline = System.currentTimeMillis() + 5_000;
+        setActiveUntil(session, originalDeadline);
+        Skill generalSkill = new Skill() {
+            @Override
+            public AssistantResult execute(String command) {
+                return AssistantResult.preserveConversation("El modelo local no está disponible.");
+            }
+
+            @Override
+            public ConversationPolicy getConversationPolicy() {
+                return ConversationPolicy.KEEP_OPEN;
+            }
+        };
+        AssistantPipeline assistant = new AssistantPipeline(
+                staticRouter(Capability.GENERAL, generalSkill));
+
+        try (SpeechProcessingService service = new SpeechProcessingService(
+                stt(ignored -> transcription("Usa Qwen")), assistant,
+                ignored -> new ActivationResult(true, ActivationType.SEMANTIC_INTENT, "Usa Qwen"), session,
+                audio, valid(true), request -> UtteranceDecision.OTHER, outputCoordinator(audio))) {
+            service.onSpeechSegment(segment);
+            assertTrue(audio.awaitFinished());
+        }
+
+        assertEquals("El modelo local no está disponible.", audio.spokenText.get());
+        assertEquals(originalDeadline, activeUntil(session));
+        assertSame(originalSnapshot, session.getSnapshot().orElseThrow());
     }
 
     @Test
@@ -279,7 +322,7 @@ class SpeechProcessingServiceTest {
 
         assertFalse(session.isActive());
         assertEquals(0L, activeUntil(session));
-        assertNull(audio.spokenText.get());
+        assertEquals("No pude completar la solicitud en este momento.", audio.spokenText.get());
     }
 
     @Test

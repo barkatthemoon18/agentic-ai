@@ -1,0 +1,30 @@
+{"id":"research-local-dev-01","query":"Busca localmente quién fue Ada Lovelace","expected":"qwen_local","tags":["explicit","fresh"],"rationale":"Solicitud explícita de backend local"}
+{"id":"research-local-dev-02","query":"Usando Qwen, explícame el origen del ajedrez","expected":"qwen_local","tags":["explicit","fresh"],"rationale":"Solicitud explícita de Qwen"}
+{"id":"research-local-dev-03","query":"Investiga con el modelo local qué es la criptografía simétrica","expected":"qwen_local","tags":["explicit","fresh"],"rationale":"Preferencia explícita por modelo local"}
+{"id":"research-local-dev-04","query":"Busca información sobre Alan Turing","expected":"qwen_local","tags":["default","historical"],"rationale":"Sin señal de actualidad ni web, usa local"}
+{"id":"research-local-dev-05","query":"Investiga el origen de la imprenta","expected":"qwen_local","tags":["default","historical"],"rationale":"Tema estable sin necesidad explícita de Internet"}
+{"id":"research-local-dev-06","query":"Explícame más","expected":"qwen_local","tags":["inheritance","follow-up"],"rationale":"Follow-up neutro conserva backend local","inheritedBackend":"qwen_local"}
+{"id":"research-local-dev-07","query":"Continúa con ese punto","expected":"qwen_local","tags":["inheritance","follow-up"],"rationale":"Continuación neutra de rama local","inheritedBackend":"qwen_local"}
+{"id":"research-local-dev-08","query":"Profundiza en las causas","expected":"qwen_local","tags":["inheritance","follow-up"],"rationale":"Profundidad no implica búsqueda web","inheritedBackend":"qwen_local"}
+{"id":"research-local-dev-09","query":"Resume lo anterior","expected":"qwen_local","tags":["inheritance","follow-up"],"rationale":"Resumen conserva backend local","inheritedBackend":"qwen_local"}
+{"id":"research-local-dev-10","query":"Ahora hazlo con Qwen","expected":"qwen_local","tags":["explicit","switch"],"rationale":"Cambio explícito desde web a local","inheritedBackend":"gpt_web"}
+{"id":"research-local-dev-11","query":"Prefiero que lo investigues localmente","expected":"qwen_local","tags":["explicit","switch"],"rationale":"La preferencia local domina el backend heredado","inheritedBackend":"gpt_web"}
+{"id":"research-local-dev-12","query":"Con el modelo local, dime lo que recuerdas de eso","expected":"qwen_local","tags":["explicit","switch"],"rationale":"Cambio directo a conocimiento local","inheritedBackend":"gpt_web"}
+{"id":"research-local-dev-13","query":"Busca localmente el precio actual sólo con tu conocimiento","expected":"qwen_local","tags":["precedence","current"],"rationale":"La orden local explícita tiene precedencia sobre actualidad"}
+{"id":"research-local-dev-14","query":"Usando Qwen, dame referencias históricas sobre Roma","expected":"qwen_local","tags":["precedence","sources"],"rationale":"La mención explícita de Qwen precede a referencias"}
+{"id":"research-local-dev-15","query":"Modelo local: qué se sabe sobre la teoría de juegos","expected":"qwen_local","tags":["explicit","knowledge"],"rationale":"Ámbito local explícito"}
+{"id":"research-web-dev-01","query":"Busca globalmente quién dirige la empresa","expected":"gpt_web","tags":["explicit","fresh"],"rationale":"Búsqueda global explícita"}
+{"id":"research-web-dev-02","query":"Consulta en Internet el precio del cobre","expected":"gpt_web","tags":["explicit","price"],"rationale":"Solicitud explícita de Internet"}
+{"id":"research-web-dev-03","query":"Haz una búsqueda web sobre ese anuncio","expected":"gpt_web","tags":["explicit","news"],"rationale":"Búsqueda web explícita"}
+{"id":"research-web-dev-04","query":"¿Qué ocurrió hoy con NVIDIA?","expected":"gpt_web","tags":["current","news"],"rationale":"Actualidad requiere web"}
+{"id":"research-web-dev-05","query":"Cuál es la última versión estable de Firefox","expected":"gpt_web","tags":["current","version"],"rationale":"Versión actual requiere web"}
+{"id":"research-web-dev-06","query":"Dame las fuentes que encontraste","expected":"gpt_web","tags":["sources","switch"],"rationale":"Pedir fuentes cambia a web","inheritedBackend":"qwen_local"}
+{"id":"research-web-dev-07","query":"Verifica si eso sigue siendo cierto","expected":"gpt_web","tags":["verification","switch"],"rationale":"Verificar vigencia cambia a web","inheritedBackend":"qwen_local"}
+{"id":"research-web-dev-08","query":"¿Cuál es su precio ahora?","expected":"gpt_web","tags":["current","switch"],"rationale":"Precio actual domina backend local heredado","inheritedBackend":"qwen_local"}
+{"id":"research-web-dev-09","query":"Busca noticias recientes sobre el tema","expected":"gpt_web","tags":["current","news"],"rationale":"Noticias recientes requieren web","inheritedBackend":"qwen_local"}
+{"id":"research-web-dev-10","query":"Explícalo con más detalle","expected":"gpt_web","tags":["inheritance","follow-up"],"rationale":"Follow-up neutro conserva backend web","inheritedBackend":"gpt_web"}
+{"id":"research-web-dev-11","query":"Continúa desde donde quedaste","expected":"gpt_web","tags":["inheritance","follow-up"],"rationale":"Continuación neutra conserva web","inheritedBackend":"gpt_web"}
+{"id":"research-web-dev-12","query":"Compara esos dos resultados","expected":"gpt_web","tags":["inheritance","follow-up"],"rationale":"Sin nueva señal conserva backend web","inheritedBackend":"gpt_web"}
+{"id":"research-web-dev-13","query":"Incluye referencias para poder revisarlo","expected":"gpt_web","tags":["sources","fresh"],"rationale":"Las referencias requieren web"}
+{"id":"research-web-dev-14","query":"¿Qué clima habrá mañana en Santiago?","expected":"gpt_web","tags":["current","weather"],"rationale":"Pronóstico requiere web"}
+{"id":"research-web-dev-15","query":"Confirma si la norma todavía está vigente","expected":"gpt_web","tags":["current","verification"],"rationale":"Vigencia actual requiere web"}

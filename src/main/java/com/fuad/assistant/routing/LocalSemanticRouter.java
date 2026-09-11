@@ -197,7 +197,9 @@ public class LocalSemanticRouter implements SemanticRouter {
         current-research
         ==================================================
 
-        Para información EXTERNA que necesita estar ACTUALIZADA.
+        Para información EXTERNA que necesita estar ACTUALIZADA o para una
+        solicitud explícita de buscar o investigar información. El skill de
+        investigación decidirá si usa GPT Web o el modelo Qwen local.
 
         Incluye:
 
@@ -215,6 +217,8 @@ public class LocalSemanticRouter implements SemanticRouter {
         "¿Qué ocurrió hoy con NVIDIA?" -> current-research
         "Busca las últimas noticias sobre OpenAI." -> current-research
         "¿Cuál es el precio actual de Bitcoin?" -> current-research
+        "Busca globalmente quién fue Alan Turing." -> current-research
+        "Busca localmente quién fue Alan Turing." -> current-research
 
         IMPORTANTE:
 

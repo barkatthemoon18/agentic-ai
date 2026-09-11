@@ -9,16 +9,20 @@ import com.fuad.activation.wake.WakeClassifier;
 import com.fuad.activation.wake.WakeWordMatcher;
 import com.fuad.assistant.AssistantEngine;
 import com.fuad.assistant.GptAssistantEngine;
+import com.fuad.assistant.local.LocalQwenChatClient;
 import com.fuad.assistant.routing.AiSkillRouter;
 import com.fuad.assistant.routing.LocalSemanticRouter;
 import com.fuad.assistant.routing.GuardedSemanticRouter;
 import com.fuad.assistant.routing.SemanticRouter;
 import com.fuad.assistant.session.ConversationSession;
 import com.fuad.assistant.skills.GeneralSkill;
+import com.fuad.assistant.skills.general.DefaultGeneralBackendSelector;
+import com.fuad.assistant.skills.general.GptGeneralEngine;
+import com.fuad.assistant.skills.general.LocalGeneralComplexityClassifier;
+import com.fuad.assistant.skills.general.QwenGeneralEngine;
 import com.fuad.assistant.skills.SkillRegistry;
 import com.fuad.assistant.skills.SkillRouter;
 import com.fuad.assistant.skills.SystemTimeSkill;
-import com.fuad.assistant.skills.UnsupportedSkill;
 import com.fuad.assistant.skills.audio.AudioControlParser;
 import com.fuad.assistant.skills.audio.AudioControlSkill;
 import com.fuad.assistant.skills.audio.LocalAudioControlParser;
@@ -30,6 +34,12 @@ import com.fuad.assistant.skills.os.OsCommandParser;
 import com.fuad.assistant.skills.os.OsCommandSafetyGuard;
 import com.fuad.assistant.skills.os.OsCommandSkill;
 import com.fuad.assistant.skills.os.WindowsApplicationController;
+import com.fuad.assistant.skills.research.CurrentResearchSkill;
+import com.fuad.assistant.skills.research.DefaultResearchBackendClassifier;
+import com.fuad.assistant.skills.research.GptWebResearchEngine;
+import com.fuad.assistant.skills.research.LocalResearchDepthClassifier;
+import com.fuad.assistant.skills.research.QwenLocalResearchEngine;
+import com.fuad.assistant.skills.research.ResearchDepthClassifier;
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.audio.AudioCaptureService;
 import com.fuad.audio.AudioDeviceInfo;
@@ -93,14 +103,28 @@ public class Main {
             AssistantEngine assistantEngine = new GptAssistantEngine(openAiClient);
             SemanticRouter semanticRouter = new GuardedSemanticRouter(new LocalSemanticRouter(localAiClient));
             SystemTimeSkill systemTimeSkill = new SystemTimeSkill();
-            GeneralSkill generalSkill = new GeneralSkill(assistantEngine);
+            LocalQwenChatClient localQwenChatClient = new LocalQwenChatClient(
+                    AppConfig.LOCAL_QWEN_BASE_URL,
+                    AppConfig.LOCAL_AI_API_KEY,
+                    AppConfig.LOCAL_QWEN_MODEL_ID);
+            GeneralSkill generalSkill = new GeneralSkill(
+                    new GptGeneralEngine(assistantEngine),
+                    new QwenGeneralEngine(localQwenChatClient),
+                    new DefaultGeneralBackendSelector(
+                            new LocalGeneralComplexityClassifier(localAiClient)));
             AudioControlSkill audioControlSkill = new AudioControlSkill(audioControlParser, audioController);
+            ResearchDepthClassifier researchDepthClassifier = new LocalResearchDepthClassifier(localAiClient);
+            CurrentResearchSkill currentResearchSkill = new CurrentResearchSkill(
+                    new GptWebResearchEngine(assistantEngine),
+                    new QwenLocalResearchEngine(localQwenChatClient),
+                    researchDepthClassifier,
+                    new DefaultResearchBackendClassifier());
             SkillRegistry skillRegistry = new SkillRegistry(Map.of(
                     Capability.SYSTEM_TIME, systemTimeSkill,
                     Capability.GENERAL, generalSkill,
                     Capability.AUDIO_CONTROL, audioControlSkill,
                     Capability.OS_COMMAND, osCommandSkill,
-                    Capability.CURRENT_RESEARCH, new UnsupportedSkill(Capability.CURRENT_RESEARCH)));
+                    Capability.CURRENT_RESEARCH, currentResearchSkill));
             SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);
             AssistantPipeline assistantPipeline = new AssistantPipeline(skillRouter);
             WakeWordMatcher wakeWordMatcher = new WakeWordMatcher(

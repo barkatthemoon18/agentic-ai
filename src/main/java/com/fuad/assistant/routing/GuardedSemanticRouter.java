@@ -25,10 +25,24 @@ public class GuardedSemanticRouter implements SemanticRouter {
                     + "|.*\\b(?:version|release|noticia|noticias)\\b.*\\b(?:ultima|ultimas|reciente|recientes)\\b.*"
                     + "|.*\\bprecio actual\\b.*|¿?que ocurrio hoy\\b.*)$");
 
+    private static final Pattern EXPLICIT_RESEARCH_REQUEST = Pattern.compile(
+            ".*\\b(?:busca|buscar|buscame|buscalo|buscala|investiga|investigar)\\b.*");
+    private static final Pattern FRESH_INFORMATION_REQUEST = Pattern.compile(
+            ".*\\b(?:hoy|actual|actualmente|reciente|recientes|ultima|ultimas|ultimo|ultimos"
+                    + "|precio|cotizacion|noticia|noticias|clima|pronostico)\\b.*");
+
     private final SemanticRouter delegate;
+    private final ResearchEscalationDetector researchEscalationDetector;
 
     public GuardedSemanticRouter(SemanticRouter delegate) {
+        this(delegate, new ResearchEscalationDetector());
+    }
+
+    public GuardedSemanticRouter(SemanticRouter delegate,
+                                 ResearchEscalationDetector researchEscalationDetector) {
         this.delegate = Objects.requireNonNull(delegate, "delegate cannot be null");
+        this.researchEscalationDetector = Objects.requireNonNull(researchEscalationDetector,
+                "researchEscalationDetector cannot be null");
     }
 
     @Override
@@ -82,7 +96,13 @@ public class GuardedSemanticRouter implements SemanticRouter {
     }
 
     private boolean isCurrentResearchRequest(String command) {
-        return CURRENT_RESEARCH_REQUEST.matcher(command).matches();
+        if (researchEscalationDetector.isExplicitlyNegated(command)) {
+            return false;
+        }
+        return researchEscalationDetector.shouldEscalate(command)
+                || CURRENT_RESEARCH_REQUEST.matcher(command).matches()
+                || EXPLICIT_RESEARCH_REQUEST.matcher(command).matches()
+                || FRESH_INFORMATION_REQUEST.matcher(command).matches();
     }
 
     private String normalize(String command) {

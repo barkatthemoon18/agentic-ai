@@ -2,6 +2,8 @@ package com.fuad.assistant.routing;
 
 import com.fuad.enums.Capability;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -22,6 +24,16 @@ class GuardedSemanticRouterTest {
         assertEquals(Capability.OS_COMMAND, router.classify("¿Puedes cerrar Spotify?"));
         assertEquals(Capability.CURRENT_RESEARCH,
                 router.classify("Busca las últimas noticias sobre OpenAI"));
+        assertEquals(Capability.CURRENT_RESEARCH,
+                router.classify("Busca globalmente quién fue Alan Turing"));
+        assertEquals(Capability.CURRENT_RESEARCH,
+                router.classify("Busca localmente quién fue Alan Turing"));
+        assertEquals(Capability.CURRENT_RESEARCH,
+                router.classify("¿Qué ocurrió hoy con NVIDIA?"));
+        assertEquals(Capability.CURRENT_RESEARCH,
+                router.classify("¿Cuál es el precio de Bitcoin?"));
+        assertEquals(Capability.CURRENT_RESEARCH,
+                router.classify("¿Cómo estará el clima en Santiago?"));
         assertFalse(called.get());
     }
 
@@ -34,5 +46,16 @@ class GuardedSemanticRouterTest {
         assertEquals(Capability.GENERAL,
                 new GuardedSemanticRouter(command -> Capability.SYSTEM_TIME)
                         .classify("¿Qué día fue el 11 de septiembre de 2001?"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Por favor, no busques noticias actuales",
+            "No investigues eso"
+    })
+    void shouldRejectResearchRoutingWhenTheRequestIsExplicitlyNegated(String command) {
+        GuardedSemanticRouter router = new GuardedSemanticRouter(ignored -> Capability.CURRENT_RESEARCH);
+
+        assertEquals(Capability.GENERAL, router.classify(command));
     }
 }

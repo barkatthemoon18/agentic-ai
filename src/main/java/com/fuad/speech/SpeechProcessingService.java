@@ -141,8 +141,14 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                     response.getText());
         }
         catch (Exception e) {
-            System.out.println("Error processing speech segment: " + e.getMessage());
+            System.err.println("Error processing speech segment: " + e.getMessage());
             e.printStackTrace();
+            try {
+                assistantOutputCoordinator.present("No pude completar la solicitud en este momento.");
+            }
+            catch (Exception presentationFailure) {
+                System.err.println("Unable to present processing failure: " + presentationFailure.getMessage());
+            }
         }
         finally {
             audioPipeline.finishProcessing();
@@ -153,7 +159,9 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
         switch (executionResult.getConversationPolicy()) {
             case KEEP_OPEN -> {
                 ConversationSnapshot conversationSnapshot = new ConversationSnapshot(executionResult.getCapability(),
-                        userText, assistantText, executionResult.getResponse().getContinuationToken());
+                        userText, assistantText, executionResult.getResponse().getContinuationToken(),
+                        executionResult.getResponse().getResearchConversationState(),
+                        executionResult.getResponse().getGeneralConversationState());
                 boolean wasActive = conversationSession.isActive();
                 conversationSession.openOrRefresh(conversationSnapshot);
                 System.out.println("CONVERSATION POLICY: -> " + (wasActive ? "CONVERSATION -> REFRESHED" : "CONVERSATION -> OPENED"));
