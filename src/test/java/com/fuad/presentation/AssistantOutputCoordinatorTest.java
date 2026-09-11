@@ -1,6 +1,9 @@
 package com.fuad.presentation;
 
 import com.fuad.audio.AssistantAudioController;
+import com.fuad.assistant.AssistantResult;
+import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
+import com.fuad.assistant.skills.os.ApplicationListItem;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.pipeline.AudioPipeline;
@@ -10,10 +13,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -123,7 +128,7 @@ class AssistantOutputCoordinatorTest {
 
     @Test
     void shouldRejectNullText() {
-        assertThrows(NullPointerException.class, () -> coordinator.present(null));
+        assertThrows(NullPointerException.class, () -> coordinator.present((String) null));
 
         assertEquals(0, audioPipeline.speakCalls);
         assertEquals(0, visualOutput.showCalls);
@@ -168,6 +173,19 @@ class AssistantOutputCoordinatorTest {
         assertEquals(List.of("show", "show", "speak", "hide", "speak"), events);
         assertEquals(2, audioPipeline.speakCalls);
         assertEquals(2, visualOutput.showCalls);
+    }
+
+    @Test
+    void catalogPayloadShouldForceVisualOutputAndKeepSpeechBrief() {
+        audioController.setVolume(40);
+        ApplicationCatalogPayload payload = new ApplicationCatalogPayload(UUID.randomUUID(), "", 0, 20,
+                1, 1, List.of(new ApplicationListItem("spotify", "Spotify")));
+
+        coordinator.present(AssistantResult.catalog("Encontré una aplicación; te la muestro en pantalla.", payload));
+
+        assertEquals(1, visualOutput.showCalls);
+        assertSame(payload, visualOutput.lastMessage.getPayload());
+        assertEquals(1, audioPipeline.speakCalls);
     }
 
     @Test

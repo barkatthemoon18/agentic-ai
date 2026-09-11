@@ -27,13 +27,16 @@ import com.fuad.assistant.skills.audio.AudioControlParser;
 import com.fuad.assistant.skills.audio.AudioControlSkill;
 import com.fuad.assistant.skills.audio.LocalAudioControlParser;
 import com.fuad.assistant.skills.os.ApplicationController;
-import com.fuad.assistant.skills.os.ApplicationDefinition;
+import com.fuad.assistant.skills.os.ApplicationAliasConfigLoader;
+import com.fuad.assistant.skills.os.ApplicationCatalog;
 import com.fuad.assistant.skills.os.ApplicationRegistry;
+import com.fuad.assistant.skills.os.CatalogSessionStore;
 import com.fuad.assistant.skills.os.LocalOsCommandParser;
 import com.fuad.assistant.skills.os.OsCommandParser;
 import com.fuad.assistant.skills.os.OsCommandSafetyGuard;
 import com.fuad.assistant.skills.os.OsCommandSkill;
 import com.fuad.assistant.skills.os.WindowsApplicationController;
+import com.fuad.assistant.skills.os.WindowsApplicationDiscovery;
 import com.fuad.assistant.skills.research.CurrentResearchSkill;
 import com.fuad.assistant.skills.research.DefaultResearchBackendClassifier;
 import com.fuad.assistant.skills.research.GptWebResearchEngine;
@@ -65,7 +68,7 @@ import com.fuad.vad.SileroVadEngine;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 
-import java.util.List;
+import java.nio.file.Path;
 import java.util.Map;
 
 public class Main {
@@ -88,15 +91,18 @@ public class Main {
             final OsCommandParser osCommandParser = new LocalOsCommandParser(localAiClient);
             final AudioControlParser audioControlParser = new LocalAudioControlParser(localAiClient);
             final AssistantAudioController audioController = new AssistantAudioController();
-            final ApplicationDefinition spotify = new ApplicationDefinition("spotify", "Spotify",
-                    List.of("cmd.exe", "/c", "start", "", "spotify:"), "Spotify.exe");
-            final ApplicationRegistry applicationRegistry = new ApplicationRegistry(Map.of("spotify", spotify));
+            final ApplicationCatalog applicationCatalog = new ApplicationCatalog(
+                    new WindowsApplicationDiscovery(),
+                    new ApplicationAliasConfigLoader(Path.of("config", "os-applications.json")));
+            applicationCatalog.refresh();
+            final ApplicationRegistry applicationRegistry = new ApplicationRegistry(applicationCatalog);
+            final CatalogSessionStore catalogSessions = new CatalogSessionStore();
             final ApplicationController applicationController = new WindowsApplicationController();
             final OsCommandSafetyGuard safetyGuard = new OsCommandSafetyGuard();
             OsCommandSkill osCommandSkill = new OsCommandSkill(
-                    osCommandParser, applicationRegistry, applicationController, safetyGuard);
+                    osCommandParser, applicationRegistry, applicationController, safetyGuard, catalogSessions);
             OutputPresentationPolicy presentationPolicy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
-            VisualOutput visualOutput = createVisualOutput();
+            VisualOutput visualOutput = createVisualOutput(catalogSessions);
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, visualOutput);
 
             OpenAIClient openAiClient = OpenAIOkHttpClient.fromEnv();
@@ -178,9 +184,9 @@ public class Main {
         }
     }
 
-    private static VisualOutput createVisualOutput() {
+    private static VisualOutput createVisualOutput(CatalogSessionStore catalogSessions) {
         try {
-            return new JavaFxVisualOutput();
+            return new JavaFxVisualOutput(catalogSessions);
         }
         catch (Exception e) {
             System.err.println("Unable to initialize JavaFX visual output: " + e.getMessage());

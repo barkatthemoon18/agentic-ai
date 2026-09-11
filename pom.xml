@@ -17,6 +17,7 @@
         <mockito.version>5.15.2</mockito.version>
         <junit.excluded.tags>model-evaluation</junit.excluded.tags>
         <javafx.version>21.0.10</javafx.version>
+        <jna.version>5.19.1</jna.version>
     </properties>
 
     <dependencies>
@@ -59,6 +60,11 @@
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna-platform</artifactId>
+            <version>${jna.version}</version>
         </dependency>
     </dependencies>
 

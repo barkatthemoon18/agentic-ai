@@ -2,6 +2,8 @@ package com.fuad.presentation;
 
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.audio.AssistantAudioSnapshot;
+import com.fuad.assistant.AssistantResult;
+import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
 import com.fuad.enums.PresentationMode;
 import com.fuad.pipeline.AudioPipeline;
 import lombok.AllArgsConstructor;
@@ -21,11 +23,22 @@ public class AssistantOutputCoordinator implements AutoCloseable {
     private final VisualOutput visualOutput;
 
     public void present(String text) {
+        present(new AssistantResult(text));
+    }
+
+    public void present(AssistantResult result) {
+        Objects.requireNonNull(result, "result must not be null");
+        String text = result.getText();
         Objects.requireNonNull(text, "text must not be null");
         if (text.isBlank()) {
             throw new IllegalArgumentException("Assistant output text must not be blank");
         }
         AssistantAudioSnapshot audioSnapshot = audioController.getSnapshot();
+        if (result.getPayload() instanceof ApplicationCatalogPayload) {
+            showVisualSafely(new VisualMessage(text, audioSnapshot, result.getPayload()));
+            if (!audioSnapshot.isMuted() && audioSnapshot.getVolume() > 0) audioPipeline.speak(text);
+            return;
+        }
         PresentationMode presentationMode = presentationPolicy.resolve(audioSnapshot);
         switch (presentationMode) {
             case AUDIO_ONLY -> {

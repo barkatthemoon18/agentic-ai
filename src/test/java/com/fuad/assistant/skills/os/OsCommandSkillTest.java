@@ -95,12 +95,13 @@ class OsCommandSkillTest {
     }
 
     @Test
-    void shouldFallbackForKnownButUnimplementedAction() {
+    void shouldFocusRegisteredApplication() {
+        controller.focusResult = ApplicationActionResult.success();
         AssistantResult result = skill(
                 command -> new OsCommandIntent(OsAction.FOCUS_APPLICATION, "spotify"), guard(true))
                 .execute("enfoca Spotify");
 
-        assertEquals("Ese comando del sistema todavía no está soportado", result.getText());
+        assertEquals("Enfocando: Spotify.", result.getText());
     }
 
     private OsCommandSkill skill(OsCommandParser parser, OsCommandSafetyGuard guard) {
@@ -131,6 +132,8 @@ class OsCommandSkillTest {
         private boolean closeResult;
         private ApplicationDefinition application;
         private IOException openFailure;
+        private ApplicationActionResult focusResult = ApplicationActionResult.of(
+                ApplicationActionResult.Status.NO_VISIBLE_WINDOW);
 
         @Override
         public boolean open(ApplicationDefinition applicationDefinition) throws IOException {
@@ -145,6 +148,13 @@ class OsCommandSkillTest {
             called = true;
             application = applicationDefinition;
             return closeResult;
+        }
+
+        @Override
+        public ApplicationActionResult focus(ApplicationDefinition applicationDefinition) {
+            called = true;
+            application = applicationDefinition;
+            return focusResult;
         }
     }
 }

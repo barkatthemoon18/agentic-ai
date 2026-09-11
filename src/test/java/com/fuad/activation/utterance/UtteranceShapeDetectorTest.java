@@ -1,11 +1,13 @@
 package com.fuad.activation.utterance;
 
 import com.fuad.assistant.session.ConversationSnapshot;
+import com.fuad.assistant.skills.os.OsConversationState;
 import com.fuad.enums.Capability;
 import com.fuad.enums.UtteranceDecision;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -106,6 +108,18 @@ class UtteranceShapeDetectorTest {
         assertTrue(decision.isEmpty());
         assertTrue(detector.classify(
                 UtteranceClassificationRequest.withoutContext("Ayer leí sobre Alan Turing")).isEmpty());
+    }
+
+    @Test
+    void shouldRecognizeCatalogNavigationOnlyWithCatalogContext() {
+        ConversationSnapshot catalog = new ConversationSnapshot(Capability.OS_COMMAND,
+                "Qué aplicaciones tengo", "Encontré 25 aplicaciones", null, null, null,
+                new OsConversationState(UUID.randomUUID()));
+
+        assertDecision(UtteranceDecision.FOLLOW_UP,
+                UtteranceClassificationRequest.withContext("Muéstrame más", catalog));
+        assertDecision(UtteranceDecision.OTHER,
+                UtteranceClassificationRequest.withoutContext("Muéstrame más"));
     }
 
     private UtteranceClassificationRequest withContext(String current, String previousUser,

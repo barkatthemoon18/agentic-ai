@@ -15,11 +15,15 @@ public class GuardedSemanticRouter implements SemanticRouter {
             "^(?:pon|ajusta|cambia|sube|baja|aumenta|reduce|silencia|mutea|desmutea"
                     + "|quita el silencio|vuelve a hablar|habla mas fuerte|habla mas bajo)\\b.*$");
     private static final Pattern APPLICATION_LIFECYCLE = Pattern.compile(
-            "^(?:(?:abre|abrir|cierra|cerrar|inicia|termina|reinicia|ejecuta)"
-                    + "|(?:puedes|podrias) (?:abrir|cerrar|iniciar|terminar|reiniciar|ejecutar)"
-                    + "|quiero que (?:abras|cierres|inicies|termines|reinicies|ejecutes))\\b.*$");
+            "^(?:(?:abre|abrir|cierra|cerrar|inicia|termina|reinicia|ejecuta|enfoca|enfocar)"
+                    + "|(?:trae|lleva) .+ al frente"
+                    + "|pon .+ al frente|(?:cambia|ve) a .+"
+                    + "|(?:puedes|podrias) (?:abrir|cerrar|iniciar|terminar|reiniciar|ejecutar|enfocar)"
+                    + "|quiero que (?:abras|cierres|inicies|termines|reinicies|ejecutes|enfoques))\\b.*$");
     private static final Pattern LOCAL_QUERY = Pattern.compile(
             "^¿?.*\\b(?:instalad[oa]|abiert[oa]|ejecutandose|procesos|archivo|directorio)\\b.*$");
+    private static final Pattern APPLICATION_CATALOG_QUERY = Pattern.compile(
+            "^.*\\b(?:lista|muestra|muestrame|dime|que|cuales|busca)\\b.*\\b(?:apps|aplicaciones|programas)\\b.*$");
     private static final Pattern CURRENT_RESEARCH_REQUEST = Pattern.compile(
             "^(?:.*\\b(?:ultima|ultimas|reciente|recientes)\\b.*\\b(?:version|release|noticia|noticias)\\b.*"
                     + "|.*\\b(?:version|release|noticia|noticias)\\b.*\\b(?:ultima|ultimas|reciente|recientes)\\b.*"
@@ -92,7 +96,8 @@ public class GuardedSemanticRouter implements SemanticRouter {
 
     private boolean isLocalRequest(String command) {
         return APPLICATION_LIFECYCLE.matcher(command).matches()
-                || LOCAL_QUERY.matcher(command).matches();
+                || LOCAL_QUERY.matcher(command).matches()
+                || APPLICATION_CATALOG_QUERY.matcher(command).matches();
     }
 
     private boolean isCurrentResearchRequest(String command) {

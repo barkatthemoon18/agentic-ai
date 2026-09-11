@@ -136,7 +136,7 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             AssistantResult response = executionResult.getResponse();
             System.out.println("ASSISTANT: " + response.getText());
             // audioPipeline.speak(response.getText());
-            assistantOutputCoordinator.present(response.getText());
+            assistantOutputCoordinator.present(response);
             applyConversationPolicy(executionResult, activationResult.getCommand(),
                     response.getText());
         }
@@ -161,7 +161,8 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                 ConversationSnapshot conversationSnapshot = new ConversationSnapshot(executionResult.getCapability(),
                         userText, assistantText, executionResult.getResponse().getContinuationToken(),
                         executionResult.getResponse().getResearchConversationState(),
-                        executionResult.getResponse().getGeneralConversationState());
+                        executionResult.getResponse().getGeneralConversationState(),
+                        executionResult.getResponse().getOsConversationState());
                 boolean wasActive = conversationSession.isActive();
                 conversationSession.openOrRefresh(conversationSnapshot);
                 System.out.println("CONVERSATION POLICY: -> " + (wasActive ? "CONVERSATION -> REFRESHED" : "CONVERSATION -> OPENED"));

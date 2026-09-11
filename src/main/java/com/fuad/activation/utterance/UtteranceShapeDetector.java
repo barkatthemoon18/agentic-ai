@@ -26,8 +26,11 @@ public class UtteranceShapeDetector {
             "^(?:ayer|anoche|manana|despues|luego)\\b.*(?:\\bvoy a\\b|"
                     + "\\b(?:abri|cerre|use|busque|pregunte|abrire|cerrare|usare)\\b).*$");
     private static final Pattern DIRECT_REQUEST = Pattern.compile(
-            "^¿?(?:abre|ayudame|busca|cierra|dime|explicame|investiga|recomiendame|reinicia|"
+            "^¿?(?:abre|ayudame|busca|cierra|dime|enfoca|trae|cambia|ve|muestra|muestrame|explicame|investiga|recomiendame|reinicia|"
                     + "resume|vuelve a)\\b.*$");
+    private static final Pattern CATALOG_FOLLOW_UP = Pattern.compile(
+            "^(?:siguiente(?: pagina)?|pagina siguiente|anterior|pagina anterior|atras|continua|"
+                    + "muestra(?:me)? mas|primera pagina|ultima pagina)$");
     private static final Pattern SOURCE_FOLLOW_UP = Pattern.compile(
             "^¿?.*\\b(?:fuente|evidencia|referencia)\\b.*\\b(?:eso|esto|esa)\\b.*\\??$");
     private static final Pattern PERSONAL_FUTURE_REFLECTION = Pattern.compile(
@@ -74,6 +77,13 @@ public class UtteranceShapeDetector {
             return Optional.of(request.getPreviousTurn().isPresent()
                     ? UtteranceDecision.FOLLOW_UP
                     : UtteranceDecision.OTHER);
+        }
+
+        if (CATALOG_FOLLOW_UP.matcher(text).matches()) {
+            return Optional.of(request.getPreviousTurn()
+                    .filter(snapshot -> snapshot.getOsConversationState() != null)
+                    .map(ignored -> UtteranceDecision.FOLLOW_UP)
+                    .orElse(UtteranceDecision.OTHER));
         }
 
         if (DATE_REQUEST.matcher(text).matches()

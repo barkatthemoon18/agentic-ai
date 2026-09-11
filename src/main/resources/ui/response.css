@@ -86,3 +86,36 @@
     -fx-pref-height: 0;
     -fx-opacity: 0;
 }
+
+.ares-catalog-search {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-text-fill: #eaf8fc;
+    -fx-prompt-text-fill: #82a9b8;
+    -fx-border-color: rgba(120, 236, 255, 0.28);
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+
+.ares-catalog-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: rgba(4, 15, 24, 0.45);
+    -fx-border-color: rgba(120, 236, 255, 0.16);
+}
+
+.ares-catalog-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #eaf8fc;
+}
+
+.ares-catalog-page {
+    -fx-font-family: "Consolas";
+    -fx-text-fill: #82a9b8;
+}
+
+.ares-catalog-button {
+    -fx-background-color: rgba(34, 207, 245, 0.16);
+    -fx-text-fill: #78ecff;
+    -fx-border-color: rgba(120, 236, 255, 0.28);
+    -fx-border-radius: 7px;
+    -fx-background-radius: 7px;
+}

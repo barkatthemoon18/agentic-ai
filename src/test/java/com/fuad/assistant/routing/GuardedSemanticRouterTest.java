@@ -22,6 +22,8 @@ class GuardedSemanticRouterTest {
         assertEquals(Capability.SYSTEM_TIME, router.classify("¿Qué hora es?"));
         assertEquals(Capability.AUDIO_CONTROL, router.classify("Silencia tu voz"));
         assertEquals(Capability.OS_COMMAND, router.classify("¿Puedes cerrar Spotify?"));
+        assertEquals(Capability.OS_COMMAND, router.classify("Enfoca Visual Studio Code"));
+        assertEquals(Capability.OS_COMMAND, router.classify("Muéstrame las aplicaciones instaladas"));
         assertEquals(Capability.CURRENT_RESEARCH,
                 router.classify("Busca las últimas noticias sobre OpenAI"));
         assertEquals(Capability.CURRENT_RESEARCH,
