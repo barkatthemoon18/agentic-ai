@@ -3,14 +3,16 @@ package com.fuad.assistant.skills.general;
 import com.fuad.config.AppConfig;
 import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
-import com.openai.models.chat.completions.ChatCompletion;
-import com.openai.models.chat.completions.ChatCompletionCreateParams;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 public class LocalGeneralComplexityClassifier implements GeneralComplexityClassifier {
     private static final Set<String> LABELS = Set.of("local", "gpt");
+    private static final List<String> ORDERED_LABELS = List.of("local", "gpt");
+    private static final int MAX_COMPLETION_TOKENS = 8;
     private static final String SYSTEM_PROMPT = """
             Clasifica que backend necesita una consulta GENERAL de un asistente de voz.
 
@@ -39,36 +41,45 @@ public class LocalGeneralComplexityClassifier implements GeneralComplexityClassi
             No respondas la consulta ni expliques la clasificacion.
             """;
 
-    private final OpenAIClient client;
-    private final String model;
+    private final GeneralBackendInference inference;
 
     public LocalGeneralComplexityClassifier(OpenAIClient client) {
         this(client, AppConfig.LOCAL_MODEL_ID);
     }
 
     public LocalGeneralComplexityClassifier(OpenAIClient client, String model) {
-        this.client = Objects.requireNonNull(client, "client cannot be null");
-        this.model = LocalModelOutput.requireModelId(model);
+        this(new OpenAiGeneralBackendInference(client, model));
+    }
+
+    public LocalGeneralComplexityClassifier(GeneralBackendInference inference) {
+        this.inference = Objects.requireNonNull(inference, "inference cannot be null");
     }
 
     @Override
     public GeneralBackend classify(String command) {
+        return classifyDetailed(command).backend();
+    }
+
+    public GeneralBackendClassification classifyDetailed(String command) {
         String query = requireText(command);
-        ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-                .model(model)
-                .addSystemMessage(SYSTEM_PROMPT)
-                .addUserMessage("""
-                        <query>
-                        %s
-                        </query>
-                        """.formatted(query))
-                .temperature(0.0)
-                .maxCompletionTokens(8)
-                .build();
-        ChatCompletion completion = client.chat().completions().create(params);
-        String output = completion.choices().getFirst().message().content().orElseThrow(() ->
-                new IllegalStateException("Local model returned no general backend classification"));
-        return parse(output);
+        Optional<String> firstOutput = inference.infer(request(query, false, null));
+        try {
+            return new GeneralBackendClassification(parse(requiredOutput(firstOutput)), 1);
+        }
+        catch (IllegalStateException firstInvalid) {
+            System.err.println("Invalid general backend output; retrying once: "
+                    + firstInvalid.getMessage());
+            String previousOutput = firstOutput.filter(value -> !value.isBlank()).orElse(null);
+            Optional<String> retryOutput = inference.infer(request(query, true, previousOutput));
+            try {
+                return new GeneralBackendClassification(parse(requiredOutput(retryOutput)), 2);
+            }
+            catch (IllegalStateException retryInvalid) {
+                throw new InvalidGeneralBackendOutputException(
+                        "General backend output remained invalid after retry: "
+                                + retryInvalid.getMessage(), 2, retryInvalid);
+            }
+        }
     }
 
     static GeneralBackend parse(String output) {
@@ -86,5 +97,16 @@ public class LocalGeneralComplexityClassifier implements GeneralComplexityClassi
             throw new IllegalArgumentException("command cannot be empty");
         }
         return normalized;
+    }
+
+    private GeneralBackendInferenceRequest request(String query, boolean retry,
+                                                   String previousInvalidOutput) {
+        return new GeneralBackendInferenceRequest(SYSTEM_PROMPT, query, ORDERED_LABELS,
+                MAX_COMPLETION_TOKENS, retry, previousInvalidOutput);
+    }
+
+    private String requiredOutput(Optional<String> output) {
+        return output.filter(value -> !value.isBlank()).orElseThrow(() ->
+                new IllegalStateException("Local model returned no general backend classification"));
     }
 }

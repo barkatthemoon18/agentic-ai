@@ -134,3 +134,64 @@ mvn -Pmodel-evaluation `
     -Dtest=LocalStructuredClassifiersBenchmarkTest `
     -Devaluation.model=phi-router test
 ```
+
+## Corpus de decisiones de General y Current Research
+
+Las decisiones nuevas se evalúan con corpus y métricas independientes:
+
+- `general-backend-development.jsonl`: ajuste de `qwen_local` o `gpt`.
+- `general-backend-holdout-v1.jsonl`: holdout ya observado, conservado como regresión histórica.
+- `general-backend-holdout-v2.jsonl`: holdout congelado para la validación final de General.
+- `research-backend-{development|holdout}.jsonl`: `qwen_local` o `gpt_web`.
+- `research-depth-{development|holdout}.jsonl`: `quick` o `deep`.
+
+Cada línea usa este contrato:
+
+```json
+{"id":"case-01","query":"consulta","expected":"quick","tags":["current"],"rationale":"justificación humana"}
+```
+
+El corpus de backend de Research admite además `inheritedBackend` con valor
+`qwen_local` o `gpt_web` para representar un follow-up. Los otros dos corpus no
+aceptan backend heredado. Development contiene 30 casos balanceados y holdout 20.
+
+Para obtener la línea base de development sin aplicar umbrales:
+
+```powershell
+mvn -Pmodel-evaluation `
+    -Dtest=LocalGeneralComplexityClassifierCorpusTest,ResearchBackendClassifierCorpusTest,LocalResearchDepthClassifierCorpusTest `
+    -Devaluation.corpus=development `
+    -Devaluation.report-only=true test
+```
+
+Para validar el holdout congelado:
+
+```powershell
+mvn -Pmodel-evaluation `
+    -Dtest=LocalGeneralComplexityClassifierCorpusTest,ResearchBackendClassifierCorpusTest,LocalResearchDepthClassifierCorpusTest `
+    -Devaluation.corpus=holdout test
+```
+
+Para General, `evaluation.corpus=holdout` selecciona `holdout-v2`; usa
+`evaluation.corpus=holdout-v1` sólo para medir la regresión histórica. Los
+corpus de Research mantienen `development|holdout`.
+
+Cada reporte incluye accuracy, macro-F1, precision/recall/F1 por etiqueta,
+matriz de confusión, errores, fallos y latencias p50/p95. También informa
+`firstPassValid`, `retryCount`, `retryRecovered` y `retryRate`; un retry
+recuperado cuenta como clasificación válida. El gate exige cero errores finales
+y macro-F1 mínima de `0.90` por corpus. Se puede ajustar con:
+
+- `evaluation.minimum-general-backend-macro-f1`.
+- `evaluation.minimum-research-backend-macro-f1`.
+- `evaluation.minimum-research-depth-macro-f1`.
+
+General backend y Research depth requieren el modelo local servido mediante
+`evaluation.base-url`; Research backend es determinista. Ajusta prompts sólo
+contra development, congela el candidato antes de ejecutar holdout y no reajustes
+los prompts ni las etiquetas después de observar el holdout. General v1 ya fue
+observado y no debe usarse como aprobación estadística limpia. General v2 se
+ejecutó una única vez el 11 de septiembre de 2026 después de validar el retry
+contra development: obtuvo macro-F1 `0.9000`, cero errores finales y cero
+retries. Desde entonces también se considera consumido y no debe reajustarse ni
+repetirse para seleccionar esta versión.

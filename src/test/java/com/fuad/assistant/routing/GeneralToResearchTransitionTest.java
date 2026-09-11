@@ -61,4 +61,49 @@ class GeneralToResearchTransitionTest {
         assertEquals(2, captured.get().previousMessages().size());
         assertEquals("¿Quién fue Alan Turing?", captured.get().previousMessages().getFirst().content());
     }
+
+    @Test
+    void negatedResearchRequestShouldRemainInGeneral() {
+        AiSkillRouter router = router(command -> new AssistantResult("general"),
+                command -> new AssistantResult("research"));
+        ConversationSnapshot snapshot = new ConversationSnapshot(Capability.GENERAL,
+                "¿Quién fue Alan Turing?", "Fue un matemático.", null);
+
+        assertEquals(Capability.GENERAL,
+                router.routeFollowUp("No lo busques en Internet, dime qué recuerdas", snapshot).getCapability());
+    }
+
+    @Test
+    void explicitGeneralBackendSwitchShouldRemainInGeneral() {
+        AiSkillRouter router = router(command -> new AssistantResult("general"),
+                command -> new AssistantResult("research"));
+        ConversationSnapshot snapshot = new ConversationSnapshot(Capability.GENERAL,
+                "Explícame RSA", "RSA es un sistema criptográfico.", null);
+
+        assertEquals(Capability.GENERAL,
+                router.routeFollowUp("Ahora profundiza usando GPT", snapshot).getCapability());
+    }
+
+    @Test
+    void researchOwnedFollowUpShouldRemainInResearch() {
+        AiSkillRouter router = router(command -> new AssistantResult("general"),
+                command -> new AssistantResult("research"));
+        ConversationSnapshot snapshot = new ConversationSnapshot(Capability.CURRENT_RESEARCH,
+                "Busca las noticias recientes", "Encontré dos anuncios.", "research-token");
+
+        assertEquals(Capability.CURRENT_RESEARCH,
+                router.routeFollowUp("Explícame el segundo", snapshot).getCapability());
+    }
+
+    private AiSkillRouter router(Skill general, Skill research) {
+        EnumMap<Capability, Skill> skills = new EnumMap<>(Capability.class);
+        for (Capability capability : Capability.values()) {
+            skills.put(capability, capability == Capability.GENERAL ? general
+                    : capability == Capability.CURRENT_RESEARCH ? research
+                    : command -> new AssistantResult(capability.name()));
+        }
+        return new AiSkillRouter(command -> {
+            throw new AssertionError("semantic router must not decide a follow-up transition");
+        }, new SkillRegistry(skills));
+    }
 }

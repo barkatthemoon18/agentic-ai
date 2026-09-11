@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,6 +53,20 @@ class GeneralBackendRoutingTest {
 
         assertEquals(new GeneralBackendDecision(GeneralBackend.QWEN_LOCAL, SelectionOrigin.AUTOMATIC),
                 selector.select("Explica RSA", GeneralConversationState.empty()));
+    }
+
+    @Test
+    void invalidClassifierOutputAfterRetryShouldUseAutomaticQwenFallback() {
+        AtomicInteger attempts = new AtomicInteger();
+        LocalGeneralComplexityClassifier classifier = new LocalGeneralComplexityClassifier(request -> {
+            attempts.incrementAndGet();
+            return Optional.of("respuesta fuera de contrato");
+        });
+        DefaultGeneralBackendSelector selector = new DefaultGeneralBackendSelector(classifier);
+
+        assertEquals(new GeneralBackendDecision(GeneralBackend.QWEN_LOCAL, SelectionOrigin.AUTOMATIC),
+                selector.select("Resume La Odisea", GeneralConversationState.empty()));
+        assertEquals(2, attempts.get());
     }
 
     @Test
