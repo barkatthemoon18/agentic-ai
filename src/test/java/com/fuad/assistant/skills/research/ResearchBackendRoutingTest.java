@@ -40,6 +40,16 @@ class ResearchBackendRoutingTest {
     }
 
     @Test
+    void nowAloneShouldInheritTheResearchBackendOrDefaultToLocal() {
+        assertEquals(ResearchBackend.QWEN_LOCAL,
+                classifier.classify("Ahora profundiza", ResearchBackend.QWEN_LOCAL));
+        assertEquals(ResearchBackend.GPT_WEB,
+                classifier.classify("Ahora profundiza", ResearchBackend.GPT_WEB));
+        assertEquals(ResearchBackend.QWEN_LOCAL,
+                classifier.classify("Ahora profundiza", null));
+    }
+
+    @Test
     void switchingBackendsShouldPreserveIndependentBranches() {
         AtomicReference<ResearchRequest> globalRequest = new AtomicReference<>();
         AtomicReference<ResearchRequest> localRequest = new AtomicReference<>();

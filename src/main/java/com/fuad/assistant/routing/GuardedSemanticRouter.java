@@ -96,6 +96,9 @@ public class GuardedSemanticRouter implements SemanticRouter {
     }
 
     private boolean isCurrentResearchRequest(String command) {
+        if (researchEscalationDetector.isExplicitlyNegated(command)) {
+            return false;
+        }
         return researchEscalationDetector.shouldEscalate(command)
                 || CURRENT_RESEARCH_REQUEST.matcher(command).matches()
                 || EXPLICIT_RESEARCH_REQUEST.matcher(command).matches()

@@ -7,6 +7,8 @@ import com.fuad.assistant.skills.GeneralSkill;
 import com.fuad.enums.Capability;
 import com.fuad.enums.ConversationPolicy;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 import java.util.Map;
@@ -35,6 +37,7 @@ class GeneralBackendRoutingTest {
         GeneralBackendDecision followUp = selector.select("¿Qué inventos hizo?", state);
         GeneralBackendDecision explicit = selector.select("Ahora profundiza usando GPT", state);
         GeneralBackendDecision explicitNatural = selector.select("Quiero que respondas con GPT", state);
+        GeneralBackendDecision explicitLocal = selector.select("Vuelve a Qwen", state);
         GeneralBackendDecision conceptual = selector.select("¿Qué es GPT?", state);
 
         assertEquals(1, classifications.get());
@@ -42,6 +45,8 @@ class GeneralBackendRoutingTest {
         assertEquals(first, followUp);
         assertEquals(new GeneralBackendDecision(GeneralBackend.GPT, SelectionOrigin.EXPLICIT), explicit);
         assertEquals(explicit, explicitNatural);
+        assertEquals(new GeneralBackendDecision(GeneralBackend.QWEN_LOCAL, SelectionOrigin.EXPLICIT),
+                explicitLocal);
         assertEquals(first, conceptual);
     }
 
@@ -53,6 +58,53 @@ class GeneralBackendRoutingTest {
 
         assertEquals(new GeneralBackendDecision(GeneralBackend.QWEN_LOCAL, SelectionOrigin.AUTOMATIC),
                 selector.select("Explica RSA", GeneralConversationState.empty()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "No quiero que uses GPT",
+            "No quiero que respondas con GPT",
+            "No uses GPT",
+            "No cambies a GPT",
+            "Sin usar GPT",
+            "No quiero que uses Qwen",
+            "Sin usar el modelo local",
+            "Prefiero Java; explícame qué es GPT"
+    })
+    void negatedAndConceptualModelMentionsShouldNotOverrideTheActiveBackend(String command) {
+        DefaultGeneralBackendSelector selector = new DefaultGeneralBackendSelector(ignored -> {
+            throw new AssertionError("classifier must not be called when a backend is active");
+        });
+        GeneralConversationState qwenState = GeneralConversationState.empty().withActiveBranch(
+                GeneralBackend.QWEN_LOCAL, SelectionOrigin.AUTOMATIC, GeneralBranchState.empty());
+
+        assertEquals(new GeneralBackendDecision(GeneralBackend.QWEN_LOCAL, SelectionOrigin.AUTOMATIC),
+                selector.select(command, qwenState));
+    }
+
+    @Test
+    void negatedModelMentionShouldPreserveAnActiveGptBackend() {
+        DefaultGeneralBackendSelector selector = new DefaultGeneralBackendSelector(ignored -> {
+            throw new AssertionError("classifier must not be called when a backend is active");
+        });
+        GeneralConversationState gptState = GeneralConversationState.empty().withActiveBranch(
+                GeneralBackend.GPT, SelectionOrigin.EXPLICIT, GeneralBranchState.empty());
+
+        assertEquals(new GeneralBackendDecision(GeneralBackend.GPT, SelectionOrigin.EXPLICIT),
+                selector.select("No quiero que uses GPT", gptState));
+    }
+
+    @Test
+    void negatedModelMentionWithoutContextShouldUseAutomaticClassification() {
+        AtomicInteger classifications = new AtomicInteger();
+        DefaultGeneralBackendSelector selector = new DefaultGeneralBackendSelector(command -> {
+            classifications.incrementAndGet();
+            return GeneralBackend.QWEN_LOCAL;
+        });
+
+        assertEquals(new GeneralBackendDecision(GeneralBackend.QWEN_LOCAL, SelectionOrigin.AUTOMATIC),
+                selector.select("No quiero que uses GPT", GeneralConversationState.empty()));
+        assertEquals(1, classifications.get());
     }
 
     @Test

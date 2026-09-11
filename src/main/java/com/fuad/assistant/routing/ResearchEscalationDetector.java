@@ -7,15 +7,20 @@ import java.util.regex.Pattern;
 
 public class ResearchEscalationDetector {
     private static final Pattern NEGATED_RESEARCH = Pattern.compile(
-            ".*\\b(?:no|sin)\\b.{0,30}\\b(?:busca|buscar|busques|investiga|investigar|investigues"
-                    + "|internet|web|fuentes|actualiza|verifica|verificar)\\b.*");
+            "^(?:(?:por favor|porfa),?\\s+)?(?:no|nunca)\\s+(?:lo\\s+)?"
+                    + "(?:busques?|investigues?|consultes?|verifiques?|compruebes?)\\b.*"
+                    + "|^sin\\s+(?:buscar|investigar|consultar|verificar|comprobar)\\b.*"
+                    + "|^(?:(?:por favor|porfa),?\\s+)?(?:no|nunca)\\s+"
+                    + "(?:uses?|utilices?)\\s+(?:internet|la web|web|online)\\b.*");
     private static final Pattern EXPLICIT_RESEARCH = Pattern.compile(
             "^(?:ahora\\s+)?(?:busca|buscar|buscame|buscalo|buscala|investiga|investigar"
                     + "|investigalo|investigala)\\b.*");
     private static final Pattern WEB_REQUEST = Pattern.compile(
-            ".*\\b(?:busca|buscar|consulta|consultar|verifica|verificar|comprueba|comprobar)\\b"
+            ".*\\b(?:busca|buscar|buscame|buscalo|buscala|consulta|consultar"
+                    + "|verifica|verificar|comprueba|comprobar)\\b"
                     + ".*\\b(?:internet|web|online)\\b.*"
-                    + "|.*\\b(?:internet|web|online)\\b.*\\b(?:busca|buscar|consulta|consultar"
+                    + "|.*\\b(?:internet|web|online)\\b.*\\b(?:busca|buscar|buscame|buscalo|buscala"
+                    + "|consulta|consultar"
                     + "|verifica|verificar|comprueba|comprobar)\\b.*");
     private static final Pattern SOURCES = Pattern.compile(
             ".*\\b(?:dame|dime|muestra|cita|incluye|consulta|busca|encuentra)\\b.*"
@@ -35,6 +40,10 @@ public class ResearchEscalationDetector {
                     + "\\b(?:noticia|noticias|release|releases)\\b.*"
                     + "|.*\\b(?:noticia|noticias|release|releases)\\b.*"
                     + "\\b(?:ultima|ultimas|ultimo|ultimos|reciente|recientes)\\b.*");
+
+    public boolean isExplicitlyNegated(String command) {
+        return NEGATED_RESEARCH.matcher(normalize(command)).matches();
+    }
 
     public boolean shouldEscalate(String command) {
         String normalized = normalize(command);
