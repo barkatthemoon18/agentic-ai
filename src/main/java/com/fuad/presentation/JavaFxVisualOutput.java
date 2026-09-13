@@ -1,14 +1,17 @@
 package com.fuad.presentation;
 
 import com.fuad.audio.AssistantAudioSnapshot;
+import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
+import com.fuad.assistant.skills.os.CatalogNavigation;
+import com.fuad.assistant.skills.os.CatalogSessionStore;
+import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import javafx.animation.*;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
-import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
+import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.robot.Robot;
@@ -40,10 +43,24 @@ public class JavaFxVisualOutput implements VisualOutput {
     private Label messageLabel;
     private Label timeLabel;
     private ScrollPane messageScroll;
+    private VBox catalogPane;
+    private ListView<String> catalogList;
+    private TextField catalogSearch;
+    private Label catalogPageLabel;
+    private Button catalogPrevious;
+    private Button catalogNext;
     private PauseTransition dismissTimer;
     private Animation activeAnimation;
+    private final CatalogSessionStore catalogSessions;
+    private final AtomicBoolean updatingCatalog = new AtomicBoolean(false);
+    private AutoCloseable catalogSubscription;
 
     public JavaFxVisualOutput() {
+        this(new CatalogSessionStore());
+    }
+
+    public JavaFxVisualOutput(CatalogSessionStore catalogSessions) {
+        this.catalogSessions = Objects.requireNonNull(catalogSessions, "catalogSessions must not be null");
         ensureToolkit();
         runAndWait(this::createOverlay);
     }
@@ -70,6 +87,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
+        closeCatalogSubscription();
         runLater(() -> {
             stopAnimations();
             if (stage != null) {
@@ -146,9 +164,14 @@ public class JavaFxVisualOutput implements VisualOutput {
         messageScroll.setMaxHeight(Double.MAX_VALUE);
         messageLabel.setMinHeight(Region.USE_PREF_SIZE);
 
-        HBox.setHgrow(messageScroll, Priority.ALWAYS);
+        createCatalogPane();
+        catalogPane.setVisible(false);
+        catalogPane.setManaged(false);
 
-        HBox body = new HBox(10.0, iconContainer, messageScroll);
+        StackPane responseContent = new StackPane(messageScroll, catalogPane);
+        HBox.setHgrow(responseContent, Priority.ALWAYS);
+
+        HBox body = new HBox(10.0, iconContainer, responseContent);
         body.setAlignment(Pos.TOP_LEFT);
         VBox.setVgrow(body, Priority.ALWAYS);
 
@@ -214,14 +237,29 @@ public class JavaFxVisualOutput implements VisualOutput {
     private void showInternal(VisualMessage visualMessage) {
         stopAnimations();
         AssistantAudioSnapshot audioSnapshot = visualMessage.getAudioSnapshot();
-        messageLabel.setText(visualMessage.getText());
+        boolean catalog = visualMessage.getPayload() instanceof ApplicationCatalogPayload;
+        boolean openApplications = visualMessage.getPayload() instanceof OpenApplicationsPayload;
+        if (catalog) {
+            showCatalog((ApplicationCatalogPayload) visualMessage.getPayload());
+        }
+        else if (openApplications) {
+            showOpenApplications((OpenApplicationsPayload) visualMessage.getPayload());
+        }
+        else {
+            closeCatalogSubscription();
+            catalogPane.setVisible(false);
+            catalogPane.setManaged(false);
+            messageScroll.setVisible(true);
+            messageScroll.setManaged(true);
+            messageLabel.setText(visualMessage.getText());
+        }
         statusLabel.setText(buildStatusText(audioSnapshot));
         timeLabel.setText(LocalTime.now().format(TIME_FORMATTER));
         messageScroll.setVvalue(0.0);
         overlayRoot.setOpacity(0.0);
         overlayRoot.setTranslateX(20.0);
         Rectangle2D screenBounds = resolveTargetScreen().getVisualBounds();
-        sizeOverlay(screenBounds);
+        sizeOverlay(screenBounds, catalog || openApplications);
         if (!stage.isShowing()) {
             stage.show();
         }
@@ -239,7 +277,7 @@ public class JavaFxVisualOutput implements VisualOutput {
 
         entrance.setOnFinished(event -> {
             activeAnimation = null;
-            startDismissTimer(visualMessage.getText().length());
+            if (!catalog && !openApplications) startDismissTimer(visualMessage.getText().length());
         });
         entrance.play();
     }
@@ -263,6 +301,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         exit.setOnFinished(event -> {
             activeAnimation = null;
             stage.hide();
+            closeCatalogSubscription();
             overlayRoot.setOpacity(1.0);
             overlayRoot.setTranslateX(0.0);
         });
@@ -288,7 +327,18 @@ public class JavaFxVisualOutput implements VisualOutput {
         }
     }
 
-    private void sizeOverlay(Rectangle2D screenBounds) {
+    private void sizeOverlay(Rectangle2D screenBounds, boolean catalog) {
+        if (catalog) {
+            Rectangle2D bounds = calculateOverlayBounds(screenBounds, 520.0);
+            overlayRoot.setPrefSize(bounds.getWidth(), bounds.getHeight());
+            stage.setWidth(bounds.getWidth());
+            stage.setHeight(bounds.getHeight());
+            stage.setX(bounds.getMinX());
+            stage.setY(bounds.getMinY());
+            overlayRoot.resize(bounds.getWidth(), bounds.getHeight());
+            overlayRoot.layout();
+            return;
+        }
         Rectangle2D maximum = calculateOverlayBounds(screenBounds, Double.MAX_VALUE);
         // Measure without a scrollbar so a previous long response cannot affect wrapping.
         messageScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
@@ -310,6 +360,96 @@ public class JavaFxVisualOutput implements VisualOutput {
         stage.setX(bounds.getMinX());
         stage.setY(bounds.getMinY());
         overlayRoot.layout();
+    }
+
+    private void createCatalogPane() {
+        catalogSearch = new TextField();
+        catalogSearch.setPromptText("Buscar aplicaciones");
+        catalogSearch.getStyleClass().add("ares-catalog-search");
+        catalogList = new ListView<>();
+        catalogList.getStyleClass().add("ares-catalog-list");
+        catalogPageLabel = new Label();
+        catalogPageLabel.getStyleClass().add("ares-catalog-page");
+        catalogPrevious = new Button("Anterior");
+        catalogNext = new Button("Siguiente");
+        catalogPrevious.getStyleClass().add("ares-catalog-button");
+        catalogNext.getStyleClass().add("ares-catalog-button");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox controls = new HBox(8.0, catalogPrevious, spacer, catalogPageLabel, catalogNext);
+        controls.setAlignment(Pos.CENTER);
+        catalogPane = new VBox(10.0, catalogSearch, catalogList, controls);
+        VBox.setVgrow(catalogList, Priority.ALWAYS);
+    }
+
+    private void showCatalog(ApplicationCatalogPayload initial) {
+        closeCatalogSubscription();
+        catalogSearch.setVisible(true);
+        catalogSearch.setManaged(true);
+        catalogPrevious.setVisible(true);
+        catalogPrevious.setManaged(true);
+        catalogNext.setVisible(true);
+        catalogNext.setManaged(true);
+        messageScroll.setVisible(false);
+        messageScroll.setManaged(false);
+        catalogPane.setVisible(true);
+        catalogPane.setManaged(true);
+        renderCatalog(initial);
+        catalogSearch.setOnAction(event -> {
+            if (!updatingCatalog.get()) catalogSessions.filter(initial.sessionId(), catalogSearch.getText());
+        });
+        catalogPrevious.setOnAction(event -> catalogSessions.navigate(initial.sessionId(), CatalogNavigation.PREVIOUS));
+        catalogNext.setOnAction(event -> catalogSessions.navigate(initial.sessionId(), CatalogNavigation.NEXT));
+        catalogSubscription = catalogSessions.observe(initial.sessionId(), payload -> runLater(() -> renderCatalog(payload)));
+    }
+
+    private void showOpenApplications(OpenApplicationsPayload payload) {
+        closeCatalogSubscription();
+        messageScroll.setVisible(false);
+        messageScroll.setManaged(false);
+        catalogPane.setVisible(true);
+        catalogPane.setManaged(true);
+        catalogSearch.setVisible(false);
+        catalogSearch.setManaged(false);
+        catalogPrevious.setVisible(false);
+        catalogPrevious.setManaged(false);
+        catalogNext.setVisible(false);
+        catalogNext.setManaged(false);
+        catalogList.getItems().setAll(payload.items().stream()
+                .map(item -> item.displayName()).toList());
+        String summary = payload.items().size() + (payload.items().size() == 1
+                ? " aplicación abierta" : " aplicaciones abiertas");
+        if (payload.unverifiableCount() > 0) {
+            summary += " · " + payload.unverifiableCount()
+                    + (payload.unverifiableCount() == 1 ? " estado no verificable" : " estados no verificables");
+        }
+        catalogPageLabel.setText(summary);
+        catalogPageLabel.setVisible(true);
+        catalogPageLabel.setManaged(true);
+    }
+
+    private void renderCatalog(ApplicationCatalogPayload payload) {
+        updatingCatalog.set(true);
+        try {
+            if (!Objects.equals(catalogSearch.getText(), payload.filter())) catalogSearch.setText(payload.filter());
+            catalogList.getItems().setAll(payload.items().stream().map(item -> item.displayName()).toList());
+            catalogPageLabel.setText("Página " + (payload.pageIndex() + 1) + " de " + payload.totalPages()
+                    + " · " + payload.totalCount());
+            catalogPrevious.setDisable(payload.pageIndex() == 0);
+            catalogNext.setDisable(payload.pageIndex() + 1 >= payload.totalPages());
+        }
+        finally {
+            updatingCatalog.set(false);
+        }
+    }
+
+    private void closeCatalogSubscription() {
+        if (catalogSubscription == null) return;
+        try {
+            catalogSubscription.close();
+        }
+        catch (Exception ignored) { }
+        catalogSubscription = null;
     }
 
     static Rectangle2D calculateOverlayBounds(Rectangle2D screen, double preferredHeight) {

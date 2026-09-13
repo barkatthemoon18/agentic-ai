@@ -85,6 +85,14 @@ public class LocalUtteranceClassifier implements UtteranceClassifier {
             Current: "Eso no es correcto"
             -> follow_up
 
+            Previous topic: application catalog
+            Current: "Siguiente" or "Muéstrame más"
+            -> follow_up
+
+            Previous topic: application catalog
+            Current: "Muéstrame las de Adobe"
+            -> follow_up
+
             Never return follow_up when previous context is absent.
 
             ==================================================

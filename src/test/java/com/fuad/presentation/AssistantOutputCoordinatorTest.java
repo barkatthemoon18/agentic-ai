@@ -1,6 +1,11 @@
 package com.fuad.presentation;
 
 import com.fuad.audio.AssistantAudioController;
+import com.fuad.assistant.AssistantResult;
+import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
+import com.fuad.assistant.skills.os.ApplicationListItem;
+import com.fuad.assistant.skills.os.OpenApplicationItem;
+import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.pipeline.AudioPipeline;
@@ -10,10 +15,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -123,7 +130,7 @@ class AssistantOutputCoordinatorTest {
 
     @Test
     void shouldRejectNullText() {
-        assertThrows(NullPointerException.class, () -> coordinator.present(null));
+        assertThrows(NullPointerException.class, () -> coordinator.present((String) null));
 
         assertEquals(0, audioPipeline.speakCalls);
         assertEquals(0, visualOutput.showCalls);
@@ -171,6 +178,19 @@ class AssistantOutputCoordinatorTest {
     }
 
     @Test
+    void catalogPayloadShouldForceVisualOutputAndKeepSpeechBrief() {
+        audioController.setVolume(40);
+        ApplicationCatalogPayload payload = new ApplicationCatalogPayload(UUID.randomUUID(), "", 0, 20,
+                1, 1, List.of(new ApplicationListItem("spotify", "Spotify")));
+
+        coordinator.present(AssistantResult.catalog("Encontré una aplicación; te la muestro en pantalla.", payload));
+
+        assertEquals(1, visualOutput.showCalls);
+        assertSame(payload, visualOutput.lastMessage.getPayload());
+        assertEquals(1, audioPipeline.speakCalls);
+    }
+
+    @Test
     void shouldRestoreAudibleVolumeAfterZeroAndHidePreviousText() {
         audioController.setVolume(40);
         audioController.setVolume(0);
@@ -183,6 +203,46 @@ class AssistantOutputCoordinatorTest {
 
         assertEquals(40, audioController.getVolume());
         assertEquals(List.of("show", "hide", "speak"), events);
+    }
+
+    @Test
+    void shortOpenApplicationListShouldFollowNormalPresentationPolicy() {
+        audioController.setVolume(40);
+        OpenApplicationsPayload payload = new OpenApplicationsPayload(List.of(
+                new OpenApplicationItem("firefox", "Firefox")), 0);
+
+        coordinator.present(AssistantResult.openApplications("Tienes Firefox abierto.", payload));
+
+        assertEquals(1, audioPipeline.speakCalls);
+        assertEquals(0, visualOutput.showCalls);
+        assertEquals(1, visualOutput.hideCalls);
+    }
+
+    @Test
+    void longOpenApplicationListShouldForceVisualOutputAtNormalVolume() {
+        audioController.setVolume(40);
+        OpenApplicationsPayload payload = new OpenApplicationsPayload(
+                java.util.stream.IntStream.rangeClosed(1, 6)
+                        .mapToObj(index -> new OpenApplicationItem("app-" + index, "App " + index)).toList(), 1);
+
+        coordinator.present(AssistantResult.openApplications("Tienes seis aplicaciones abiertas.", payload));
+
+        assertEquals(1, audioPipeline.speakCalls);
+        assertEquals(1, visualOutput.showCalls);
+        assertSame(payload, visualOutput.lastMessage.getPayload());
+    }
+
+    @Test
+    void longOpenApplicationListShouldRemainSilentWhenMuted() {
+        audioController.mute();
+        OpenApplicationsPayload payload = new OpenApplicationsPayload(
+                java.util.stream.IntStream.rangeClosed(1, 6)
+                        .mapToObj(index -> new OpenApplicationItem("app-" + index, "App " + index)).toList(), 0);
+
+        coordinator.present(AssistantResult.openApplications("Tienes seis aplicaciones abiertas.", payload));
+
+        assertEquals(0, audioPipeline.speakCalls);
+        assertEquals(1, visualOutput.showCalls);
     }
 
     private static final class TrackingVisualOutput implements VisualOutput {

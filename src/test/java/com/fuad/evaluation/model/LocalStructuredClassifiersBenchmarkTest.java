@@ -80,7 +80,7 @@ class LocalStructuredClassifiersBenchmarkTest {
     }
 
     private static String formatOs(com.fuad.assistant.skills.os.OsCommandIntent value) {
-        return value.getAction() + "|" + value.getTarget();
+        return value.getAction() + "|" + value.getTarget().toLowerCase(Locale.ROOT);
     }
     private static String formatAudio(AudioControlIntent value) {
         return value.getAudioAction() + "|" + value.getAudioScope() + "|" + value.getValue();

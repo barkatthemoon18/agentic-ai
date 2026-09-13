@@ -1,20 +1,37 @@
 package com.fuad.assistant.skills.os;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
 public class ApplicationRegistry {
-    private final Map<String, ApplicationDefinition> applications;
+    private final ApplicationCatalog catalog;
 
     public ApplicationRegistry(Map<String, ApplicationDefinition> applications) {
-        this.applications = Map.copyOf(applications);
+        this(ApplicationCatalog.fixed(applications.values()));
+    }
+
+    public ApplicationRegistry(ApplicationCatalog catalog) {
+        this.catalog = catalog;
     }
 
     public Optional<ApplicationDefinition> get(String application) {
-        return application == null ? Optional.empty() : Optional.ofNullable(applications
-                .get(application.toLowerCase(Locale.ROOT)));
+        return resolve(application, false).found();
+    }
+
+    public ApplicationResolution resolve(String application, boolean refreshOnMiss) {
+        return catalog.resolve(application, refreshOnMiss);
+    }
+
+    public List<ApplicationDefinition> search(String filter, boolean refreshIfUnavailable) {
+        return catalog.search(filter, refreshIfUnavailable);
+    }
+
+    public boolean isAvailable() {
+        return catalog.isAvailable();
+    }
+
+    public boolean refresh() {
+        return catalog.refresh();
     }
 }

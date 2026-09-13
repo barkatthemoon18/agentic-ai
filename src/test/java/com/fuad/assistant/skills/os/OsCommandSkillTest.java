@@ -42,6 +42,16 @@ class OsCommandSkillTest {
     }
 
     @Test
+    void invalidParserOutputShouldNotReachTheController() {
+        AssistantResult result = skill(command -> {
+            throw new InvalidOsCommandOutputException("invalid", null);
+        }, guard(true)).execute("abre Spotify");
+
+        assertEquals("No pude interpretar el comando del sistema.", result.getText());
+        assertFalse(controller.called);
+    }
+
+    @Test
     void shouldReportUnregisteredApplication() {
         AssistantResult result = skill(
                 command -> new OsCommandIntent(OsAction.OPEN_APPLICATION, "firefox"), guard(true))
@@ -95,12 +105,13 @@ class OsCommandSkillTest {
     }
 
     @Test
-    void shouldFallbackForKnownButUnimplementedAction() {
+    void shouldFocusRegisteredApplication() {
+        controller.focusResult = ApplicationActionResult.success();
         AssistantResult result = skill(
                 command -> new OsCommandIntent(OsAction.FOCUS_APPLICATION, "spotify"), guard(true))
                 .execute("enfoca Spotify");
 
-        assertEquals("Ese comando del sistema todavía no está soportado", result.getText());
+        assertEquals("Enfocando: Spotify.", result.getText());
     }
 
     private OsCommandSkill skill(OsCommandParser parser, OsCommandSafetyGuard guard) {
@@ -131,6 +142,8 @@ class OsCommandSkillTest {
         private boolean closeResult;
         private ApplicationDefinition application;
         private IOException openFailure;
+        private ApplicationActionResult focusResult = ApplicationActionResult.of(
+                ApplicationActionResult.Status.NO_VISIBLE_WINDOW);
 
         @Override
         public boolean open(ApplicationDefinition applicationDefinition) throws IOException {
@@ -145,6 +158,13 @@ class OsCommandSkillTest {
             called = true;
             application = applicationDefinition;
             return closeResult;
+        }
+
+        @Override
+        public ApplicationActionResult focus(ApplicationDefinition applicationDefinition) {
+            called = true;
+            application = applicationDefinition;
+            return focusResult;
         }
     }
 }
