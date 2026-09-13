@@ -18,7 +18,7 @@ procesos reales, credenciales, LM Studio, modelos ONNX ni workers pesados. La pi
 | Conversación | `ConversationControlDetector`, `ConversationSession`, `ConversationControl`, `ConversationPolicy` | órdenes explícitas/naturales, normalización, errores STT, falsos positivos, activar, expirar, refrescar y cerrar |
 | Routing | `Capability`, `AiSkillRouter`, `SkillRegistry`, `SkillRouter` | parseo externo, valor desconocido, selección de skill y registro incompleto |
 | Skills | `Skill`, `GeneralSkill`, `SystemTimeSkill`, `UnsupportedSkill`, `AssistantPipeline`, `AssistantExecutionResult` | request al motor, política, formato de hora, fallback, activación inválida, ejecución y reset |
-| Comandos OS | `ApplicationDefinition`, `ApplicationRegistry`, `OsCommandIntent`, `OsCommandSafetyGuard`, `OsCommandSkill` | lookup, copia defensiva, órdenes inmediatas/no inmediatas, intent no soportado, aplicación ausente, abrir/cerrar y excepciones |
+| Comandos OS | `ApplicationDefinition`, `ApplicationRegistry`, `ApplicationRuntimeResolver`, `OsCommandIntent`, `OsCommandSafetyGuard`, `OsCommandSkill` | lookup, identidades host/base, firmas `EXACT`/`CONTAINS_ALL`, listado de ventanas abiertas, órdenes inmediatas/no inmediatas, abrir/cerrar y excepciones |
 | Audio y speech | `AudioFrame`, `SpeechSegment`, `TtsAudio`, `SpeechBuffer`, `BasicSpeechSegmentValidator`, `SpeechValidationResult` | duración, cantidad de muestras, concatenación, buffer vacío, RMS, peak y umbrales |
 | Pipelines | `AudioPipeline`, `VoicePipeline`, `SpeechProcessingService` | exclusión, transiciones, guard post-playback, fallos TTS/playback, pre-roll, inicio/fin VAD, contexto, cierre y liberación ante error |
 | Adaptadores | `FasterWhisperSttEngine`, `PiperTtsEngine`, precondiciones de ambos clientes | delegación, cierre y operación antes de iniciar worker |
@@ -85,7 +85,8 @@ Clases: `AudioCaptureService`, `AudioPlaybackService`, `AudioDeviceManager` y
 - filtrar mixers sin líneas input/output y búsqueda case-insensitive;
 - start/stop idempotente, thread de captura y error `LineUnavailableException`;
 - construir el comando de apertura correcto;
-- cerrar sólo procesos cuyo nombre coincide, usar cierre forzado cuando sea necesario y omitir procesos sin comando.
+- usar el nombre sólo para localizar candidatos y exigir ruta/package root o command line exclusiva antes de consultar,
+  enfocar, enviar `WM_CLOSE` o terminar un proceso.
 
 Estas pruebas requieren adaptadores inyectables alrededor de `AudioSystem`, `ProcessBuilder` y `ProcessHandle` para ser
 unitarias. Hasta entonces deben ejecutarse sólo en una máquina o VM desechable; nunca se debe probar el cierre contra
@@ -108,6 +109,12 @@ Para automatizarlo conviene extraer la composición de `Main` a una fábrica y p
 - `SpeechProcessingService`: si `submit()` es rechazado después de `beginProcessing()`, liberar siempre el pipeline.
 - `SpeechProcessingService`: `PRESERVE` no debe convertirse accidentalmente en `KEEP_OPEN` por un `refresh()` incondicional.
 - `OsCommandSafetyGuard`: rechazar expresiones futuras aunque `mañana`, `después` o `luego` no estén al inicio.
+- `ApplicationCatalog`: resolver variantes naturales sólo cuando haya un candidato único y respetar overrides/removals.
+- OS runtime: diferenciar `NOT_FOUND` de timeout, acceso denegado o fallo WMI y revalidar `CreationDate` antes de efectos.
+- OS runtime: comprobar que `EXACT []` sólo acepta cero argumentos, que `ParentProcessId` no crea identidad fuerte y
+  que una `windowSignature` nunca autoriza terminación del proceso host.
+- Presentación OS: verificar listas de 0, 1, 5 y 6+ aplicaciones con audio normal, volumen bajo, cero y mute.
+- `LocalOsCommandParser`: reintentar una sola vez sin aceptar parcialmente respuestas multilínea.
 - `ConversationControlDetector` y `OsCommandSafetyGuard`: definir formalmente el contrato para entrada `null`.
 - `SpeechBuffer`: decidir si frames con sample rates diferentes deben rechazarse.
 - objetos de audio: validar sample rate cero o negativo para evitar duraciones infinitas.

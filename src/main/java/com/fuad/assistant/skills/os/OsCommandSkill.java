@@ -43,13 +43,21 @@ public class OsCommandSkill implements Skill {
             System.out.println("OS SAFETY -> REJECTED");
             return new AssistantResult("No interpreté eso como una orden inmediata.");
         }
-        OsCommandIntent intent = parser.parse(command);
+        OsCommandIntent intent;
+        try {
+            intent = parser.parse(command);
+        }
+        catch (RuntimeException e) {
+            System.err.println("OS command parsing failed: " + e.getMessage());
+            return new AssistantResult("No pude interpretar el comando del sistema.");
+        }
         if (intent.getAction() == OsAction.UNSUPPORTED) {
             return new AssistantResult("Ese comando del sistema todavía no está soportado");
         }
         try {
             return switch (intent.getAction()) {
                 case LIST_APPLICATIONS -> list(intent.getTarget());
+                case LIST_RUNNING_APPLICATIONS -> listRunning();
                 case CHECK_APPLICATION_INSTALLED -> installed(intent.getTarget());
                 case OPEN_APPLICATION, CLOSE_APPLICATION, FOCUS_APPLICATION, GET_APPLICATION_STATUS ->
                         executeResolved(intent);
@@ -92,9 +100,7 @@ public class OsCommandSkill implements Skill {
             return new AssistantResult("El catálogo de aplicaciones no está disponible en este momento.");
         }
         if (resolution.status() == ApplicationResolution.Status.AMBIGUOUS) {
-            String choices = resolution.candidates().stream().limit(3)
-                    .map(ApplicationDefinition::getDisplayName).reduce((a, b) -> a + ", " + b).orElse("");
-            return new AssistantResult("Encontré varias aplicaciones con ese nombre: " + choices + ".");
+            return ambiguous(resolution);
         }
         ApplicationDefinition application = resolution.found().orElse(null);
         if (application == null) return new AssistantResult("No tengo registrada esa aplicación");
@@ -160,11 +166,17 @@ public class OsCommandSkill implements Skill {
             return new AssistantResult("El catálogo de aplicaciones no está disponible en este momento.");
         }
         if (resolution.status() == ApplicationResolution.Status.AMBIGUOUS) {
-            return new AssistantResult("Ese nombre corresponde a varias aplicaciones; usa un nombre más específico.");
+            return ambiguous(resolution);
         }
         return resolution.found()
                 .map(app -> new AssistantResult("Sí, " + app.getDisplayName() + " está instalada."))
                 .orElseGet(() -> new AssistantResult("No encontré " + target + " entre las aplicaciones instaladas."));
+    }
+
+    private AssistantResult ambiguous(ApplicationResolution resolution) {
+        String choices = resolution.candidates().stream().limit(3)
+                .map(ApplicationDefinition::getDisplayName).reduce((a, b) -> a + ", " + b).orElse("");
+        return new AssistantResult("Encontré varias aplicaciones con ese nombre: " + choices + ".");
     }
 
     private AssistantResult list(String filter) {
@@ -181,6 +193,49 @@ public class OsCommandSkill implements Skill {
                 : "Encontré " + payload.totalCount() + " aplicaciones para " + payload.filter()
                         + "; te las muestro en pantalla.";
         return AssistantResult.catalog(text, payload);
+    }
+
+    private AssistantResult listRunning() {
+        OpenApplicationsResult result = applicationController.runningApplications();
+        if (result.status() != OpenApplicationsResult.Status.SUCCESS) {
+            return new AssistantResult("No pude comprobar qué aplicaciones están abiertas con seguridad.");
+        }
+        List<OpenApplicationItem> items = result.applications().stream()
+                .map(entry -> new OpenApplicationItem(entry.application().getId(),
+                        entry.application().getDisplayName())).toList();
+        String text = runningApplicationsSpeech(items, result.unverifiableCount());
+        return AssistantResult.openApplications(text,
+                new OpenApplicationsPayload(items, result.unverifiableCount()));
+    }
+
+    static String runningApplicationsSpeech(List<OpenApplicationItem> items, int unverifiableCount) {
+        String text;
+        if (items.isEmpty()) {
+            text = unverifiableCount == 0
+                    ? "No encontré aplicaciones abiertas."
+                    : "No identifiqué aplicaciones abiertas con seguridad.";
+        }
+        else if (items.size() <= 5) {
+            text = "Tienes " + items.size() + (items.size() == 1
+                    ? " aplicación abierta: " : " aplicaciones abiertas: ")
+                    + naturalList(items.stream().map(OpenApplicationItem::displayName).toList()) + ".";
+        }
+        else {
+            text = "Tienes " + items.size() + " aplicaciones abiertas. Entre ellas: "
+                    + naturalList(items.stream().limit(5).map(OpenApplicationItem::displayName).toList())
+                    + ". Te muestro la lista completa en pantalla.";
+        }
+        if (unverifiableCount > 0) {
+            text += " No pude verificar el estado de " + unverifiableCount
+                    + (unverifiableCount == 1 ? " aplicación más." : " aplicaciones más.");
+        }
+        return text;
+    }
+
+    private static String naturalList(List<String> names) {
+        if (names.isEmpty()) return "";
+        if (names.size() == 1) return names.getFirst();
+        return String.join(", ", names.subList(0, names.size() - 1)) + " y " + names.getLast();
     }
 
     private String normalize(String value) {

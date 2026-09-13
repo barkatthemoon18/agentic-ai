@@ -36,7 +36,12 @@ public class JnaWindowService implements WindowService {
             user32.GetWindowThreadProcessId(window, processId);
             long pid = Integer.toUnsignedLong(processId.getValue());
             if (processIds.contains(pid)) {
-                windows.add(new WindowHandle(Pointer.nativeValue(window.getPointer()), pid));
+                char[] title = new char[user32.GetWindowTextLength(window) + 1];
+                user32.GetWindowText(window, title, title.length);
+                char[] className = new char[256];
+                user32.GetClassName(window, className, className.length);
+                windows.add(new WindowHandle(Pointer.nativeValue(window.getPointer()), pid,
+                        Native.toString(title), Native.toString(className)));
             }
             return true;
         }, null);
@@ -44,15 +49,26 @@ public class JnaWindowService implements WindowService {
     }
 
     @Override
-    public boolean close(WindowHandle window) {
-        user32.PostMessage(toNative(window), WinUser.WM_CLOSE, null, null);
-        return true;
+    public CloseResult close(List<WindowHandle> windows, IdentityGuard identityGuard) {
+        if (windows.isEmpty()) return CloseResult.SENT;
+        if (windows.stream().anyMatch(window -> !isCurrent(window)) || !identityGuard.isValid()) {
+            return CloseResult.IDENTITY_CHANGED;
+        }
+        for (WindowHandle window : windows) {
+            user32.PostMessage(toNative(window), WinUser.WM_CLOSE, null, null);
+        }
+        return CloseResult.SENT;
     }
 
     @Override
-    public FocusResult focus(WindowHandle window) {
+    public FocusResult focus(WindowHandle window, IdentityGuard identityGuard) {
         WinDef.HWND nativeWindow = toNative(window);
-        if (user32Extra.IsIconic(nativeWindow)) user32.ShowWindow(nativeWindow, WinUser.SW_RESTORE);
+        if (!isCurrent(window)) return FocusResult.IDENTITY_CHANGED;
+        if (user32Extra.IsIconic(nativeWindow)) {
+            if (!isCurrent(window) || !identityGuard.isValid()) return FocusResult.IDENTITY_CHANGED;
+            user32.ShowWindow(nativeWindow, WinUser.SW_RESTORE);
+        }
+        if (!isCurrent(window) || !identityGuard.isValid()) return FocusResult.IDENTITY_CHANGED;
         user32.SetForegroundWindow(nativeWindow);
         long deadline = System.nanoTime() + 500_000_000L;
         do {
@@ -70,6 +86,30 @@ public class JnaWindowService implements WindowService {
         }
         while (System.nanoTime() < deadline);
         return FocusResult.REJECTED;
+    }
+
+    @Override
+    public boolean isCurrent(WindowHandle window) {
+        WinDef.HWND nativeWindow = toNative(window);
+        if (!exists(window)) return false;
+        IntByReference processId = new IntByReference();
+        user32.GetWindowThreadProcessId(nativeWindow, processId);
+        if (Integer.toUnsignedLong(processId.getValue()) != window.processId()) return false;
+        char[] title = new char[Math.max(1, user32.GetWindowTextLength(nativeWindow) + 1)];
+        user32.GetWindowText(nativeWindow, title, title.length);
+        char[] className = new char[256];
+        user32.GetClassName(nativeWindow, className, className.length);
+        return window.title().equals(Native.toString(title))
+                && window.className().equals(Native.toString(className));
+    }
+
+    @Override
+    public boolean exists(WindowHandle window) {
+        WinDef.HWND nativeWindow = toNative(window);
+        if (!user32.IsWindow(nativeWindow)) return false;
+        IntByReference processId = new IntByReference();
+        user32.GetWindowThreadProcessId(nativeWindow, processId);
+        return Integer.toUnsignedLong(processId.getValue()) == window.processId();
     }
 
     private WinDef.HWND toNative(WindowHandle window) {

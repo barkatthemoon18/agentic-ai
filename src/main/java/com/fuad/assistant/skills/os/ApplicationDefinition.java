@@ -33,9 +33,17 @@ public class ApplicationDefinition {
         return processIdentity.processNames().stream().findFirst().orElse("");
     }
 
-    public ApplicationDefinition withAliasesAndProcessNames(Set<String> resolvedAliases,
-                                                             Set<String> configuredProcessNames) {
+    public ApplicationDefinition withCatalogConfiguration(Set<String> resolvedAliases,
+                                                          Set<String> configuredProcessNames,
+                                                          Set<String> trustedProcessNames,
+                                                          List<Set<String>> commandLineArgumentSets,
+                                                          List<List<String>> exactCommandLineArgumentSets,
+                                                          String hostApplicationId,
+                                                          List<ApplicationWindowSignature> windowSignatures,
+                                                          boolean windowAssociationEnabled) {
         return new ApplicationDefinition(id, displayName, resolvedAliases, openCommand,
-                processIdentity.withProcessNames(configuredProcessNames));
+                processIdentity.withConfiguration(configuredProcessNames, trustedProcessNames,
+                        commandLineArgumentSets, exactCommandLineArgumentSets, hostApplicationId,
+                        windowSignatures, windowAssociationEnabled));
     }
 }

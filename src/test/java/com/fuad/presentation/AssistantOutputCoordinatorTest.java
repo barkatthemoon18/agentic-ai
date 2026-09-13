@@ -4,6 +4,8 @@ import com.fuad.audio.AssistantAudioController;
 import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
 import com.fuad.assistant.skills.os.ApplicationListItem;
+import com.fuad.assistant.skills.os.OpenApplicationItem;
+import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.pipeline.AudioPipeline;
@@ -201,6 +203,46 @@ class AssistantOutputCoordinatorTest {
 
         assertEquals(40, audioController.getVolume());
         assertEquals(List.of("show", "hide", "speak"), events);
+    }
+
+    @Test
+    void shortOpenApplicationListShouldFollowNormalPresentationPolicy() {
+        audioController.setVolume(40);
+        OpenApplicationsPayload payload = new OpenApplicationsPayload(List.of(
+                new OpenApplicationItem("firefox", "Firefox")), 0);
+
+        coordinator.present(AssistantResult.openApplications("Tienes Firefox abierto.", payload));
+
+        assertEquals(1, audioPipeline.speakCalls);
+        assertEquals(0, visualOutput.showCalls);
+        assertEquals(1, visualOutput.hideCalls);
+    }
+
+    @Test
+    void longOpenApplicationListShouldForceVisualOutputAtNormalVolume() {
+        audioController.setVolume(40);
+        OpenApplicationsPayload payload = new OpenApplicationsPayload(
+                java.util.stream.IntStream.rangeClosed(1, 6)
+                        .mapToObj(index -> new OpenApplicationItem("app-" + index, "App " + index)).toList(), 1);
+
+        coordinator.present(AssistantResult.openApplications("Tienes seis aplicaciones abiertas.", payload));
+
+        assertEquals(1, audioPipeline.speakCalls);
+        assertEquals(1, visualOutput.showCalls);
+        assertSame(payload, visualOutput.lastMessage.getPayload());
+    }
+
+    @Test
+    void longOpenApplicationListShouldRemainSilentWhenMuted() {
+        audioController.mute();
+        OpenApplicationsPayload payload = new OpenApplicationsPayload(
+                java.util.stream.IntStream.rangeClosed(1, 6)
+                        .mapToObj(index -> new OpenApplicationItem("app-" + index, "App " + index)).toList(), 0);
+
+        coordinator.present(AssistantResult.openApplications("Tienes seis aplicaciones abiertas.", payload));
+
+        assertEquals(0, audioPipeline.speakCalls);
+        assertEquals(1, visualOutput.showCalls);
     }
 
     private static final class TrackingVisualOutput implements VisualOutput {

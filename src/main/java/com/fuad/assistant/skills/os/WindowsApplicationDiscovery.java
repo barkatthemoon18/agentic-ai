@@ -24,7 +24,12 @@ public class WindowsApplicationDiscovery implements ApplicationDiscovery {
                   $shortcut = $shell.CreateShortcut($_.FullName)
                   if (-not [string]::IsNullOrWhiteSpace($shortcut.TargetPath)) {
                     $key = $_.BaseName.ToLowerInvariant()
-                    if (-not $shortcutTargets.ContainsKey($key)) { $shortcutTargets[$key] = $shortcut.TargetPath }
+                    if (-not $shortcutTargets.ContainsKey($key)) {
+                      $shortcutTargets[$key] = [pscustomobject]@{
+                        path = $shortcut.TargetPath
+                        arguments = $shortcut.Arguments
+                      }
+                    }
                   }
                 }
               }
@@ -37,7 +42,7 @@ public class WindowsApplicationDiscovery implements ApplicationDiscovery {
               }
             }
             $rows = @(Get-StartApps | ForEach-Object {
-              $target = $shortcutTargets[$_.Name.ToLowerInvariant()]
+              $shortcut = $shortcutTargets[$_.Name.ToLowerInvariant()]
               $root = $null
               if ($_.AppID -like '*!*') {
                 $family = $_.AppID.Split('!')[0]
@@ -46,7 +51,8 @@ public class WindowsApplicationDiscovery implements ApplicationDiscovery {
               [pscustomobject]@{
                 id = $_.AppID
                 name = $_.Name
-                executablePath = $target
+                executablePath = $shortcut.path
+                arguments = $shortcut.arguments
                 packageRoot = $root
               }
             })
@@ -83,9 +89,11 @@ public class WindowsApplicationDiscovery implements ApplicationDiscovery {
             if (id.isBlank() || name.isBlank()) continue;
             Set<String> paths = valueSet(text(row, "executablePath"));
             Set<String> packageRoots = valueSet(text(row, "packageRoot"));
+            List<String> arguments = WindowsCommandLineTokenizer.tokenize(text(row, "arguments"));
+            List<Set<String>> argumentSets = arguments.isEmpty() ? List.of() : List.of(Set.copyOf(arguments));
             applications.add(new ApplicationDefinition(id, name, Set.of(),
                     List.of("explorer.exe", "shell:AppsFolder\\" + id),
-                    new ApplicationProcessIdentity(paths, packageRoots, Set.of())));
+                    new ApplicationProcessIdentity(paths, packageRoots, Set.of(), Set.of(), argumentSets)));
         }
         return List.copyOf(applications);
     }

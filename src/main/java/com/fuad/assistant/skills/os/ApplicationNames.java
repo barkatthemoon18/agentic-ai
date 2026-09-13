@@ -15,4 +15,16 @@ final class ApplicationNames {
                 .trim()
                 .replaceAll("\\s+", " ");
     }
+
+    static String compact(String value) {
+        return normalize(value).replace(" ", "");
+    }
+
+    static boolean startsWithWholeTokens(String candidate, String prefix) {
+        String normalizedCandidate = normalize(candidate);
+        String normalizedPrefix = normalize(prefix);
+        return !normalizedPrefix.isBlank()
+                && (normalizedCandidate.equals(normalizedPrefix)
+                || normalizedCandidate.startsWith(normalizedPrefix + " "));
+    }
 }

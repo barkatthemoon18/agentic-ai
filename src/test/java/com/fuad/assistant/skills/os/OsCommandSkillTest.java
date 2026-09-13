@@ -42,6 +42,16 @@ class OsCommandSkillTest {
     }
 
     @Test
+    void invalidParserOutputShouldNotReachTheController() {
+        AssistantResult result = skill(command -> {
+            throw new InvalidOsCommandOutputException("invalid", null);
+        }, guard(true)).execute("abre Spotify");
+
+        assertEquals("No pude interpretar el comando del sistema.", result.getText());
+        assertFalse(controller.called);
+    }
+
+    @Test
     void shouldReportUnregisteredApplication() {
         AssistantResult result = skill(
                 command -> new OsCommandIntent(OsAction.OPEN_APPLICATION, "firefox"), guard(true))

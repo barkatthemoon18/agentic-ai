@@ -23,4 +23,8 @@ public interface ApplicationController {
     default ApplicationActionResult runtimeState(ApplicationDefinition applicationDefinition) {
         return ApplicationActionResult.of(ApplicationActionResult.Status.PROCESS_IDENTITY_UNAVAILABLE);
     }
+
+    default OpenApplicationsResult runningApplications() {
+        return OpenApplicationsResult.failed("Runtime application listing is unavailable");
+    }
 }

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -55,6 +56,59 @@ class OsCommandSkillV2Test {
         assertEquals("Sí, Spotify está instalada.", skill.execute("está Spotify instalado").getText());
     }
 
+    @Test
+    void shouldExposeFunctionalLimitationForAllRuntimeOperations() {
+        TrackingController controller = new TrackingController();
+        controller.limited = true;
+        Map<String, ApplicationDefinition> applications = Map.of("spotify", spotify());
+
+        AssistantResult close = skill(command -> new OsCommandIntent(OsAction.CLOSE_APPLICATION, "Spotify"),
+                applications, controller, new CatalogSessionStore()).execute("cierra Spotify");
+        AssistantResult focus = skill(command -> new OsCommandIntent(OsAction.FOCUS_APPLICATION, "Spotify"),
+                applications, controller, new CatalogSessionStore()).execute("enfoca Spotify");
+        AssistantResult status = skill(command -> new OsCommandIntent(OsAction.GET_APPLICATION_STATUS, "Spotify"),
+                applications, controller, new CatalogSessionStore()).execute("está Spotify abierto");
+
+        assertEquals("Puedo abrir Spotify, pero no identificar sus procesos con seguridad.", close.getText());
+        assertEquals("No puedo identificar una ventana de Spotify con seguridad.", focus.getText());
+        assertEquals("No puedo comprobar el estado de Spotify con seguridad.", status.getText());
+    }
+
+    @Test
+    void shouldReturnVerifiedOpenApplicationsAndKeepUnverifiableOnesOutOfTheList() {
+        TrackingController controller = new TrackingController();
+        controller.openApplications = OpenApplicationsResult.success(List.of(
+                new OpenApplicationsResult.Entry(spotify(), ApplicationRuntimeState.RUNNING_WITH_WINDOW)), 2);
+        OsCommandSkill skill = skill(command -> new OsCommandIntent(OsAction.LIST_RUNNING_APPLICATIONS, ""),
+                Map.of("spotify", spotify()), controller, new CatalogSessionStore());
+
+        AssistantResult result = skill.execute("qué aplicaciones están abiertas");
+
+        assertEquals("Tienes 1 aplicación abierta: Spotify. No pude verificar el estado de 2 aplicaciones más.",
+                result.getText());
+        OpenApplicationsPayload payload = (OpenApplicationsPayload) result.getPayload();
+        assertEquals(List.of(new OpenApplicationItem("spotify", "Spotify")), payload.items());
+        assertEquals(2, payload.unverifiableCount());
+    }
+
+    @Test
+    void longOpenApplicationListShouldSpeakOnlyTheFirstFiveNames() {
+        List<OpenApplicationsResult.Entry> entries = IntStream.rangeClosed(1, 6)
+                .mapToObj(index -> new OpenApplicationsResult.Entry(
+                        new ApplicationDefinition("app-" + index, "App " + index, List.of("open"), "app.exe"),
+                        ApplicationRuntimeState.RUNNING_WITH_WINDOW)).toList();
+        TrackingController controller = new TrackingController();
+        controller.openApplications = OpenApplicationsResult.success(entries, 0);
+        OsCommandSkill skill = skill(command -> new OsCommandIntent(OsAction.LIST_RUNNING_APPLICATIONS, ""),
+                Map.of(), controller, new CatalogSessionStore());
+
+        AssistantResult result = skill.execute("qué aplicaciones están abiertas");
+
+        assertEquals("Tienes 6 aplicaciones abiertas. Entre ellas: App 1, App 2, App 3, App 4 y App 5. "
+                + "Te muestro la lista completa en pantalla.", result.getText());
+        assertEquals(6, ((OpenApplicationsPayload) result.getPayload()).items().size());
+    }
+
     private OsCommandSkill skill(OsCommandParser parser, Map<String, ApplicationDefinition> applications,
                                  ApplicationController controller, CatalogSessionStore sessions) {
         return new OsCommandSkill(parser, new ApplicationRegistry(applications), controller,
@@ -67,8 +121,22 @@ class OsCommandSkillV2Test {
 
     private static final class TrackingController implements ApplicationController {
         private ApplicationActionResult runtime = ApplicationActionResult.status(ApplicationRuntimeState.NOT_RUNNING);
+        private boolean limited;
+        private OpenApplicationsResult openApplications = OpenApplicationsResult.success(List.of(), 0);
         @Override public boolean open(ApplicationDefinition applicationDefinition) { return true; }
         @Override public boolean close(ApplicationDefinition applicationDefinition) { return true; }
-        @Override public ApplicationActionResult runtimeState(ApplicationDefinition applicationDefinition) { return runtime; }
+        @Override public ApplicationActionResult closeDetailed(ApplicationDefinition applicationDefinition) {
+            return limited ? ApplicationActionResult.of(ApplicationActionResult.Status.PROCESS_IDENTITY_UNAVAILABLE)
+                    : ApplicationController.super.closeDetailed(applicationDefinition);
+        }
+        @Override public ApplicationActionResult focus(ApplicationDefinition applicationDefinition) {
+            return limited ? ApplicationActionResult.of(ApplicationActionResult.Status.PROCESS_IDENTITY_UNAVAILABLE)
+                    : ApplicationController.super.focus(applicationDefinition);
+        }
+        @Override public ApplicationActionResult runtimeState(ApplicationDefinition applicationDefinition) {
+            return limited ? ApplicationActionResult.of(ApplicationActionResult.Status.PROCESS_IDENTITY_UNAVAILABLE)
+                    : runtime;
+        }
+        @Override public OpenApplicationsResult runningApplications() { return openApplications; }
     }
 }

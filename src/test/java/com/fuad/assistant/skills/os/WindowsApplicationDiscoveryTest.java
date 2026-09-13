@@ -13,7 +13,8 @@ class WindowsApplicationDiscoveryTest {
     void shouldConvertStartAppsJsonToSafeDefinitions() throws Exception {
         String json = """
                 [{"id":"Microsoft.VisualStudioCode","name":"Visual Studio Code",
-                  "executablePath":"C:\\\\Apps\\\\Code.exe","packageRoot":null},
+                  "executablePath":"C:\\\\Apps\\\\Code.exe","packageRoot":null,
+                  "arguments":"--profile work --folder \\\"C:\\\\My Project\\\""},
                  {"id":"SpotifyAB.SpotifyMusic_x!Spotify","name":"Spotify",
                   "executablePath":null,"packageRoot":"C:\\\\Program Files\\\\WindowsApps\\\\Spotify"}]
                 """;
@@ -27,6 +28,8 @@ class WindowsApplicationDiscoveryTest {
                 applications.getFirst().getOpenCommand());
         assertEquals("C:\\Apps\\Code.exe",
                 applications.getFirst().getProcessIdentity().executablePaths().iterator().next());
+        assertEquals(List.of(java.util.Set.of("--profile", "work", "--folder", "C:\\My Project")),
+                applications.getFirst().getProcessIdentity().commandLineArgumentSets());
         assertEquals("C:\\Program Files\\WindowsApps\\Spotify",
                 applications.get(1).getProcessIdentity().packageRoots().iterator().next());
     }

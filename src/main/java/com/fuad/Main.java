@@ -97,7 +97,8 @@ public class Main {
             applicationCatalog.refresh();
             final ApplicationRegistry applicationRegistry = new ApplicationRegistry(applicationCatalog);
             final CatalogSessionStore catalogSessions = new CatalogSessionStore();
-            final ApplicationController applicationController = new WindowsApplicationController();
+            final ApplicationController applicationController = new WindowsApplicationController(
+                    applicationCatalog::applications);
             final OsCommandSafetyGuard safetyGuard = new OsCommandSafetyGuard();
             OsCommandSkill osCommandSkill = new OsCommandSkill(
                     osCommandParser, applicationRegistry, applicationController, safetyGuard, catalogSessions);

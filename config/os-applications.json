@@ -1,5 +1,24 @@
 {
   "aliases": {},
   "removeAliases": [],
-  "processNames": {}
+  "processNames": {},
+  "trustedProcessNamesWhenPathUnavailable": {},
+  "commandLineArgumentSets": {},
+  "exactCommandLineArgumentSets": {
+    "308046B0AF4A39CB": [[], ["-os-autostart"]]
+  },
+  "hostRelationships": {
+    "1cc3ede1-7346-471f-afe5-001115314c29": "308046B0AF4A39CB"
+  },
+  "windowSignatures": {
+    "308046B0AF4A39CB": [
+      {
+        "className": "MozillaWindowClass",
+        "titlePattern": "(?i).*— Mozilla Firefox$"
+      }
+    ]
+  },
+  "windowAssociationsEnabled": {
+    "308046B0AF4A39CB": true
+  }
 }

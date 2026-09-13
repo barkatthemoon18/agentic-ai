@@ -3,6 +3,7 @@ package com.fuad.assistant;
 import com.fuad.assistant.skills.general.GeneralConversationState;
 import com.fuad.assistant.skills.research.ResearchConversationState;
 import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
+import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import com.fuad.assistant.skills.os.OsConversationState;
 import com.fuad.enums.ConversationPolicy;
 import lombok.Getter;
@@ -64,5 +65,10 @@ public class AssistantResult {
     public static AssistantResult catalog(String speechText, ApplicationCatalogPayload payload) {
         return new AssistantResult(speechText, null, null, null, ConversationPolicy.KEEP_OPEN,
                 payload, new OsConversationState(payload.sessionId()));
+    }
+
+    public static AssistantResult openApplications(String speechText, OpenApplicationsPayload payload) {
+        return new AssistantResult(speechText, null, null, null, ConversationPolicy.PRESERVE,
+                payload, null);
     }
 }

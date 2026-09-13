@@ -4,6 +4,7 @@ import com.fuad.audio.AssistantAudioSnapshot;
 import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
 import com.fuad.assistant.skills.os.CatalogNavigation;
 import com.fuad.assistant.skills.os.CatalogSessionStore;
+import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import javafx.animation.*;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -237,8 +238,12 @@ public class JavaFxVisualOutput implements VisualOutput {
         stopAnimations();
         AssistantAudioSnapshot audioSnapshot = visualMessage.getAudioSnapshot();
         boolean catalog = visualMessage.getPayload() instanceof ApplicationCatalogPayload;
+        boolean openApplications = visualMessage.getPayload() instanceof OpenApplicationsPayload;
         if (catalog) {
             showCatalog((ApplicationCatalogPayload) visualMessage.getPayload());
+        }
+        else if (openApplications) {
+            showOpenApplications((OpenApplicationsPayload) visualMessage.getPayload());
         }
         else {
             closeCatalogSubscription();
@@ -254,7 +259,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         overlayRoot.setOpacity(0.0);
         overlayRoot.setTranslateX(20.0);
         Rectangle2D screenBounds = resolveTargetScreen().getVisualBounds();
-        sizeOverlay(screenBounds, catalog);
+        sizeOverlay(screenBounds, catalog || openApplications);
         if (!stage.isShowing()) {
             stage.show();
         }
@@ -272,7 +277,7 @@ public class JavaFxVisualOutput implements VisualOutput {
 
         entrance.setOnFinished(event -> {
             activeAnimation = null;
-            if (!catalog) startDismissTimer(visualMessage.getText().length());
+            if (!catalog && !openApplications) startDismissTimer(visualMessage.getText().length());
         });
         entrance.play();
     }
@@ -379,6 +384,12 @@ public class JavaFxVisualOutput implements VisualOutput {
 
     private void showCatalog(ApplicationCatalogPayload initial) {
         closeCatalogSubscription();
+        catalogSearch.setVisible(true);
+        catalogSearch.setManaged(true);
+        catalogPrevious.setVisible(true);
+        catalogPrevious.setManaged(true);
+        catalogNext.setVisible(true);
+        catalogNext.setManaged(true);
         messageScroll.setVisible(false);
         messageScroll.setManaged(false);
         catalogPane.setVisible(true);
@@ -390,6 +401,31 @@ public class JavaFxVisualOutput implements VisualOutput {
         catalogPrevious.setOnAction(event -> catalogSessions.navigate(initial.sessionId(), CatalogNavigation.PREVIOUS));
         catalogNext.setOnAction(event -> catalogSessions.navigate(initial.sessionId(), CatalogNavigation.NEXT));
         catalogSubscription = catalogSessions.observe(initial.sessionId(), payload -> runLater(() -> renderCatalog(payload)));
+    }
+
+    private void showOpenApplications(OpenApplicationsPayload payload) {
+        closeCatalogSubscription();
+        messageScroll.setVisible(false);
+        messageScroll.setManaged(false);
+        catalogPane.setVisible(true);
+        catalogPane.setManaged(true);
+        catalogSearch.setVisible(false);
+        catalogSearch.setManaged(false);
+        catalogPrevious.setVisible(false);
+        catalogPrevious.setManaged(false);
+        catalogNext.setVisible(false);
+        catalogNext.setManaged(false);
+        catalogList.getItems().setAll(payload.items().stream()
+                .map(item -> item.displayName()).toList());
+        String summary = payload.items().size() + (payload.items().size() == 1
+                ? " aplicación abierta" : " aplicaciones abiertas");
+        if (payload.unverifiableCount() > 0) {
+            summary += " · " + payload.unverifiableCount()
+                    + (payload.unverifiableCount() == 1 ? " estado no verificable" : " estados no verificables");
+        }
+        catalogPageLabel.setText(summary);
+        catalogPageLabel.setVisible(true);
+        catalogPageLabel.setManaged(true);
     }
 
     private void renderCatalog(ApplicationCatalogPayload payload) {
