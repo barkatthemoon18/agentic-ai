@@ -5,6 +5,7 @@ import com.fuad.assistant.AssistantEngine;
 import com.fuad.assistant.AssistantExecutionResult;
 import com.fuad.assistant.AssistantRequest;
 import com.fuad.assistant.AssistantResult;
+import com.fuad.assistant.AssistantTurn;
 import com.fuad.assistant.routing.AiSkillRouter;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.ActivationType;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,6 +32,27 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantComponentsTest {
+
+    @Test
+    void incompleteOrdinaryAsyncExecutionShouldRemainDistinctFromHumanInteraction() {
+        CompletableFuture<AssistantResult> future = new CompletableFuture<>();
+        Skill skill = new Skill() {
+            @Override public AssistantResult execute(String command) {
+                return new AssistantResult("fallback");
+            }
+            @Override public SkillExecution executeTurn(String command) {
+                return new SkillExecution.Async(future);
+            }
+        };
+        AssistantPipeline pipeline = new AssistantPipeline(
+                new TrackingSkillRouter(Capability.GENERAL, ignored -> skill));
+
+        AssistantTurn turn = pipeline.processTurn(
+                new ActivationResult(true, ActivationType.WAKE_WORD, "comando"));
+
+        assertTrue(turn instanceof AssistantTurn.Async);
+        assertFalse(turn instanceof AssistantTurn.AwaitingInteraction<?>);
+    }
 
     @Test
     void registryShouldRequireEveryCapability() {

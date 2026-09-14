@@ -51,10 +51,16 @@ import com.fuad.audio.AudioPlaybackService;
 import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
 import com.fuad.model.runtime.LmStudioStartupCoordinator;
+import com.fuad.interaction.DefaultInteractionService;
+import com.fuad.interaction.InteractionPresenter;
+import com.fuad.interaction.InteractionVoiceRouter;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.pipeline.VoicePipeline;
 import com.fuad.presentation.*;
+import com.fuad.presentation.interaction.DefaultInteractionDisplayResolver;
+import com.fuad.presentation.interaction.JavaFxInteractionPresenter;
+import com.fuad.presentation.interaction.UnavailableInteractionPresenter;
 import com.fuad.speech.SpeechBuffer;
 import com.fuad.speech.SpeechProcessingService;
 import com.fuad.speech.validation.BasicSpeechSegmentValidator;
@@ -105,8 +111,18 @@ public class Main {
             OsCommandSkill osCommandSkill = new OsCommandSkill(
                     osCommandParser, applicationRegistry, applicationController, safetyGuard, catalogSessions);
             OutputPresentationPolicy presentationPolicy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
-            VisualOutput visualOutput = createVisualOutput(catalogSessions);
+            PresentationComponents presentation = createPresentation(catalogSessions);
+            VisualOutput visualOutput = presentation.visualOutput();
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, visualOutput);
+            if (presentation.javaFxRuntime() != null) {
+                cleanup.register(ResourceCleanup.Resource.JAVAFX_RUNTIME,
+                        presentation.javaFxRuntime());
+            }
+            DefaultInteractionService interactionService = new DefaultInteractionService(
+                    presentation.interactionPresenter());
+            InteractionVoiceRouter interactionVoiceRouter =
+                    new InteractionVoiceRouter(interactionService);
+            cleanup.register(ResourceCleanup.Resource.INTERACTION, interactionService);
             LmStudioStartupCoordinator modelRuntime = new LmStudioStartupCoordinator();
             Object voiceRuntimeLock = new Object();
             AtomicBoolean applicationClosing = new AtomicBoolean(false);
@@ -173,7 +189,8 @@ public class Main {
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, outputCoordinator);
 
             SpeechProcessingService speechProcessor = new SpeechProcessingService(stt, assistantPipeline, activationDetector,
-                    new ConversationSession(), audioPipeline, speechSegmentValidator, utteranceClassifier, outputCoordinator);
+                    new ConversationSession(), audioPipeline, speechSegmentValidator, utteranceClassifier,
+                    outputCoordinator, interactionService, interactionVoiceRouter);
             cleanup.register(ResourceCleanup.Resource.SPEECH_PROCESSOR, speechProcessor);
             VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline);
 
@@ -216,13 +233,33 @@ public class Main {
         }
     }
 
-    private static VisualOutput createVisualOutput(CatalogSessionStore catalogSessions) {
+    private static PresentationComponents createPresentation(CatalogSessionStore catalogSessions) {
+        JavaFxRuntime javaFxRuntime = null;
+        JavaFxVisualOutput visualOutput = null;
         try {
-            return new JavaFxVisualOutput(catalogSessions);
+            javaFxRuntime = new JavaFxRuntime();
+            visualOutput = new JavaFxVisualOutput(catalogSessions, javaFxRuntime);
+            InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(
+                    javaFxRuntime,
+                    DefaultInteractionDisplayResolver.platformDefault(
+                            Path.of("config", "interaction-display.json")));
+            return new PresentationComponents(visualOutput, interactionPresenter, javaFxRuntime);
         }
         catch (Exception e) {
             System.err.println("Unable to initialize JavaFX visual output: " + e.getMessage());
+            if (visualOutput != null) {
+                visualOutput.close();
+            }
+            if (javaFxRuntime != null) {
+                javaFxRuntime.close();
+            }
         }
-        return new ConsoleVisualOutput();
+        return new PresentationComponents(new ConsoleVisualOutput(),
+                new UnavailableInteractionPresenter("JavaFX is unavailable"), null);
+    }
+
+    private record PresentationComponents(VisualOutput visualOutput,
+                                          InteractionPresenter interactionPresenter,
+                                          JavaFxRuntime javaFxRuntime) {
     }
 }

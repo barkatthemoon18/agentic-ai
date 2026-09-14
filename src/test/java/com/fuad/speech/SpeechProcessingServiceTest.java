@@ -666,20 +666,21 @@ class SpeechProcessingServiceTest {
         }
 
         @Override
-        public AssistantExecutionResult process(ActivationResult activationResult) {
+        public com.fuad.assistant.AssistantTurn processTurn(ActivationResult activationResult) {
             activation.set(activationResult);
             normalCalls.incrementAndGet();
-            return super.process(activationResult);
+            return super.processTurn(activationResult);
         }
 
         @Override
-        public AssistantExecutionResult processFollowUp(ActivationResult activationResult,
-                                                        ConversationSnapshot conversationSnapshot) {
+        public com.fuad.assistant.AssistantTurn processFollowUpTurn(
+                ActivationResult activationResult,
+                ConversationSnapshot conversationSnapshot) {
             activation.set(activationResult);
             followUpOwner.set(conversationSnapshot.getOwner());
             followUpToken.set(conversationSnapshot.getContinuationToken());
             followUpCalls.incrementAndGet();
-            return super.processFollowUp(activationResult, conversationSnapshot);
+            return super.processFollowUpTurn(activationResult, conversationSnapshot);
         }
     }
 

@@ -3,12 +3,21 @@ package com.fuad.assistant.skills.os;
 import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.assistant.skills.Skill;
+import com.fuad.assistant.skills.SkillExecution;
 import com.fuad.enums.OsAction;
+import com.fuad.interaction.ChoiceOption;
+import com.fuad.interaction.ChoiceRequest;
+import com.fuad.interaction.FocusRequirement;
+import com.fuad.interaction.InputModality;
+import com.fuad.interaction.InteractionOutcome;
+import com.fuad.interaction.InteractionResult;
 
 import java.io.IOException;
 import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -71,6 +80,38 @@ public class OsCommandSkill implements Skill {
     }
 
     @Override
+    public SkillExecution executeTurn(String command) {
+        if (!safetyGuard.canExecute(command)) {
+            System.out.println("OS SAFETY -> REJECTED");
+            return SkillExecution.completed(new AssistantResult(
+                    "No interpreté eso como una orden inmediata."));
+        }
+        OsCommandIntent intent;
+        try {
+            intent = parser.parse(command);
+        }
+        catch (RuntimeException e) {
+            System.err.println("OS command parsing failed: " + e.getMessage());
+            return SkillExecution.completed(new AssistantResult(
+                    "No pude interpretar el comando del sistema."));
+        }
+        if (intent.getAction() == OsAction.UNSUPPORTED) {
+            return SkillExecution.completed(new AssistantResult(
+                    "Ese comando del sistema todavía no está soportado"));
+        }
+        if (intent.getAction() != OsAction.OPEN_APPLICATION) {
+            return SkillExecution.completed(execute(command));
+        }
+        try {
+            return openInteractively(intent);
+        }
+        catch (Exception e) {
+            System.err.println("OS command failed: " + e.getMessage());
+            return SkillExecution.completed(new AssistantResult("No pude ejecutar esa acción"));
+        }
+    }
+
+    @Override
     public AssistantResult executeFollowUp(String command, ConversationSnapshot snapshot) {
         if (snapshot == null || snapshot.getOsConversationState() == null) return execute(command);
         UUID sessionId = snapshot.getOsConversationState().catalogSessionId();
@@ -94,6 +135,86 @@ public class OsCommandSkill implements Skill {
         return execute(command);
     }
 
+    @Override
+    public SkillExecution executeFollowUpTurn(String command, ConversationSnapshot snapshot) {
+        if (snapshot == null || snapshot.getOsConversationState() == null) {
+            return executeTurn(command);
+        }
+        UUID sessionId = snapshot.getOsConversationState().catalogSessionId();
+        String normalized = normalize(command);
+        CatalogNavigation navigation = navigation(normalized);
+        if (navigation != null) {
+            return SkillExecution.completed(catalogSessions.navigate(sessionId, navigation)
+                    .map(this::catalogResult)
+                    .orElseGet(() -> new AssistantResult(
+                            "La sesión del catálogo ya no está disponible.")));
+        }
+        Matcher filter = FILTER_FOLLOW_UP.matcher(normalized);
+        if (filter.matches()) {
+            return SkillExecution.completed(catalogSessions.filter(sessionId, filter.group(1))
+                    .map(this::catalogResult)
+                    .orElseGet(() -> new AssistantResult(
+                            "La sesión del catálogo ya no está disponible.")));
+        }
+        return executeTurn(command);
+    }
+
+    private SkillExecution openInteractively(OsCommandIntent intent) throws IOException {
+        ApplicationResolution resolution = applicationRegistry.resolve(intent.getTarget(), true);
+        if (resolution.status() == ApplicationResolution.Status.CATALOG_UNAVAILABLE) {
+            return SkillExecution.completed(new AssistantResult(
+                    "El catálogo de aplicaciones no está disponible en este momento."));
+        }
+        if (resolution.status() != ApplicationResolution.Status.AMBIGUOUS) {
+            ApplicationDefinition application = resolution.found().orElse(null);
+            return SkillExecution.completed(application == null
+                    ? new AssistantResult("No tengo registrada esa aplicación")
+                    : executeSelected(intent, application));
+        }
+
+        List<ApplicationDefinition> candidates = List.copyOf(resolution.candidates());
+        List<ChoiceOption> options = candidates.stream()
+                .map(application -> new ChoiceOption(application.getId(),
+                        application.getDisplayName(), List.copyOf(application.getAliases())))
+                .toList();
+        ChoiceRequest request = new ChoiceRequest(Optional.empty(),
+                "Encontré varias aplicaciones. ¿Cuál quieres abrir?",
+                Set.of(InputModality.TOUCH, InputModality.VOICE), Optional.empty(),
+                FocusRequirement.PASSIVE, options);
+        return new SkillExecution.AwaitingInteraction<>(request,
+                result -> SkillExecution.completed(resumeAmbiguousOpen(intent, candidates, result)));
+    }
+
+    private AssistantResult resumeAmbiguousOpen(OsCommandIntent intent,
+                                                List<ApplicationDefinition> candidates,
+                                                InteractionResult<String> result) {
+        if (result.outcome() != InteractionOutcome.SUBMITTED) {
+            return switch (result.outcome()) {
+                case CANCELLED -> new AssistantResult("Acción cancelada.");
+                case EXPIRED -> new AssistantResult("La selección de aplicación expiró.");
+                case BUSY -> new AssistantResult("Ya hay otra interacción pendiente.");
+                case UNAVAILABLE -> new AssistantResult(
+                        "Encontré varias aplicaciones, pero la pantalla de interacción no está disponible.");
+                case CLOSED -> new AssistantResult("La interacción ya no está disponible.");
+                case SUBMITTED -> throw new IllegalStateException("unreachable");
+            };
+        }
+        String selectedId = result.value().orElse("");
+        ApplicationDefinition selected = candidates.stream()
+                .filter(application -> application.getId().equals(selectedId))
+                .findFirst().orElse(null);
+        if (selected == null) {
+            return new AssistantResult("La selección de aplicación ya no es válida.");
+        }
+        try {
+            return executeSelected(intent, selected);
+        }
+        catch (IOException e) {
+            System.err.println("OS command continuation failed: " + e.getMessage());
+            return new AssistantResult("No pude ejecutar esa acción");
+        }
+    }
+
     private AssistantResult executeResolved(OsCommandIntent intent) throws IOException {
         ApplicationResolution resolution = applicationRegistry.resolve(intent.getTarget(), true);
         if (resolution.status() == ApplicationResolution.Status.CATALOG_UNAVAILABLE) {
@@ -104,12 +225,27 @@ public class OsCommandSkill implements Skill {
         }
         ApplicationDefinition application = resolution.found().orElse(null);
         if (application == null) return new AssistantResult("No tengo registrada esa aplicación");
+        return executeSelected(intent, application);
+    }
+
+    private AssistantResult executeSelected(OsCommandIntent intent,
+                                            ApplicationDefinition application) throws IOException {
         return switch (intent.getAction()) {
             case OPEN_APPLICATION -> open(application);
             case CLOSE_APPLICATION -> close(application);
             case FOCUS_APPLICATION -> focus(application);
             case GET_APPLICATION_STATUS -> status(application);
             default -> new AssistantResult("Ese comando del sistema todavía no está soportado");
+        };
+    }
+
+    private CatalogNavigation navigation(String normalized) {
+        return switch (normalized) {
+            case "siguiente", "siguiente pagina", "pagina siguiente", "muestrame mas", "muestra mas", "continua" -> CatalogNavigation.NEXT;
+            case "anterior", "pagina anterior", "atras" -> CatalogNavigation.PREVIOUS;
+            case "primera", "primera pagina", "al principio" -> CatalogNavigation.FIRST;
+            case "ultima", "ultima pagina", "al final" -> CatalogNavigation.LAST;
+            default -> null;
         };
     }
 

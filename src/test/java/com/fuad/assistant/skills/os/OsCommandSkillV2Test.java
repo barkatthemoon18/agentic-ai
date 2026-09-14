@@ -2,18 +2,51 @@ package com.fuad.assistant.skills.os;
 
 import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.session.ConversationSnapshot;
+import com.fuad.assistant.skills.SkillExecution;
 import com.fuad.enums.Capability;
 import com.fuad.enums.OsAction;
+import com.fuad.interaction.InputModality;
+import com.fuad.interaction.InteractionResult;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class OsCommandSkillV2Test {
+    @Test
+    void ambiguousOpenShouldSuspendAndResumeWithTheExactSelectedApplication() {
+        ApplicationDefinition idea = new ApplicationDefinition("idea", "IntelliJ IDEA",
+                Set.of("studio"), List.of("idea"), ApplicationProcessIdentity.empty());
+        ApplicationDefinition code = new ApplicationDefinition("code", "Visual Studio Code",
+                Set.of("studio"), List.of("code"), ApplicationProcessIdentity.empty());
+        TrackingController controller = new TrackingController();
+        OsCommandSkill skill = skill(
+                command -> new OsCommandIntent(OsAction.OPEN_APPLICATION, "studio"),
+                Map.of(idea.getId(), idea, code.getId(), code), controller,
+                new CatalogSessionStore());
+
+        SkillExecution execution = skill.executeTurn("abre studio");
+
+        SkillExecution.AwaitingInteraction<?> awaiting =
+                assertInstanceOf(SkillExecution.AwaitingInteraction.class, execution);
+        @SuppressWarnings("unchecked")
+        SkillExecution.AwaitingInteraction<String> typed =
+                (SkillExecution.AwaitingInteraction<String>) awaiting;
+        SkillExecution resumed = typed.continuation().apply(new InteractionResult<>(
+                Optional.empty(), com.fuad.interaction.InteractionOutcome.SUBMITTED,
+                Optional.of("code"), Optional.of(InputModality.TOUCH)));
+
+        assertEquals("Abriendo: Visual Studio Code.",
+                assertInstanceOf(SkillExecution.Completed.class, resumed).result().getText());
+        assertEquals("code", controller.openedId);
+    }
+
     @Test
     void listAndVoiceFollowUpShouldUseTheSameCatalogSession() {
         CatalogSessionStore sessions = new CatalogSessionStore();
@@ -123,7 +156,11 @@ class OsCommandSkillV2Test {
         private ApplicationActionResult runtime = ApplicationActionResult.status(ApplicationRuntimeState.NOT_RUNNING);
         private boolean limited;
         private OpenApplicationsResult openApplications = OpenApplicationsResult.success(List.of(), 0);
-        @Override public boolean open(ApplicationDefinition applicationDefinition) { return true; }
+        private String openedId;
+        @Override public boolean open(ApplicationDefinition applicationDefinition) {
+            openedId = applicationDefinition.getId();
+            return true;
+        }
         @Override public boolean close(ApplicationDefinition applicationDefinition) { return true; }
         @Override public ApplicationActionResult closeDetailed(ApplicationDefinition applicationDefinition) {
             return limited ? ApplicationActionResult.of(ApplicationActionResult.Status.PROCESS_IDENTITY_UNAVAILABLE)

@@ -1,0 +1,84 @@
+.interaction-root {
+    -fx-background-color: radial-gradient(center 50% 45%, radius 85%, #102b3c, #030c14);
+    -fx-font-family: "Segoe UI";
+}
+
+.interaction-frame {
+    -fx-background-color: rgba(4, 17, 28, 0.94);
+    -fx-border-color: rgba(120, 236, 255, 0.32);
+    -fx-border-width: 1px;
+}
+
+.interaction-title {
+    -fx-font-family: "Consolas";
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.interaction-prompt {
+    -fx-font-size: 34px;
+    -fx-text-fill: #eaf8fc;
+}
+
+.interaction-button {
+    -fx-background-color: rgba(34, 207, 245, 0.13);
+    -fx-border-color: rgba(120, 236, 255, 0.42);
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-text-fill: #eaf8fc;
+    -fx-cursor: hand;
+}
+
+.interaction-button:hover,
+.interaction-button:focused {
+    -fx-background-color: rgba(34, 207, 245, 0.28);
+    -fx-effect: dropshadow(gaussian, rgba(34, 207, 245, 0.32), 16, 0.08, 0, 0);
+}
+
+.interaction-choice {
+    -fx-min-width: 300px;
+    -fx-min-height: 145px;
+    -fx-padding: 24px;
+}
+
+.interaction-choice-name {
+    -fx-font-size: 27px;
+    -fx-text-fill: #eaf8fc;
+}
+
+.interaction-choice-detail {
+    -fx-font-size: 15px;
+    -fx-text-fill: #82a9b8;
+}
+
+.interaction-action {
+    -fx-min-width: 260px;
+    -fx-min-height: 100px;
+    -fx-font-size: 25px;
+    -fx-font-weight: bold;
+}
+
+.interaction-cancel {
+    -fx-min-width: 190px;
+    -fx-min-height: 64px;
+    -fx-font-size: 18px;
+}
+
+.interaction-editor {
+    -fx-font-size: 28px;
+    -fx-text-fill: #eaf8fc;
+    -fx-prompt-text-fill: #82a9b8;
+    -fx-control-inner-background: rgba(255, 255, 255, 0.07);
+    -fx-border-color: rgba(120, 236, 255, 0.35);
+}
+
+.interaction-key {
+    -fx-min-width: 74px;
+    -fx-min-height: 64px;
+    -fx-font-size: 21px;
+}
+
+.interaction-space {
+    -fx-min-width: 420px;
+}
