@@ -1,5 +1,8 @@
 package com.fuad.presentation;
 
+import com.fuad.model.runtime.ComponentSnapshot;
+import com.fuad.model.runtime.RuntimeComponent;
+
 public class ConsoleVisualOutput implements VisualOutput {
     @Override
     public void show(VisualMessage visualMessage) {
@@ -20,5 +23,14 @@ public class ConsoleVisualOutput implements VisualOutput {
     @Override
     public void hide() {
         System.out.println("TEXT UI: hidden");
+    }
+
+    @Override
+    public void showInfrastructureStatus(InfrastructureStatus status) {
+        System.out.println("LMS RUNTIME [" + status.snapshot().state() + "]");
+        for (RuntimeComponent component : RuntimeComponent.values()) {
+            ComponentSnapshot snapshot = status.snapshot().component(component);
+            System.out.println("  " + component + ": " + snapshot.state() + " - " + snapshot.detail());
+        }
     }
 }

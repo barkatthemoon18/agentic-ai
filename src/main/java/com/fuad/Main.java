@@ -50,6 +50,7 @@ import com.fuad.audio.AudioDeviceManager;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
+import com.fuad.model.runtime.LmStudioStartupCoordinator;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.pipeline.VoicePipeline;
@@ -70,6 +71,7 @@ import com.openai.client.okhttp.OpenAIOkHttpClient;
 
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Main {
     public static void main(String[] args) {
@@ -105,6 +107,15 @@ public class Main {
             OutputPresentationPolicy presentationPolicy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
             VisualOutput visualOutput = createVisualOutput(catalogSessions);
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, visualOutput);
+            LmStudioStartupCoordinator modelRuntime = new LmStudioStartupCoordinator();
+            Object voiceRuntimeLock = new Object();
+            AtomicBoolean applicationClosing = new AtomicBoolean(false);
+            cleanup.register(ResourceCleanup.Resource.MODEL_RUNTIME, () -> {
+                synchronized (voiceRuntimeLock) {
+                    applicationClosing.set(true);
+                    modelRuntime.close();
+                }
+            });
 
             OpenAIClient openAiClient = OpenAIOkHttpClient.fromEnv();
             AssistantEngine assistantEngine = new GptAssistantEngine(openAiClient);
@@ -113,7 +124,8 @@ public class Main {
             LocalQwenChatClient localQwenChatClient = new LocalQwenChatClient(
                     AppConfig.LOCAL_QWEN_BASE_URL,
                     AppConfig.LOCAL_AI_API_KEY,
-                    AppConfig.LOCAL_QWEN_MODEL_ID);
+                    AppConfig.LOCAL_QWEN_MODEL_ID,
+                    modelRuntime::isQwenUsable);
             GeneralSkill generalSkill = new GeneralSkill(
                     new GptGeneralEngine(assistantEngine),
                     new QwenGeneralEngine(localQwenChatClient),
@@ -142,10 +154,6 @@ public class Main {
                     wakeWordMatcher, wakeClassifier, AppConfig.intentPhrases);
             final SileroVadEngine vad = new SileroVadEngine(AppConfig.SILERO_MODEL_PATH, AppConfig.VAD_THRESHOLD);
             cleanup.register(ResourceCleanup.Resource.VAD, vad);
-            client.start();
-            piperClient.start();
-            System.out.println("Workers running properly");
-
             AudioDeviceInfo deviceFocusrite = new AudioDeviceManager().getInputDevices().stream()
                     .filter(device -> device.getName().contains("Analogue 1 + 2")
                             && device.getName().contains("Focusrite")
@@ -169,7 +177,30 @@ public class Main {
             cleanup.register(ResourceCleanup.Resource.SPEECH_PROCESSOR, speechProcessor);
             VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline);
 
-            captureService.start(deviceFocusrite, pipeline::process);
+            AtomicBoolean voiceRuntimeStarted = new AtomicBoolean(false);
+            modelRuntime.subscribe(snapshot -> {
+                visualOutput.showInfrastructureStatus(
+                        new InfrastructureStatus(snapshot, modelRuntime::retry));
+                if (snapshot.isPhiUsable()) {
+                    synchronized (voiceRuntimeLock) {
+                        if (applicationClosing.get()
+                                || !voiceRuntimeStarted.compareAndSet(false, true)) {
+                            return;
+                        }
+                        try {
+                            client.start();
+                            piperClient.start();
+                            captureService.start(deviceFocusrite, pipeline::process);
+                            System.out.println("Voice runtime active: daemon, API server and phi-router are ready");
+                        }
+                        catch (Exception e) {
+                            voiceRuntimeStarted.set(false);
+                            System.err.println("Unable to start voice runtime: " + e.getMessage());
+                        }
+                    }
+                }
+            });
+            modelRuntime.startAsync();
             Thread.currentThread().join();
 
             System.out.println("Worker alive: " + client.isAlive());

@@ -119,3 +119,29 @@
     -fx-border-radius: 7px;
     -fx-background-radius: 7px;
 }
+
+.ares-infrastructure-row {
+    -fx-padding: 6px 8px;
+    -fx-background-color: rgba(255, 255, 255, 0.045);
+    -fx-background-radius: 8px;
+}
+
+.ares-infrastructure-name {
+    -fx-font-family: "Consolas";
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+    -fx-min-width: 88px;
+}
+
+.ares-infrastructure-state {
+    -fx-font-family: "Consolas";
+    -fx-font-size: 10px;
+    -fx-text-fill: #39d5ff;
+    -fx-min-width: 72px;
+}
+
+.ares-infrastructure-detail {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 11px;
+    -fx-text-fill: #b7d6df;
+}

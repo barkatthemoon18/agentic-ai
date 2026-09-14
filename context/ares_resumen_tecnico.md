@@ -1,18 +1,31 @@
 # Ares — Resumen técnico de arquitectura, lógica y decisiones
 
+> Estado contrastado al 13 de septiembre de 2026. La línea de Research se
+> revisó desde `52beb51` hasta el merge `4109320` de `feature/current-research`
+> en `dev`; OS Skills se revisó desde `4109320` hasta `7805b4d` en
+> `feature/os-skills`.
+
+| Línea de trabajo | Rango revisado | Contenido principal |
+|---|---|---|
+| `dev` / PR #2 `feature/current-research` | `52beb51..4109320` | Current Research con GPT/Qwen, General local/GPT, ramas conversacionales, escalamiento y evaluación |
+| `feature/os-skills` | `4109320..7805b4d` | Catálogo dinámico de Windows, identidad runtime segura, foco/estado/listados y presentación estructurada |
+| Supervisor de LM Studio | árbol de trabajo al 13 de septiembre | arranque del daemon y servidor, carga de Phi/Qwen, recuperación y estado JavaFX |
+
 ## 1. Objetivo de la iteración
 
 Esta conversación consolidó varias piezas de Ares:
 
 - routing semántico de capacidades;
-- `OS_COMMAND` para abrir/cerrar aplicaciones;
+- `OS_COMMAND` para descubrir, abrir, cerrar, enfocar, consultar y listar aplicaciones;
 - protección determinista antes de ejecutar comandos;
 - conversación contextual, timeout y cancelación forzada;
 - política por skill para mantener o preservar contexto;
 - clasificador unificado `NEW_REQUEST` / `FOLLOW_UP` / `OTHER`;
 - ownership del contexto por `Capability`;
 - implementación inicial completa de `AUDIO_CONTROL`, limitada a la voz del asistente;
-- idea futura de elegir entre modelo local y GPT según complejidad.
+- selección implementada entre Qwen local y GPT para `GENERAL` y `CURRENT_RESEARCH`;
+- arranque supervisado de LM Studio, con recuperación independiente del daemon,
+  servidor HTTP, Phi y Qwen.
 
 Arquitectura general:
 
@@ -131,7 +144,9 @@ Prioridad conceptual:
 
 ## 3. `OS_COMMAND`: arquitectura segura
 
-La arquitectura quedó:
+La arquitectura inicial descrita en esta sección usaba una definición fija de
+Spotify y `ProcessHandle` con `processName`. Esa versión fue reemplazada por OS
+Skills v2 en `ce5f59a` y `7805b4d`. La arquitectura vigente es:
 
 ```text
 OsCommandSkill
@@ -142,53 +157,64 @@ LocalOsCommandParser
     ↓
 ApplicationRegistry
     ↓
-ApplicationDefinition
+ApplicationCatalog ← WindowsApplicationDiscovery + os-applications.json
     ↓
-ApplicationController
+ApplicationRuntimeResolver ← Win32_Process
+    ↓
+WindowsApplicationController ← JnaWindowService + ProcessHandle
 ```
 
 Principio:
 
-> El modelo no genera comandos shell arbitrarios. Produce una intención estructurada; Java autoriza el target y ejecuta un comando definido previamente.
+> El modelo no genera comandos shell arbitrarios. Produce una intención
+> estructurada; Java autoriza el target y ejecuta únicamente el comando de
+> apertura o la acción derivada del catálogo.
 
-### `ApplicationDefinition`
+### `ApplicationDefinition` vigente
 
 ```java
 public class ApplicationDefinition {
     private final String id;
     private final String displayName;
+    private final Set<String> aliases;
     private final List<String> openCommand;
-    private final String processName;
+    private final ApplicationProcessIdentity processIdentity;
 }
 ```
 
-Spotify:
+Ya no existe una whitelist construida manualmente para Spotify en `Main`.
+`ApplicationCatalog` descubre aplicaciones lanzables con `Get-StartApps`,
+accesos directos del menú Inicio y paquetes AppX. Después aplica overrides desde
+`config/os-applications.json`. El AppID, el comando de apertura y la identidad
+runtime nunca proceden del modelo.
 
-```java
-ApplicationDefinition spotify =
-        new ApplicationDefinition(
-                "spotify",
-                "Spotify",
-                List.of(
-                        "cmd.exe",
-                        "/c",
-                        "start",
-                        "",
-                        "spotify:"
-                ),
-                "Spotify.exe"
-        );
+```text
+Get-StartApps / shortcuts / AppX
+→ ApplicationDefinition
+→ aliases y evidencia runtime configurada
+→ ApplicationCatalog
+→ ApplicationRegistry
 ```
 
 ### Parser
 
-Salida restringida:
+Salida restringida vigente:
 
 ```text
-open_application|spotify
-close_application|spotify
+open_application|target
+close_application|target
+focus_application|target
+list_applications|filter_or_none
+list_running_applications|none
+check_application_installed|target
+get_application_status|target
 unsupported|unknown
 ```
+
+El parser exige una sola línea. Una primera salida vacía, multilínea o fuera de
+contrato provoca un retry con instrucciones de corrección; un segundo fallo se
+convierte en `InvalidOsCommandOutputException`, se contiene dentro de
+`OsCommandSkill` y no ejecuta acciones.
 
 ### Apertura
 
@@ -200,27 +226,21 @@ new ProcessBuilder(
 
 ### Cierre
 
-Se decidió usar `ProcessHandle`, validando el ejecutable contra el `processName` autorizado.
+El cierre ya no se autoriza por una coincidencia simple de nombre. WMI captura
+PID, `ParentProcessId`, `CreationDate`, ruta ejecutable, nombre y command line en
+un mismo snapshot. El nombre sólo localiza candidatos; la identidad se demuestra
+mediante ruta, package root, argumentos exclusivos o una excepción explícita de
+configuración.
 
-```java
-ProcessHandle.allProcesses()
-        .filter(process -> process.info()
-                .command()
-                .map(command -> {
-                    String filename =
-                            Path.of(command)
-                                    .getFileName()
-                                    .toString();
+Antes de enfocar una ventana, publicar `WM_CLOSE` o terminar un proceso se
+vuelven a comprobar PID, `CreationDate` e identidad. `ProcessHandle` sólo se usa
+para comprobar vida y solicitar terminación de procesos previamente verificados.
+Timeout, acceso denegado, error COM o una respuesta WMI incompleta producen
+`OBSERVATION_FAILED`; nunca se interpretan como aplicación cerrada.
 
-                    return filename.equalsIgnoreCase(
-                            applicationDefinition.getProcessName()
-                    );
-                })
-                .orElse(false))
-        .forEach(ProcessHandle::destroy);
-```
-
-Esto evita depender de comandos arbitrarios como `taskkill` producidos por un LLM.
+En procesos host compartidos, las relaciones host y firmas HWND son evidencia
+auxiliar opt-in. Foco y cierre operan sólo sobre ventanas revalidadas y nunca
+autorizan terminar el proceso host completo.
 
 ---
 
@@ -293,7 +313,11 @@ Ayer abrí Spotify             → REJECT
 
 ---
 
-## 5. Validación end-to-end de Spotify
+## 5. Validación end-to-end histórica de Spotify
+
+Esta validación corresponde a la primera implementación fija. Sigue siendo
+evidencia del flujo de routing y seguridad, pero no describe el catálogo ni la
+identidad runtime vigentes.
 
 Apertura:
 
@@ -398,10 +422,11 @@ GENERAL
 → KEEP_OPEN
 
 CURRENT_RESEARCH
-→ probablemente KEEP_OPEN
+→ KEEP_OPEN
 
 OS_COMMAND
-→ PRESERVE
+→ PRESERVE por defecto
+→ KEEP_OPEN sólo al devolver un catálogo navegable
 
 AUDIO_CONTROL
 → PRESERVE
@@ -680,7 +705,7 @@ La suite normal carga los recursos pero excluye las llamadas reales al modelo. L
 
 ---
 
-## 12. Posible semántica híbrida — postergada
+## 12. Semántica híbrida — propuesta histórica implementada
 
 Se propuso:
 
@@ -713,13 +738,21 @@ Explícame eso mejor
 → CONTEXT_DEPENDENT
 ```
 
-La implementación se **postergó** porque no bloquea el desarrollo actual y conviene acumular más casos reales antes de endurecer reglas.
+Esta sección conserva la propuesta original. Desde el 7 de septiembre,
+`LocalUtteranceClassifier` ejecuta `UtteranceShapeDetector` antes del modelo:
+Java resuelve los casos de alta confianza y Phi recibe sólo los casos
+`UNKNOWN`. La sección 30 contiene la evaluación comparativa del diseño ya
+implementado.
 
 ---
 
-## 13. Evaluación futura de otros modelos locales
+## 13. Roles actuales y evaluación futura de modelos locales
 
-El modelo local actual es Phi-3.5 Mini Instruct, servido con el identificador `phi-router`. Las clases usan el prefijo `Local` y el modelo se configura mediante `ares.local-model`; las evaluaciones permiten sobrescribirlo con `evaluation.model`.
+Phi-3.5 Mini Instruct, servido normalmente como `phi-router`, continúa a cargo
+de clasificadores estructurados mediante `ares.local-model`. Qwen es un backend
+generativo distinto para respuestas de `GENERAL` y `CURRENT_RESEARCH`, configurado
+mediante `ares.local-qwen-model` y `ares.local-qwen-base-url`. Las evaluaciones de
+clasificadores permiten sobrescribir Phi mediante `evaluation.model`.
 
 Se propone compararlo con otros modelos locales:
 
@@ -746,12 +779,12 @@ si otro modelo pequeño es estable
 → mantener semántica en LLM
 
 si todos fallan de forma similar
-→ introducir UtteranceShapeDetector híbrido
+→ ajustar las fronteras entre reglas deterministas y modelo
 ```
 
 ---
 
-## 14. Futura separación local vs GPT
+## 14. Separación local vs GPT — propuesta parcialmente implementada
 
 Se propuso distinguir:
 
@@ -800,6 +833,11 @@ Objetivos:
 - menor latencia;
 - menor coste API;
 - reservar GPT para donde agrega más valor.
+
+La separación se concretó en dos selectores de dominio, no en un `ModelRouter`
+global. `GeneralSkill` elige entre `QWEN_LOCAL` y `GPT`; `CurrentResearchSkill`
+elige entre `QWEN_LOCAL` y `GPT_WEB`, y clasifica por separado la profundidad
+`QUICK`/`DEEP`. `SemanticRouter` sigue decidiendo la capability y no el backend.
 
 ---
 
@@ -1483,11 +1521,11 @@ Conversation timeout
 Conversation kill-switch
 Fuzzy cancel para errores de Whisper
 ConversationPolicy KEEP_OPEN / PRESERVE
-OS_COMMAND Spotify OPEN
-OS_COMMAND Spotify CLOSE
+OS_COMMAND Spotify OPEN (implementación inicial)
+OS_COMMAND Spotify CLOSE (implementación inicial)
 OsCommandSafetyGuard
-Application whitelist
-ProcessHandle para cierre
+Application whitelist fija (reemplazada el 11–13 de septiembre por catálogo dinámico)
+ProcessHandle por nombre para cierre (reemplazado por identidad WMI revalidada)
 AssistantAudioController lógico
 mute/unmute con recuperación del último volumen audible
 volumen cero implica mute
@@ -1598,18 +1636,18 @@ LocalAudioControlParser
 → interpretación lingüística real pendiente de evaluación sistemática
 ```
 
-## Pendiente futuro
+## Registro histórico de pendientes
 
 ```text
-CURRENT_RESEARCH
-más aplicaciones OS
+CURRENT_RESEARCH (implementado en el PR #2 de `dev`)
+catálogo dinámico y más aplicaciones OS (implementado en `feature/os-skills`)
 corpus específico para evaluar LocalAudioControlParser
 persistencia del volumen entre ejecuciones
 evaluar curva perceptual de ganancia frente a la curva lineal actual
 posible soporte futuro para scopes SYSTEM y APPLICATION
 comparar Phi-3.5 Mini Instruct / Gemma / Qwen
-UtteranceShapeDetector híbrido
-ModelRouter local vs GPT
+ampliar reglas del UtteranceShapeDetector híbrido sólo con nueva evidencia
+posible ModelRouter global; actualmente la selección vive dentro de cada skill
 métricas de coste/latencia por backend
 ```
 
@@ -1622,7 +1660,7 @@ métricas de coste/latencia por backend
 2. Phi-3.5 Mini Instruct interpreta lenguaje, no ejecuta comandos.
 3. GPT se reserva para razonamiento/contenido donde aporta valor.
 4. Los modelos nunca generan shell arbitrario.
-5. Los targets OS deben estar whitelisteados.
+5. Los targets OS deben proceder del catálogo autorizado.
 6. La conversación contextual debe administrarse explícitamente.
 7. Un skill transaccional no debe abrir contexto innecesariamente.
 8. Los kill-switches deben funcionar antes del routing LLM.
@@ -2015,13 +2053,473 @@ complejidad continúa usando el modelo ligero configurado mediante
 `ares.local-model`.
 
 La suite determinista cubre selección, overrides, ramas, fallback transaccional,
-`PRESERVE`, escalamiento y aislamiento entre General y Research. Se ejecutaron
-285 pruebas sin fallos. Existe además un corpus `model-evaluation` separado para
-medir el clasificador de complejidad con el modelo local activo; queda excluido de
-la suite normal.
+`PRESERVE`, escalamiento y aislamiento entre General y Research. En la validación
+registrada el 10 de septiembre se ejecutaron 285 pruebas sin fallos. Existe además
+un corpus `model-evaluation` separado para medir el clasificador de complejidad con
+el modelo local activo; queda excluido de la suite normal.
 
 Limitación conocida: al volver a una rama existente se retoma su historial sin
 incorporar lo conversado posteriormente en la otra rama. Un trabajo futuro podrá
 añadir un handoff transitorio formado por el historial de la rama destino, el
 último intercambio visible y la consulta actual, sin fusionar permanentemente
 ambas ramas.
+
+### 32.7. Cierre del PR #2 en `dev` — 11 de septiembre de 2026
+
+El merge `4109320` incorporó en `dev` la línea completa de
+`feature/current-research`, formada por:
+
+```text
+707b98b  Current Research con GPT y búsqueda web
+22e3980  Current Research con Qwen local
+c599c24  General con Qwen/GPT y cliente local compartido
+eaff1fd  corpus de decisiones y retry del clasificador General
+84c61d5  correcciones de overrides, negaciones y escalamiento
+```
+
+El estado resultante separa tres decisiones que no deben mezclarse:
+
+```text
+SemanticRouter
+→ GENERAL o CURRENT_RESEARCH
+
+GeneralBackendSelector
+→ QWEN_LOCAL o GPT
+
+ResearchBackendClassifier + ResearchDepthClassifier
+→ QWEN_LOCAL o GPT_WEB
+→ QUICK o DEEP
+```
+
+`CurrentResearchSkill` conserva ramas independientes para `QWEN_LOCAL` y
+`GPT_WEB`. Una señal local explícita elige Qwen; una solicitud de Internet,
+fuentes o información vigente elige GPT Web; un follow-up sin señal nueva hereda
+el backend activo. Sin señal y sin historial, el backend predeterminado es Qwen.
+La profundidad se clasifica aparte: una consulta puntual usa normalmente
+`QUICK`, mientras una comparación, cronología o análisis de varias fuentes usa
+`DEEP`.
+
+`GeneralSkill` conserva ramas separadas para Qwen y GPT. El backend se actualiza
+sólo después de una respuesta válida. Si Qwen fue seleccionado automáticamente y
+no está disponible, se intenta GPT con origen `AUTOMATIC`; si Qwen fue pedido de
+forma explícita, Ares informa la indisponibilidad con `PRESERVE` y no modifica el
+snapshot. Errores locales de contrato o respuesta inválida no activan fallback.
+
+El clasificador de complejidad General quedó detrás de
+`GeneralBackendInference`. Acepta únicamente `local` o `gpt`, registra si la
+clasificación se obtuvo en el primer o segundo intento y corrige una única vez
+una salida inválida. Si el retry también falla, lanza
+`InvalidGeneralBackendOutputException`; el selector contiene ese fallo y elige
+Qwen como decisión automática conservadora.
+
+Los overrides sólo se reconocen cuando una acción de cambio precede al backend,
+por ejemplo «usa Qwen» o «respóndeme con GPT». Menciones temáticas y expresiones
+negadas como «no quiero usar GPT» no cambian de rama. De forma análoga,
+`GuardedSemanticRouter` consulta primero
+`ResearchEscalationDetector.isExplicitlyNegated(...)`; «no lo busques en
+Internet» permanece fuera de Research aunque contenga vocabulario de búsqueda.
+
+### 32.8. Corpus de backend y profundidad
+
+Los clasificadores de General y Research se evalúan de forma separada:
+
+| Decisión | Development | Holdout | Etiquetas |
+|---|---:|---:|---|
+| Backend General | 30 | 20 por versión | `qwen_local`, `gpt` |
+| Backend Research | 30 | 20 | `qwen_local`, `gpt_web` |
+| Profundidad Research | 30 | 20 | `quick`, `deep` |
+
+General conserva `holdout-v1` como regresión histórica y `holdout-v2` como
+validación final congelada. Cada reporte incluye accuracy, macro-F1,
+precision/recall/F1 por etiqueta, matriz de confusión, errores, latencias p50/p95
+y métricas de retry. El gate exige cero errores finales y macro-F1 mínima de
+`0.90`. El holdout v2 de General se ejecutó una vez el 11 de septiembre y obtuvo
+macro-F1 `0.9000`, sin errores finales ni retries; desde entonces se considera
+consumido y no debe usarse para reajustar el prompt.
+
+Los comandos y reglas de evaluación se mantienen en
+[`src/test/resources/evaluation/README.md`](../src/test/resources/evaluation/README.md).
+
+---
+
+## 33. OS Skills v2 — 11 al 13 de septiembre de 2026
+
+Los commits `ce5f59a` y `7805b4d` reemplazaron la integración fija de Spotify
+por un subsistema de aplicaciones de Windows. `Main` compone ahora:
+
+```text
+WindowsApplicationDiscovery
+        +
+ApplicationAliasConfigLoader(config/os-applications.json)
+        ↓
+ApplicationCatalog
+        ↓
+ApplicationRegistry ──────────────→ resolución de lenguaje
+        ↓
+ApplicationRuntimeResolver ───────→ identidad de procesos
+        ↓
+WindowsApplicationController ─────→ open / close / focus / status / list running
+```
+
+El catálogo se refresca al iniciar Ares. Si una resolución devuelve `UNKNOWN` o
+`CATALOG_UNAVAILABLE`, se intenta un refresh y se resuelve una vez más. Si un
+refresh falla después de haber cargado un catálogo válido, se conserva el último
+estado disponible; si nunca hubo uno, el catálogo permanece degradado con el
+motivo del error.
+
+La resolución sigue esta precedencia:
+
+```text
+alias configurado
+→ nombre/alias canónico normalizado
+→ coincidencia natural determinista y única
+→ AMBIGUOUS o UNKNOWN
+```
+
+La coincidencia natural sólo admite equivalencias de separación, como
+`Prime Video`/`Primevideo`, y prefijos de tokens completos, como
+`IntelliJ`/`IntelliJ IDEA`. No usa Levenshtein ni selecciona arbitrariamente
+entre candidatos. Los aliases manuales tienen precedencia y `removeAliases`
+puede retirar un alias automático sin eliminar la aplicación del catálogo.
+
+### 33.1. Acciones y resultados
+
+`OsAction` contiene:
+
+```text
+OPEN_APPLICATION
+CLOSE_APPLICATION
+FOCUS_APPLICATION
+LIST_APPLICATIONS
+LIST_RUNNING_APPLICATIONS
+CHECK_APPLICATION_INSTALLED
+GET_APPLICATION_STATUS
+UNSUPPORTED
+```
+
+Resolver una aplicación produce `FOUND`, `UNKNOWN`, `AMBIGUOUS` o
+`CATALOG_UNAVAILABLE`. Las acciones runtime devuelven `SUCCESS`, `NOT_RUNNING`,
+`NO_VISIBLE_WINDOW`, `FOCUS_REJECTED`, `PROCESS_IDENTITY_UNAVAILABLE` o `FAILED`.
+El estado observado distingue:
+
+```text
+NOT_RUNNING
+RUNNING_BACKGROUND
+RUNNING_WITH_WINDOW
+```
+
+Una aplicación puede abrirse y aparecer en el catálogo aunque su identidad
+runtime sea insuficiente. En ese caso, Ares rechaza status, focus y close con
+`PROCESS_IDENTITY_UNAVAILABLE` en lugar de inferir qué proceso controlar.
+
+### 33.2. Identidad runtime y defensa contra TOCTOU
+
+`ApplicationProcessIdentity` combina:
+
+- rutas ejecutables;
+- package roots;
+- nombres de proceso candidatos;
+- nombres confiables sólo cuando Windows no entrega una ruta;
+- conjuntos de argumentos `CONTAINS_ALL`;
+- vectores de argumentos `EXACT`;
+- relación con una aplicación host;
+- firmas de ventana por clase y/o título;
+- habilitación explícita de asociación por ventana.
+
+`Win32_Process` entrega PID, `ParentProcessId`, `CreationDate`, ruta, nombre y
+command line dentro del mismo snapshot. `ApplicationRuntimeResolver` exige una
+identidad fuerte y vuelve a comprobarla justo antes de cada efecto. La
+combinación de PID y `CreationDate` evita actuar sobre un proceso distinto que
+haya reutilizado el mismo PID.
+
+Una query WMI exitosa sin el PID devuelve `NOT_FOUND`. Timeout, acceso denegado,
+error COM, PID duplicado o datos inconsistentes devuelven
+`OBSERVATION_FAILED`. Esos fallos nunca se convierten en `NOT_RUNNING`.
+
+El cierre intenta primero `WM_CLOSE` sobre ventanas revalidadas. Si las ventanas
+no desaparecen, sólo puede terminar procesos cuya identidad fue revalidada. Para
+una aplicación hospedada en un proceso compartido, foco y cierre quedan
+restringidos a HWND propios y el fallback de terminación se deshabilita.
+
+La configuración exacta y sus invariantes se mantienen en
+[`docs/OS_APPLICATIONS.md`](../docs/OS_APPLICATIONS.md). El esquema vigente es:
+
+```json
+{
+  "aliases": {},
+  "removeAliases": [],
+  "processNames": {},
+  "trustedProcessNamesWhenPathUnavailable": {},
+  "commandLineArgumentSets": {},
+  "exactCommandLineArgumentSets": {},
+  "hostRelationships": {},
+  "windowSignatures": {},
+  "windowAssociationsEnabled": {}
+}
+```
+
+### 33.3. Catálogo conversacional y salida visual
+
+`AssistantResult` puede transportar un `AssistantPayload` además del texto y los
+estados de General/Research. Para OS existen dos payloads:
+
+```text
+ApplicationCatalogPayload
+→ sessionId, filtro, página, tamaño, total e items
+→ KEEP_OPEN + OsConversationState
+
+OpenApplicationsPayload
+→ aplicaciones abiertas verificadas + contador no verificable
+→ PRESERVE, sin crear una sesión OS
+```
+
+`CatalogSessionStore` mantiene una única sesión activa, ordena por display name y
+divide los resultados en páginas de 20. Los follow-ups aceptan siguiente,
+anterior, primera, última y filtros como «muestra las aplicaciones de Microsoft».
+JavaFX observa la sesión y
+actualiza buscador, lista y controles de página sin volver a consultar al modelo.
+
+«¿Qué aplicaciones están abiertas?» toma un solo snapshot de procesos y enumera
+una sola vez las ventanas visibles. Sólo publica aplicaciones
+`RUNNING_WITH_WINDOW`; las no verificables se excluyen y se cuentan. Con hasta
+cinco resultados, la voz enumera todos. Con más de cinco, menciona los primeros
+cinco y la lista completa se fuerza a pantalla. Mute, volumen cero y volumen bajo
+siguen respetando `OutputPresentationPolicy`.
+
+### 33.4. Firefox y Prime Video
+
+La configuración actual identifica Firefox normal mediante argumentos exactos
+`[]` o `[-os-autostart]` y una firma opt-in de `MozillaWindowClass` cuyo título
+termina en «— Mozilla Firefox». Prime Video declara su relación con Firefox como
+host, pero todavía necesita capturas comparativas que prueben una señal HWND
+positiva y estable. Mientras esa evidencia no exista, Prime Video debe permanecer
+no verificable para status, focus y close cuando comparte por completo el host.
+
+---
+
+## 34. Estado vigente y validación — 13 de septiembre de 2026
+
+Arquitectura de composición actual:
+
+```text
+Ares startup → LmStudioStartupCoordinator
+    ├─ LMS daemon
+    ├─ API server + health check HTTP
+    ├─ phi-router (prioridad)
+    └─ qwen-main (background)
+    → ModelRuntimeSnapshot
+        ├─ InfrastructureStatus → Console / JavaFX
+        └─ daemon + API server + Phi READY → iniciar voz una sola vez
+
+Mic → VAD → STT → control/activación → clasificación de utterance
+    → GuardedSemanticRouter → SkillRouter
+        ├─ SYSTEM_TIME
+        ├─ AUDIO_CONTROL
+        ├─ OS_COMMAND → catálogo + identidad Windows + payload visual
+        ├─ CURRENT_RESEARCH → Qwen local | GPT Web → QUICK | DEEP
+        └─ GENERAL → Qwen local | GPT
+    → AssistantResult + estado/payload + política efectiva
+    → AssistantOutputCoordinator → TTS y/o JavaFX
+```
+
+Configuración de modelos:
+
+| Propiedad | Uso | Predeterminado |
+|---|---|---|
+| `ares.local-model` | Phi para clasificadores estructurados | `phi-router` |
+| `ares.local-qwen-base-url` | proveedor local de Qwen | `http://localhost:1234` |
+| `ares.local-qwen-model` | Qwen compartido por General y Research | `qwen-main` |
+| `ares.local-research-model` | alias compatible del modelo Qwen | sólo si falta la propiedad nueva |
+
+La evidencia histórica queda fechada para evitar confundirla con una ejecución
+actual:
+
+```text
+5 de septiembre   167 pruebas, 0 fallos, 0 errores
+10 de septiembre  285 pruebas sin fallos
+12 de septiembre  reportes Surefire locales: 403 pruebas, 0 fallos, 0 errores, 0 omitidas
+13 de septiembre  suite Maven: 415 pruebas, 0 fallos, 0 errores, 0 omitidas
+```
+
+La validación del 13 de septiembre produjo 60 reportes bajo
+`target/surefire-reports`. Incluye las pruebas del supervisor de LM Studio y las
+regresiones de disponibilidad local, Research y limpieza de recursos.
+
+Pendientes vigentes:
+
+- obtener evidencia estable para aplicaciones hospedadas como Prime Video;
+- agregar smoke tests de composición de `Main` y pruebas E2E con el hardware objetivo;
+- evaluar sistemáticamente `LocalAudioControlParser`;
+- decidir un handoff transitorio al volver a una rama conversacional ya existente;
+- medir coste y latencia reales por backend;
+- reemplazar salidas directas a consola por logging estructurado;
+- validar e inyectar de forma uniforme dependencias que aún se crean en `Main`.
+
+---
+
+## 35. Arranque supervisado de LM Studio — 13 de septiembre de 2026
+
+`LmStudioStartupCoordinator` concentra la comprobación y recuperación inicial de
+la infraestructura local. La aplicación ya no presupone que LM Studio, su API y
+los modelos están disponibles cuando comienza `Main`: publica snapshots de su
+estado, ejecuta sólo las operaciones necesarias y mantiene Ares y JavaFX activos
+si una recuperación termina en fallo.
+
+La dependencia de arranque es:
+
+```text
+LMS_DAEMON
+    ├─ API_SERVER
+    ├─ PHI_ROUTER   → habilita el runtime de voz junto con daemon + API
+    └─ QWEN_MAIN    → continúa recuperándose en background
+```
+
+Los tres componentes dependientes esperan a que el daemon esté `READY`. Esa
+espera no consume intentos. Al recuperarse el daemon se reanudan en orden API,
+Phi y Qwen; Phi conserva así prioridad sobre el modelo generativo.
+
+### 35.1. Estado por componente y estado global
+
+El estado observable separa dos niveles:
+
+```text
+ComponentState = CHECKING | LOADING | READY | RETRY_WAIT | FAILED
+RuntimeState   = STARTING | PARTIALLY_READY | READY | DEGRADED
+```
+
+`RuntimeState` siempre se deriva de los cuatro `ComponentSnapshot`:
+
+- cualquier componente en `FAILED` produce `DEGRADED`;
+- daemon, API y Phi en `READY`, con Qwen todavía pendiente, producen
+  `PARTIALLY_READY`;
+- los cuatro componentes en `READY` producen `READY`;
+- cualquier otra combinación no terminal permanece en `STARTING`.
+
+Cada snapshot conserva detalle diagnóstico, dependencia bloqueante, retries
+consumidos, instante del próximo retry y generación de recuperación.
+`isPhiUsable()` exige daemon, API y `PHI_ROUTER` en `READY`; `isQwenUsable()`
+exige daemon, API y `QWEN_MAIN`. Ambos métodos son snapshots de disponibilidad:
+los clientes siguen tratando los errores de transporte que pueden ocurrir entre
+la consulta y una petición posterior.
+
+### 35.2. Comprobaciones y operaciones mutantes
+
+Las comprobaciones usan un timeout de 10 segundos:
+
+```text
+lms daemon status --json
+lms server status --json
+lms ps --json
+GET http://127.0.0.1:1234/api/v1/models
+```
+
+El servidor sólo queda disponible cuando LMS informa que está iniciado y el
+endpoint devuelve HTTP 2xx con JSON compatible que contiene `models` o `data`.
+La combinación de ambas señales diferencia:
+
+- `STOPPED`: LMS informa servidor detenido y nada escucha en el puerto; se
+  permite ejecutar `server start`;
+- `UNHEALTHY`: LMS informa servidor iniciado, pero el health check real falla;
+  no se inicia una segunda instancia;
+- `PORT_CONFLICT`: LMS informa servidor detenido, pero el puerto responde; no se
+  atribuye automáticamente ese proceso a LM Studio ni se ejecuta `server start`.
+
+Las operaciones permitidas son exactamente:
+
+```text
+lms daemon up --json
+lms server start --port 1234 --bind 127.0.0.1
+lms load phi-3.5-mini-instruct --gpu off --context-length 4096 --identifier phi-router --yes
+lms load qwen/qwen3.5-9b --gpu max --context-length 32768 --identifier qwen-main --yes
+```
+
+Daemon y servidor disponen de 30 segundos para ejecutar su comando; una carga de
+modelo dispone de 10 minutos. Justo antes de cada operación mutante se repite la
+comprobación de postcondición bajo el lock global de comandos mutantes. Si el
+componente se recuperó mientras esperaba, pasa a `READY` sin ejecutar el comando
+ni consumir el retry. Un resultado indeterminado tampoco autoriza una mutación.
+
+Si un proceso supera su timeout, `ProcessLmsCommandRunner` intenta terminarlo y,
+tras dos segundos de gracia, fuerza su cierre si continúa vivo. El coordinador
+vuelve a comprobar la postcondición antes de registrar el intento como fallido:
+un daemon, servidor o modelo que haya quedado disponible se acepta como `READY`.
+Para operaciones de infraestructura que terminan antes del timeout, la
+postcondición puede observarse durante hasta 30 segundos.
+
+Para los modelos se exige el alias exacto `phi-router` o `qwen-main`. Cuando
+`lms ps --json` entrega `path`, `modelKey`, `model_key` o `key`, también se
+comprueba que pertenezca a `phi-3.5-mini-instruct` o `qwen3.5-9b`. Una identidad
+incompatible bloquea la carga para no sobrescribir el alias; si LMS no entrega
+datos suficientes, el alias exacto se acepta con identidad no verificable. El
+coordinador reutiliza el modelo correcto sin comparar context length, GPU,
+cuantización ni otros parámetros de carga.
+
+### 35.3. Reintentos, single-flight y generaciones
+
+Cada componente posee su propia serie de recuperación:
+
+```text
+intento inicial
+→ fallo → esperar 15 s → retry 1
+→ fallo → esperar 45 s → retry 2
+→ fallo → esperar 120 s → retry 3
+→ fallo → FAILED
+```
+
+El backoff es relativo al fallo anterior. `operationLock` permite una sola
+operación activa por componente y `mutatingCommandLock` serializa las mutaciones
+de LMS entre componentes. `ProcessLmsCommandRunner` también rechaza un segundo
+proceso activo para el mismo propietario.
+
+Cada serie tiene una generación. Un retry manual cancela la tarea programada y
+el proceso propios de la generación anterior, incrementa la generación, reinicia
+el contador y comienza con un nuevo pre-check. Si el componente solicitado
+depende de un daemon en `FAILED`, también inicia una serie nueva para el daemon.
+Al alcanzar `READY` se cancelan los retries pendientes y se invalida la
+generación. `CommandGeneration` coordina esa invalidación con la creación del
+proceso hijo, de modo que una tarea obsoleta tampoco puede iniciar una operación
+en la ventana entre la última comprobación y `ProcessBuilder.start()`.
+
+### 35.4. Integración con Ares y JavaFX
+
+`Main` registra el coordinador en `ResourceCleanup` y se suscribe a cada
+`ModelRuntimeSnapshot`. La suscripción publica un `InfrastructureStatus` en la
+salida visual y expone `retry(RuntimeComponent)` a la interfaz. Cuando
+`isPhiUsable()` pasa a verdadero, un `AtomicBoolean` y un lock compartido con el
+cierre inician STT, TTS y captura de voz una sola vez. Qwen puede continuar su
+carga mientras la interacción por voz ya está disponible.
+
+JavaFX muestra daemon, API, `phi-router` y `qwen-main`, con estado, diagnóstico y
+próximo retry. Un componente en `FAILED` ofrece su propio botón **Reintentar**.
+El panel permanece visible durante el arranque o la degradación; cuando todo está
+listo muestra temporalmente «phi-router y qwen-main están activos». Una respuesta
+del asistente conserva prioridad visual y el último estado de infraestructura se
+vuelve a presentar después. `ConsoleVisualOutput` ofrece el mismo estado como
+fallback textual.
+
+`LocalQwenChatClient` consulta `isQwenUsable()` antes de llamar a la API y falla
+rápido con un snapshot de indisponibilidad, sin eliminar el manejo normal de
+errores HTTP. General conserva su fallback automático a GPT. Research contiene
+la indisponibilidad local y responde explícitamente que el modelo no está
+disponible en ese momento.
+
+Al cerrar Ares, el coordinador invalida generaciones, cancela tareas y termina
+únicamente los procesos hijos que todavía controla. No ejecuta `lms unload` ni
+descarga modelos que ya estuvieran cargados en LM Studio.
+
+### 35.5. Validación automatizada
+
+La suite cubre las garantías centrales del supervisor:
+
+- infraestructura ya disponible sin comandos mutantes;
+- modelo que aparece entre el probe inicial y el pre-check;
+- timeout cuyo efecto aparece antes del retry siguiente;
+- retry manual exitoso que invalida un retry automático pendiente;
+- intento inicial, tres retries y transición terminal;
+- estados globales `PARTIALLY_READY` y `DEGRADED`;
+- puerto ocupado, servidor iniciado pero no saludable y servidor detenido;
+- alias asociado a otro modelo y alias con identidad no verificable;
+- disponibilidad de Qwen, mensaje explícito de Research y orden de limpieza.
+
+La suite Maven completa del 13 de septiembre finalizó con 415 pruebas, 0 fallos,
+0 errores y 0 omitidas.

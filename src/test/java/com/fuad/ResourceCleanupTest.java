@@ -28,9 +28,9 @@ class ResourceCleanupTest {
             });
         }
         assertDoesNotThrow(cleanup::close);
-        assertEquals(List.of(CAPTURE, SPEECH_PROCESSOR, TTS, VISUAL_OUTPUT, STT, VAD), closed);
+        assertEquals(List.of(MODEL_RUNTIME, CAPTURE, SPEECH_PROCESSOR, TTS, VISUAL_OUTPUT, STT, VAD), closed);
         cleanup.close();
-        assertEquals(6, closed.size());
+        assertEquals(7, closed.size());
     }
 
     @Test
