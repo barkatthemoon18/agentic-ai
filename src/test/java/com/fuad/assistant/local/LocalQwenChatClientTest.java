@@ -118,6 +118,19 @@ class LocalQwenChatClientTest {
     }
 
     @Test
+    void shouldRejectRequestBeforeHttpWhenRuntimeSnapshotIsUnavailable() {
+        LocalQwenChatClient client = new LocalQwenChatClient(
+                "http://127.0.0.1:" + server.getAddress().getPort(),
+                "test-token", "qwen-main", () -> false);
+
+        LocalQwenException exception = assertThrows(LocalQwenException.class,
+                () -> client.chat("prompt", List.of(userMessage()), 100));
+
+        assertEquals(LocalQwenException.Kind.UNAVAILABLE, exception.getKind());
+        assertEquals(null, requestBody.get());
+    }
+
+    @Test
     void shouldDistinguishAnUnavailableModelFromAProviderFailure() {
         responseStatus = 400;
         responseBody = "{\"error\":\"model is not loaded\"}";

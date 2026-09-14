@@ -5,6 +5,10 @@ import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
 import com.fuad.assistant.skills.os.CatalogNavigation;
 import com.fuad.assistant.skills.os.CatalogSessionStore;
 import com.fuad.assistant.skills.os.OpenApplicationsPayload;
+import com.fuad.model.runtime.ComponentSnapshot;
+import com.fuad.model.runtime.ComponentState;
+import com.fuad.model.runtime.RuntimeComponent;
+import com.fuad.model.runtime.RuntimeState;
 import javafx.animation.*;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -25,6 +29,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -37,6 +42,9 @@ public class JavaFxVisualOutput implements VisualOutput {
     private static final AtomicBoolean TOOLKIT_START_REQUESTED = new AtomicBoolean(false);
     private static final CompletableFuture<Void> TOOLKIT_READY = new CompletableFuture<>();
     private final AtomicBoolean closed =  new AtomicBoolean(false);
+    private final WindowsOverlayOwnerSupport ownerSupport;
+    private final String ownerWindowTitle = "Ares Overlay Owner " + UUID.randomUUID();
+    private Stage ownerStage;
     private Stage stage;
     private StackPane overlayRoot;
     private Label statusLabel;
@@ -44,6 +52,7 @@ public class JavaFxVisualOutput implements VisualOutput {
     private Label timeLabel;
     private ScrollPane messageScroll;
     private VBox catalogPane;
+    private VBox infrastructurePane;
     private ListView<String> catalogList;
     private TextField catalogSearch;
     private Label catalogPageLabel;
@@ -54,13 +63,21 @@ public class JavaFxVisualOutput implements VisualOutput {
     private final CatalogSessionStore catalogSessions;
     private final AtomicBoolean updatingCatalog = new AtomicBoolean(false);
     private AutoCloseable catalogSubscription;
+    private InfrastructureStatus pendingInfrastructureStatus;
+    private DisplayMode displayMode = DisplayMode.NONE;
 
     public JavaFxVisualOutput() {
         this(new CatalogSessionStore());
     }
 
     public JavaFxVisualOutput(CatalogSessionStore catalogSessions) {
+        this(catalogSessions, WindowsOverlayOwnerSupport.platformDefault());
+    }
+
+    JavaFxVisualOutput(CatalogSessionStore catalogSessions,
+                       WindowsOverlayOwnerSupport ownerSupport) {
         this.catalogSessions = Objects.requireNonNull(catalogSessions, "catalogSessions must not be null");
+        this.ownerSupport = Objects.requireNonNull(ownerSupport, "ownerSupport must not be null");
         ensureToolkit();
         runAndWait(this::createOverlay);
     }
@@ -75,11 +92,30 @@ public class JavaFxVisualOutput implements VisualOutput {
     }
 
     @Override
+    public void showInfrastructureStatus(InfrastructureStatus status) {
+        Objects.requireNonNull(status, "status must not be null");
+        if (closed.get()) {
+            return;
+        }
+        runLater(() -> {
+            pendingInfrastructureStatus = status;
+            if (displayMode == DisplayMode.RESPONSE && stage != null && stage.isShowing()) {
+                return;
+            }
+            showInfrastructureInternal(status);
+        });
+    }
+
+    @Override
     public void hide() {
         if (closed.get()) {
             return;
         }
-        runLater(this::hideInternal);
+        runLater(() -> {
+            if (displayMode != DisplayMode.STATUS) {
+                hideInternal();
+            }
+        });
     }
 
     @Override
@@ -90,9 +126,13 @@ public class JavaFxVisualOutput implements VisualOutput {
         closeCatalogSubscription();
         runLater(() -> {
             stopAnimations();
+            pendingInfrastructureStatus = null;
             if (stage != null) {
                 stage.hide();
                 stage.close();
+            }
+            if (ownerStage != null) {
+                ownerStage.close();
             }
             Platform.exit();
         });
@@ -168,7 +208,12 @@ public class JavaFxVisualOutput implements VisualOutput {
         catalogPane.setVisible(false);
         catalogPane.setManaged(false);
 
-        StackPane responseContent = new StackPane(messageScroll, catalogPane);
+        infrastructurePane = new VBox(9.0);
+        infrastructurePane.getStyleClass().add("ares-infrastructure");
+        infrastructurePane.setVisible(false);
+        infrastructurePane.setManaged(false);
+
+        StackPane responseContent = new StackPane(messageScroll, catalogPane, infrastructurePane);
         HBox.setHgrow(responseContent, Priority.ALWAYS);
 
         HBox body = new HBox(10.0, iconContainer, responseContent);
@@ -211,11 +256,31 @@ public class JavaFxVisualOutput implements VisualOutput {
 
         scene.getStylesheets().add(stylesheet.toExternalForm());
 
+        ownerStage = new Stage(StageStyle.UTILITY);
+        ownerStage.setTitle(ownerWindowTitle);
+        ownerStage.setOpacity(0.0);
+        ownerStage.setWidth(1.0);
+        ownerStage.setHeight(1.0);
+        ownerStage.setX(-32_000.0);
+        ownerStage.setY(-32_000.0);
+        ownerStage.setResizable(false);
+
         stage = new Stage(StageStyle.TRANSPARENT);
+        stage.initOwner(ownerStage);
         stage.setTitle("Ares Response");
         stage.setAlwaysOnTop(true);
         stage.setResizable(false);
         stage.setScene(scene);
+
+        long previousForegroundWindow = ownerSupport.captureForegroundWindow();
+        try {
+            ownerStage.show();
+        }
+        catch (RuntimeException e) {
+            System.err.println("Unable to materialize JavaFX overlay owner: " + e.getMessage());
+        }
+        ownerSupport.configureAfterShow(ownerWindowTitle,
+                ProcessHandle.current().pid(), previousForegroundWindow);
 
         dismissTimer = new PauseTransition();
         dismissTimer.setOnFinished(
@@ -236,6 +301,9 @@ public class JavaFxVisualOutput implements VisualOutput {
 
     private void showInternal(VisualMessage visualMessage) {
         stopAnimations();
+        displayMode = DisplayMode.RESPONSE;
+        infrastructurePane.setVisible(false);
+        infrastructurePane.setManaged(false);
         AssistantAudioSnapshot audioSnapshot = visualMessage.getAudioSnapshot();
         boolean catalog = visualMessage.getPayload() instanceof ApplicationCatalogPayload;
         boolean openApplications = visualMessage.getPayload() instanceof OpenApplicationsPayload;
@@ -287,6 +355,7 @@ public class JavaFxVisualOutput implements VisualOutput {
             return;
         }
         stopAnimations();
+        DisplayMode hiddenMode = displayMode;
         FadeTransition fade = new FadeTransition(Duration.millis(140), overlayRoot);
         fade.setFromValue(overlayRoot.getOpacity());
         fade.setToValue(0.0);
@@ -301,11 +370,115 @@ public class JavaFxVisualOutput implements VisualOutput {
         exit.setOnFinished(event -> {
             activeAnimation = null;
             stage.hide();
+            displayMode = DisplayMode.NONE;
             closeCatalogSubscription();
             overlayRoot.setOpacity(1.0);
             overlayRoot.setTranslateX(0.0);
+            if (hiddenMode == DisplayMode.RESPONSE && pendingInfrastructureStatus != null) {
+                showInfrastructureInternal(pendingInfrastructureStatus);
+            }
         });
         exit.play();
+    }
+
+    private void showInfrastructureInternal(InfrastructureStatus status) {
+        stopAnimations();
+        closeCatalogSubscription();
+        displayMode = DisplayMode.STATUS;
+        messageScroll.setVisible(false);
+        messageScroll.setManaged(false);
+        catalogPane.setVisible(false);
+        catalogPane.setManaged(false);
+        infrastructurePane.setVisible(true);
+        infrastructurePane.setManaged(true);
+        infrastructurePane.getChildren().clear();
+
+        if (status.snapshot().state() == RuntimeState.READY) {
+            Label ready = new Label("phi-router y qwen-main están activos");
+            ready.getStyleClass().add("ares-message");
+            infrastructurePane.getChildren().add(ready);
+            pendingInfrastructureStatus = null;
+        }
+        else {
+            for (RuntimeComponent component : RuntimeComponent.values()) {
+                ComponentSnapshot snapshot = status.snapshot().component(component);
+                infrastructurePane.getChildren().add(createInfrastructureRow(snapshot, status));
+            }
+        }
+
+        statusLabel.setText("●  RUNTIME " + status.snapshot().state());
+        timeLabel.setText(LocalTime.now().format(TIME_FORMATTER));
+        overlayRoot.setOpacity(0.0);
+        overlayRoot.setTranslateX(20.0);
+        Rectangle2D screenBounds = resolveTargetScreen().getVisualBounds();
+        double preferredHeight = status.snapshot().state() == RuntimeState.READY
+                ? MINIMUM_HEIGHT : 150.0 + RuntimeComponent.values().length * 48.0;
+        Rectangle2D bounds = calculateOverlayBounds(screenBounds, preferredHeight);
+        overlayRoot.setPrefSize(bounds.getWidth(), bounds.getHeight());
+        stage.setWidth(bounds.getWidth());
+        stage.setHeight(bounds.getHeight());
+        stage.setX(bounds.getMinX());
+        stage.setY(bounds.getMinY());
+        if (!stage.isShowing()) {
+            stage.show();
+        }
+
+        FadeTransition fade = new FadeTransition(Duration.millis(180), overlayRoot);
+        fade.setFromValue(0.0);
+        fade.setToValue(1.0);
+        TranslateTransition movement = new TranslateTransition(Duration.millis(180), overlayRoot);
+        movement.setFromX(20.0);
+        movement.setToX(0.0);
+        ParallelTransition entrance = new ParallelTransition(fade, movement);
+        activeAnimation = entrance;
+        entrance.setOnFinished(event -> {
+            activeAnimation = null;
+            if (status.snapshot().state() == RuntimeState.READY) {
+                startDismissTimer(42);
+            }
+        });
+        entrance.play();
+    }
+
+    private HBox createInfrastructureRow(ComponentSnapshot snapshot, InfrastructureStatus status) {
+        Label name = new Label(componentName(snapshot.component()));
+        name.getStyleClass().add("ares-infrastructure-name");
+        Label state = new Label(snapshot.state().name());
+        state.getStyleClass().add("ares-infrastructure-state");
+        String detailText = snapshot.blockedBy() == null
+                ? snapshot.detail() : snapshot.detail() + " (bloqueado)";
+        if (snapshot.nextRetryAt() != null) {
+            detailText += " · próximo intento "
+                    + snapshot.nextRetryAt().atZone(java.time.ZoneId.systemDefault())
+                    .toLocalTime().format(TIME_FORMATTER);
+        }
+        Label detail = new Label(detailText);
+        detail.getStyleClass().add("ares-infrastructure-detail");
+        detail.setWrapText(true);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox row = new HBox(8.0, name, state, detail, spacer);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("ares-infrastructure-row");
+        if (snapshot.state() == ComponentState.FAILED) {
+            Button retry = new Button("Reintentar");
+            retry.getStyleClass().add("ares-catalog-button");
+            retry.setOnAction(event -> {
+                retry.setDisable(true);
+                status.retryAction().accept(snapshot.component());
+            });
+            row.getChildren().add(retry);
+        }
+        return row;
+    }
+
+    private static String componentName(RuntimeComponent component) {
+        return switch (component) {
+            case LMS_DAEMON -> "LMS daemon";
+            case API_SERVER -> "API server";
+            case PHI_ROUTER -> "phi-router";
+            case QWEN_MAIN -> "qwen-main";
+        };
     }
 
     private void startDismissTimer(int charCount) {
@@ -525,5 +698,11 @@ public class JavaFxVisualOutput implements VisualOutput {
         else {
             Platform.runLater(runnable);
         }
+    }
+
+    private enum DisplayMode {
+        NONE,
+        RESPONSE,
+        STATUS
     }
 }

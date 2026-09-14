@@ -1,6 +1,7 @@
 package com.fuad.assistant.skills.research;
 
 import com.fuad.assistant.AssistantResult;
+import com.fuad.assistant.local.LocalQwenException;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.assistant.skills.Skill;
 import com.fuad.enums.Capability;
@@ -13,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class CurrentResearchSkill implements Skill {
+    private static final String LOCAL_UNAVAILABLE = "El modelo local no está disponible en este momento.";
     private static final String WEB_QUICK_INSTRUCTIONS = """
             Antes de responder, busca informacion actual en Internet.
             Responde en espanol, de forma natural y adecuada para voz.
@@ -88,7 +90,16 @@ public class CurrentResearchSkill implements Skill {
         ResearchBranchState branch = state.getBranch(backend).orElseGet(() -> seedBranch(snapshot));
         ResearchRequest request = new ResearchRequest(command, instructions(backend, deep),
                 deep ? 1200 : 500, depth, branch);
-        ResearchEngineResult result = engine(backend).research(request);
+        ResearchEngineResult result;
+        try {
+            result = engine(backend).research(request);
+        }
+        catch (LocalQwenException e) {
+            if (backend != ResearchBackend.QWEN_LOCAL || !e.isUnavailable()) {
+                throw e;
+            }
+            return AssistantResult.preserveConversation(LOCAL_UNAVAILABLE);
+        }
         ResearchConversationState updated = state.withBranch(backend, result.continuation());
         return new AssistantResult(result.text(), result.continuation().continuationToken(), updated);
     }

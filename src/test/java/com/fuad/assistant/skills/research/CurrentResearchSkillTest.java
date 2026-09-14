@@ -1,6 +1,7 @@
 package com.fuad.assistant.skills.research;
 
 import com.fuad.assistant.AssistantResult;
+import com.fuad.assistant.local.LocalQwenException;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.Capability;
 import com.fuad.enums.ConversationPolicy;
@@ -78,5 +79,22 @@ class CurrentResearchSkillTest {
         assertEquals(2, captured.get().previousMessages().size());
         assertEquals("¿Quién fue Alan Turing?", captured.get().previousMessages().getFirst().content());
         assertEquals("Fue un matemático.", captured.get().previousMessages().getLast().content());
+    }
+
+    @Test
+    void unavailableLocalResearchShouldReturnSpecificMessageAndPreserveConversation() {
+        QuickResearchEngine unavailable = request -> {
+            throw new LocalQwenException(LocalQwenException.Kind.UNAVAILABLE, "not ready");
+        };
+        CurrentResearchSkill skill = new CurrentResearchSkill(
+                request -> { throw new AssertionError("web engine must not be used"); },
+                unavailable,
+                query -> ResearchDepth.QUICK,
+                (query, inherited) -> ResearchBackend.QWEN_LOCAL);
+
+        AssistantResult result = skill.execute("investiga localmente");
+
+        assertEquals("El modelo local no está disponible en este momento.", result.getText());
+        assertEquals(ConversationPolicy.PRESERVE, result.getConversationPolicyOverride());
     }
 }
