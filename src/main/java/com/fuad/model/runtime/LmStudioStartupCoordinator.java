@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fuad.config.AppConfig;
 
-import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -21,13 +20,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
-public final class LmStudioStartupCoordinator implements AutoCloseable {
-    private static final Duration INFRASTRUCTURE_TIMEOUT = Duration.ofSeconds(30);
-    private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(10);
-    private static final Duration MODEL_LOAD_TIMEOUT = Duration.ofMinutes(10);
-    private static final List<Duration> DEFAULT_BACKOFFS = List.of(
-            Duration.ofSeconds(15), Duration.ofSeconds(45), Duration.ofSeconds(120));
+import static com.fuad.model.runtime.LmStudioRuntimeConstants.*;
 
+public final class LmStudioStartupCoordinator implements AutoCloseable {
     private final LmsCommandRunner commandRunner;
     private final ServerHealthProbe healthProbe;
     private final ObjectMapper objectMapper;
@@ -41,11 +36,11 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
 
     public LmStudioStartupCoordinator() {
         this(new ProcessLmsCommandRunner(),
-                new HttpLmStudioHealthProbe(URI.create("http://127.0.0.1:1234/api/v1/models"),
+                new HttpLmStudioHealthProbe(MODELS_HEALTH_URI,
                         AppConfig.LOCAL_AI_API_KEY),
                 new ObjectMapper(),
-                Executors.newScheduledThreadPool(4, runnable -> {
-                    Thread thread = new Thread(runnable, "lms-startup");
+                Executors.newScheduledThreadPool(SCHEDULER_THREAD_COUNT, runnable -> {
+                    Thread thread = new Thread(runnable, SCHEDULER_THREAD_NAME);
                     thread.setDaemon(true);
                     return thread;
                 }), DEFAULT_BACKOFFS);
@@ -61,7 +56,7 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
         this.objectMapper = Objects.requireNonNull(objectMapper);
         this.scheduler = Objects.requireNonNull(scheduler);
         this.backoffs = List.copyOf(backoffs);
-        if (this.backoffs.size() != 3) {
+        if (this.backoffs.size() != DEFAULT_BACKOFFS.size()) {
             throw new IllegalArgumentException("Exactly three retry delays are required");
         }
         for (RuntimeComponent component : RuntimeComponent.values()) {
@@ -275,20 +270,19 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
         return switch (component) {
             case LMS_DAEMON -> probeDaemon();
             case API_SERVER -> probeServer();
-            case PHI_ROUTER -> probeModel(new ModelSpec("phi-router", "phi-3.5-mini-instruct"));
-            case QWEN_MAIN -> probeModel(new ModelSpec("qwen-main", "qwen3.5-9b"));
+            case PHI_ROUTER -> probeModel(PHI_MODEL);
+            case QWEN_MAIN -> probeModel(QWEN_MODEL);
         };
     }
 
     private ProbeResult probeDaemon() {
-        CommandResult result = runProbe(RuntimeComponent.LMS_DAEMON,
-                List.of("lms", "daemon", "status", "--json"));
+        CommandResult result = runProbe(RuntimeComponent.LMS_DAEMON, DAEMON_STATUS_COMMAND);
         if (result.timedOut() || result.exitCode() != 0) {
             return ProbeResult.indeterminate("No se pudo comprobar el daemon: " + result.output());
         }
         try {
-            String status = objectMapper.readTree(result.output()).path("status").asText();
-            return "running".equalsIgnoreCase(status)
+            String status = objectMapper.readTree(result.output()).path(JSON_STATUS_FIELD).asText();
+            return RUNNING_STATUS.equalsIgnoreCase(status)
                     ? ProbeResult.ready("Daemon de LM Studio activo")
                     : ProbeResult.missing("Daemon de LM Studio detenido", true);
         }
@@ -298,8 +292,7 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
     }
 
     private ProbeResult probeServer() {
-        CommandResult result = runProbe(RuntimeComponent.API_SERVER,
-                List.of("lms", "server", "status", "--json"));
+        CommandResult result = runProbe(RuntimeComponent.API_SERVER, SERVER_STATUS_COMMAND);
         ServerHealthProbe.Result health = healthProbe.check();
         if (result.timedOut() || result.exitCode() != 0) {
             return ProbeResult.indeterminate("No se pudo consultar el estado LMS del servidor");
@@ -315,38 +308,36 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
             return ProbeResult.missing("UNHEALTHY: " + health.detail(), false);
         }
         if (health.reachable()) {
-            return ProbeResult.missing("PORT_CONFLICT: " + health.detail(), false);
+            return ProbeResult.missing(PORT_CONFLICT_PREFIX + ": " + health.detail(), false);
         }
         return ProbeResult.missing("STOPPED: servidor HTTP detenido", true);
     }
 
     private ProbeResult probeModel(ModelSpec spec) {
-        RuntimeComponent component = "phi-router".equals(spec.alias)
-                ? RuntimeComponent.PHI_ROUTER : RuntimeComponent.QWEN_MAIN;
-        CommandResult result = runProbe(component, List.of("lms", "ps", "--json"));
+        CommandResult result = runProbe(spec.component(), MODEL_STATUS_COMMAND);
         if (result.timedOut() || result.exitCode() != 0) {
             return ProbeResult.indeterminate("No se pudieron consultar los modelos cargados");
         }
         try {
             JsonNode root = objectMapper.readTree(result.output());
             JsonNode models = root != null && root.isArray() ? root
-                    : root == null ? null : firstArray(root, "models", "data", "items");
+                    : root == null ? null : firstArray(root, MODEL_COLLECTION_FIELDS);
             if (models == null || !models.isArray()) {
                 return ProbeResult.indeterminate("Respuesta inválida de lms ps --json");
             }
             for (JsonNode model : models) {
-                if (!spec.alias.equals(model.path("identifier").asText())) {
+                if (!spec.alias().equals(model.path(MODEL_IDENTIFIER_FIELD).asText())) {
                     continue;
                 }
                 ModelIdentity identity = identity(model, spec);
                 if (identity == ModelIdentity.MISMATCH) {
-                    return ProbeResult.missing("El alias " + spec.alias
+                    return ProbeResult.missing("El alias " + spec.alias()
                             + " pertenece a otro modelo", false);
                 }
-                return ProbeResult.ready(spec.alias + " activo"
+                return ProbeResult.ready(spec.alias() + " activo"
                         + (identity == ModelIdentity.UNKNOWN ? " (identidad no verificable)" : ""));
             }
-            return ProbeResult.missing(spec.alias + " no está cargado", true);
+            return ProbeResult.missing(spec.alias() + " no está cargado", true);
         }
         catch (Exception e) {
             return ProbeResult.indeterminate("Respuesta inválida de lms ps --json");
@@ -367,17 +358,13 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
             throws InterruptedException {
         return switch (component) {
             case LMS_DAEMON -> commandRunner.run(component,
-                    List.of("lms", "daemon", "up", "--json"), INFRASTRUCTURE_TIMEOUT, generation);
+                    DAEMON_START_COMMAND, INFRASTRUCTURE_TIMEOUT, generation);
             case API_SERVER -> commandRunner.run(component,
-                    List.of("lms", "server", "start", "--port", "1234", "--bind", "127.0.0.1"),
+                    SERVER_START_COMMAND,
                     INFRASTRUCTURE_TIMEOUT, generation);
-            case PHI_ROUTER -> commandRunner.run(component, List.of(
-                    "lms", "load", "phi-3.5-mini-instruct", "--gpu", "off",
-                    "--context-length", "4096", "--identifier", "phi-router", "--yes"),
+            case PHI_ROUTER -> commandRunner.run(component, PHI_MODEL.loadCommand(),
                     MODEL_LOAD_TIMEOUT, generation);
-            case QWEN_MAIN -> commandRunner.run(component, List.of(
-                    "lms", "load", "qwen/qwen3.5-9b", "--gpu", "max",
-                    "--context-length", "32768", "--identifier", "qwen-main", "--yes"),
+            case QWEN_MAIN -> commandRunner.run(component, QWEN_MODEL.loadCommand(),
                     MODEL_LOAD_TIMEOUT, generation);
         };
     }
@@ -393,13 +380,13 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
             if (result.outcome == ProbeOutcome.SATISFIED
                     || result.outcome == ProbeOutcome.INDETERMINATE
                     || (!result.mutationAllowed && component == RuntimeComponent.API_SERVER
-                    && result.detail.startsWith("PORT_CONFLICT"))) {
+                    && result.detail.startsWith(PORT_CONFLICT_PREFIX))) {
                 return result;
             }
             if (!Instant.now().isBefore(deadline)) {
                 return result;
             }
-            Thread.sleep(500);
+            Thread.sleep(POST_CONDITION_POLL_INTERVAL.toMillis());
         }
         while (true);
     }
@@ -454,10 +441,8 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
     }
 
     private void resumeDaemonDependents() {
-        List<RuntimeComponent> priority = List.of(
-                RuntimeComponent.API_SERVER, RuntimeComponent.PHI_ROUTER, RuntimeComponent.QWEN_MAIN);
         long delayMillis = 0;
-        for (RuntimeComponent component : priority) {
+        for (RuntimeComponent component : DEPENDENT_START_PRIORITY) {
             Recovery recovery = recoveries.get(component);
             long generation;
             synchronized (recovery) {
@@ -469,7 +454,7 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
                 generation = recovery.generation;
             }
             schedule(component, generation, Duration.ofMillis(delayMillis));
-            delayMillis += 50;
+            delayMillis += DEPENDENT_START_DELAY.toMillis();
         }
     }
 
@@ -544,14 +529,14 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
     private Boolean parseServerRunning(String json) {
         try {
             JsonNode root = objectMapper.readTree(json);
-            if (root.path("running").isBoolean()) {
-                return root.path("running").asBoolean();
+            if (root.path(JSON_RUNNING_FIELD).isBoolean()) {
+                return root.path(JSON_RUNNING_FIELD).asBoolean();
             }
-            String status = root.path("status").asText("");
-            if ("running".equalsIgnoreCase(status)) {
+            String status = root.path(JSON_STATUS_FIELD).asText("");
+            if (RUNNING_STATUS.equalsIgnoreCase(status)) {
                 return true;
             }
-            if ("stopped".equalsIgnoreCase(status) || "not-running".equalsIgnoreCase(status)) {
+            if (STOPPED_STATUS.equalsIgnoreCase(status) || NOT_RUNNING_STATUS.equalsIgnoreCase(status)) {
                 return false;
             }
         }
@@ -561,7 +546,7 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
         return null;
     }
 
-    private static JsonNode firstArray(JsonNode root, String... names) {
+    private static JsonNode firstArray(JsonNode root, List<String> names) {
         for (String name : names) {
             JsonNode candidate = root.path(name);
             if (candidate.isArray()) {
@@ -573,7 +558,7 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
 
     private static ModelIdentity identity(JsonNode model, ModelSpec spec) {
         List<String> candidates = new ArrayList<>();
-        for (String field : List.of("path", "modelKey", "model_key", "key")) {
+        for (String field : MODEL_IDENTITY_FIELDS) {
             if (model.path(field).isTextual() && !model.path(field).asText().isBlank()) {
                 candidates.add(normalize(model.path(field).asText()));
             }
@@ -581,7 +566,7 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
         if (candidates.isEmpty()) {
             return ModelIdentity.UNKNOWN;
         }
-        String expected = normalize(spec.family);
+        String expected = normalize(spec.family());
         return candidates.stream().anyMatch(value -> value.contains(expected))
                 ? ModelIdentity.MATCH : ModelIdentity.MISMATCH;
     }
@@ -598,8 +583,8 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
         return switch (component) {
             case LMS_DAEMON -> "Iniciando daemon de LM Studio";
             case API_SERVER -> "Iniciando servidor HTTP de LM Studio";
-            case PHI_ROUTER -> "Cargando phi-router";
-            case QWEN_MAIN -> "Cargando qwen-main";
+            case PHI_ROUTER -> "Cargando " + PHI_MODEL.alias();
+            case QWEN_MAIN -> "Cargando " + QWEN_MODEL.alias();
         };
     }
 
@@ -607,8 +592,8 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
         return switch (component) {
             case LMS_DAEMON -> "LM Studio daemon";
             case API_SERVER -> "API server";
-            case PHI_ROUTER -> "phi-router";
-            case QWEN_MAIN -> "qwen-main";
+            case PHI_ROUTER -> PHI_MODEL.alias();
+            case QWEN_MAIN -> QWEN_MODEL.alias();
         };
     }
 
@@ -621,9 +606,6 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
             recovery.scheduled.cancel(false);
             recovery.scheduled = null;
         }
-    }
-
-    private record ModelSpec(String alias, String family) {
     }
 
     private enum ProbeOutcome {
