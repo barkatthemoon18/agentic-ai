@@ -11,7 +11,8 @@ public record ChoiceRequest(Optional<String> requestId, String prompt,
                             Set<InputModality> modalities,
                             Optional<Duration> timeoutOverride,
                             FocusRequirement focusRequirement,
-                            List<ChoiceOption> options)
+                            List<ChoiceOption> options,
+                            Optional<ChoiceVoiceResolver> voiceResolver)
         implements InteractionRequest<String> {
     public ChoiceRequest {
         requestId = InteractionRequests.requestId(requestId);
@@ -20,6 +21,7 @@ public record ChoiceRequest(Optional<String> requestId, String prompt,
         timeoutOverride = InteractionRequests.timeout(timeoutOverride);
         focusRequirement = Objects.requireNonNull(focusRequirement,
                 "focusRequirement must not be null");
+        voiceResolver = voiceResolver == null ? Optional.empty() : voiceResolver;
         options = List.copyOf(Objects.requireNonNull(options, "options must not be null"));
         if (options.size() < 2) {
             throw new IllegalArgumentException("at least two choices are required");
@@ -28,5 +30,14 @@ public record ChoiceRequest(Optional<String> requestId, String prompt,
         if (options.stream().anyMatch(option -> !ids.add(option.id()))) {
             throw new IllegalArgumentException("choice ids must be unique");
         }
+    }
+
+    public ChoiceRequest(Optional<String> requestId, String prompt,
+                         Set<InputModality> modalities,
+                         Optional<Duration> timeoutOverride,
+                         FocusRequirement focusRequirement,
+                         List<ChoiceOption> options) {
+        this(requestId, prompt, modalities, timeoutOverride, focusRequirement,
+                options, Optional.empty());
     }
 }

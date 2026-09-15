@@ -45,7 +45,7 @@ public final class InteractionVoiceRouter {
             return VoiceRouteOutcome.UNRESOLVABLE;
         }
         if (active.request() instanceof ChoiceRequest choice) {
-            return resolveChoice(active.sessionId(), choice, normalized);
+            return resolveChoice(active.sessionId(), choice, text(transcription), normalized);
         }
         if (active.request() instanceof ConfirmationRequest) {
             if (AFFIRMATIVE.contains(normalized)) {
@@ -61,23 +61,51 @@ public final class InteractionVoiceRouter {
     }
 
     private VoiceRouteOutcome resolveChoice(java.util.UUID sessionId, ChoiceRequest request,
-                                            String normalized) {
+                                            String transcription, String normalized) {
+        for (int index = 0; index < request.options().size() && index < ORDINALS.size(); index++) {
+            if (ORDINALS.get(index).contains(normalized)) {
+                return submit(sessionId, request.options().get(index).id());
+            }
+        }
+        if (request.voiceResolver().isPresent()) {
+            ChoiceVoiceResolution resolution;
+            try {
+                resolution = request.voiceResolver().orElseThrow().resolve(transcription);
+            }
+            catch (RuntimeException e) {
+                System.err.println("Choice voice resolution failed: " + e.getMessage());
+                return VoiceRouteOutcome.UNRESOLVABLE;
+            }
+            if (resolution.status() != ChoiceVoiceResolution.Status.RESOLVED) {
+                return VoiceRouteOutcome.UNRESOLVABLE;
+            }
+            String selected = resolution.optionId().orElseThrow();
+            boolean activeOption = request.options().stream()
+                    .anyMatch(option -> option.id().equals(selected));
+            return activeOption ? submit(sessionId, selected) : VoiceRouteOutcome.UNRESOLVABLE;
+        }
         Set<String> matchingIds = new HashSet<>();
         for (int index = 0; index < request.options().size(); index++) {
             ChoiceOption option = request.options().get(index);
             if (normalize(option.label()).equals(normalized)
                     || option.voiceAliases().stream().map(InteractionVoiceRouter::normalize)
-                    .anyMatch(normalized::equals)
-                    || (index < ORDINALS.size() && ORDINALS.get(index).contains(normalized))) {
+                    .anyMatch(normalized::equals)) {
                 matchingIds.add(option.id());
             }
         }
         if (matchingIds.size() != 1) {
             return VoiceRouteOutcome.UNRESOLVABLE;
         }
-        String selected = matchingIds.iterator().next();
+        return submit(sessionId, matchingIds.iterator().next());
+    }
+
+    private VoiceRouteOutcome submit(java.util.UUID sessionId, String selected) {
         return service.submitVoice(sessionId, selected)
                 ? VoiceRouteOutcome.RESOLVED : VoiceRouteOutcome.UNRESOLVABLE;
+    }
+
+    private static String text(String value) {
+        return value == null ? "" : value;
     }
 
     static String normalize(String value) {

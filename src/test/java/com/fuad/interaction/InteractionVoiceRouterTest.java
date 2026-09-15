@@ -59,6 +59,32 @@ class InteractionVoiceRouterTest {
         assertEquals("code", stage.toCompletableFuture().get().value().orElseThrow());
     }
 
+    @Test
+    void domainResolverShouldKeepInteractionPendingUntilItResolvesAnActiveOption() throws Exception {
+        ChoiceRequest request = new ChoiceRequest(Optional.empty(), "Elige",
+                Set.of(InputModality.TOUCH, InputModality.VOICE), Optional.empty(),
+                FocusRequirement.PASSIVE, List.of(
+                new ChoiceOption("photo", "Topaz Photo AI", List.of()),
+                new ChoiceOption("video", "Topaz Video AI", List.of())),
+                Optional.of(transcription -> switch (transcription.toLowerCase()) {
+                    case "topas" -> ChoiceVoiceResolution.ambiguous();
+                    case "topas photo" -> ChoiceVoiceResolution.resolved("photo");
+                    case "fuera" -> ChoiceVoiceResolution.resolved("outside");
+                    default -> ChoiceVoiceResolution.unknown();
+                }));
+        var stage = service.request(request);
+        presenter.visible();
+
+        assertEquals(VoiceRouteOutcome.UNRESOLVABLE, router.route("Topas"));
+        assertEquals(VoiceRouteOutcome.UNRESOLVABLE, router.route("desconocida"));
+        assertEquals(VoiceRouteOutcome.UNRESOLVABLE, router.route("fuera"));
+        assertFalse(stage.toCompletableFuture().isDone());
+
+        assertEquals(VoiceRouteOutcome.RESOLVED, router.route("Topas Photo"));
+        assertEquals("photo", stage.toCompletableFuture().get(1, TimeUnit.SECONDS)
+                .value().orElseThrow());
+    }
+
     private static final class TrackingPresenter implements InteractionPresenter {
         private UUID id;
         private InteractionResponder<?> responder;

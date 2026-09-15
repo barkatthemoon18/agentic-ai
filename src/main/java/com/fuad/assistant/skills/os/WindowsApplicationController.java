@@ -212,7 +212,8 @@ public class WindowsApplicationController implements ApplicationController {
     private TargetResolution resolveFromBatch(ApplicationDefinition application,
                                               ApplicationRuntimeResolver.CatalogResolution batch,
                                               List<WindowService.WindowHandle> windows) {
-        ApplicationRuntimeResolver.Resolution direct = batch.resolutions().get(application.getId());
+        ApplicationRuntimeResolver.Resolution direct = batch.resolutions()
+                .get(ApplicationCatalogIdentity.stableKey(application));
         if (direct == null) return TargetResolution.unavailable(false);
         if (direct.status() == ApplicationRuntimeResolver.Resolution.Status.RESOLVED) {
             return directTarget(application, batch.catalog(), direct, windowsFor(direct.processes(), windows));
@@ -247,7 +248,7 @@ public class WindowsApplicationController implements ApplicationController {
             return TargetResolution.unavailable(direct.candidateObserved());
         }
         ApplicationRuntimeResolver.Resolution hostResolution = batch == null
-                ? runtimeResolver.resolve(host) : batch.get(host.getId());
+                ? runtimeResolver.resolve(host) : batch.get(ApplicationCatalogIdentity.stableKey(host));
         if (hostResolution == null
                 || hostResolution.status() == ApplicationRuntimeResolver.Resolution.Status.IDENTITY_UNAVAILABLE) {
             return TargetResolution.unavailable(direct.candidateObserved()
@@ -274,8 +275,10 @@ public class WindowsApplicationController implements ApplicationController {
     }
 
     private boolean hasHostedChildren(ApplicationDefinition application, List<ApplicationDefinition> catalog) {
-        return catalog.stream().anyMatch(other ->
-                other.getProcessIdentity().hostApplicationId().equals(application.getId()));
+        String id = ApplicationCatalogIdentity.canonicalId(application.getId());
+        return id != null && catalog.stream().anyMatch(other -> id.equals(
+                ApplicationCatalogIdentity.canonicalId(
+                        other.getProcessIdentity().hostApplicationId())));
     }
 
     private List<WindowService.WindowHandle> windowsFor(
@@ -313,7 +316,10 @@ public class WindowsApplicationController implements ApplicationController {
     }
 
     private ApplicationDefinition find(List<ApplicationDefinition> catalog, String id) {
-        return catalog.stream().filter(application -> application.getId().equals(id)).findFirst().orElse(null);
+        String canonicalId = ApplicationCatalogIdentity.canonicalId(id);
+        if (canonicalId == null) return null;
+        return catalog.stream().filter(application -> canonicalId.equals(
+                ApplicationCatalogIdentity.canonicalId(application.getId()))).findFirst().orElse(null);
     }
 
     private ApplicationActionResult identityUnavailable() {

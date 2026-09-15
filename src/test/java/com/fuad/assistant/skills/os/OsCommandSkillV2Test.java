@@ -48,6 +48,103 @@ class OsCommandSkillV2Test {
     }
 
     @Test
+    void everyTargetedActionShouldWaitForAUniqueCatalogSelection() {
+        List<OsAction> actions = List.of(OsAction.OPEN_APPLICATION, OsAction.CLOSE_APPLICATION,
+                OsAction.FOCUS_APPLICATION, OsAction.GET_APPLICATION_STATUS,
+                OsAction.CHECK_APPLICATION_INSTALLED);
+        for (OsAction action : actions) {
+            ApplicationDefinition android = new ApplicationDefinition("android", "Android Studio",
+                    Set.of(), List.of("android"), ApplicationProcessIdentity.empty());
+            ApplicationDefinition visual = new ApplicationDefinition("visual", "Visual Studio Code",
+                    Set.of(), List.of("visual"), ApplicationProcessIdentity.empty());
+            TrackingController controller = new TrackingController();
+            controller.runtime = ApplicationActionResult.status(ApplicationRuntimeState.RUNNING_WITH_WINDOW);
+            OsCommandSkill skill = skill(command -> new OsCommandIntent(action, "studio"),
+                    Map.of(android.getId(), android, visual.getId(), visual), controller,
+                    new CatalogSessionStore());
+
+            SkillExecution execution = skill.executeTurn("comando studio");
+            SkillExecution.AwaitingInteraction<?> awaiting =
+                    assertInstanceOf(SkillExecution.AwaitingInteraction.class, execution, action.name());
+            @SuppressWarnings("unchecked")
+            SkillExecution.AwaitingInteraction<String> typed =
+                    (SkillExecution.AwaitingInteraction<String>) awaiting;
+
+            SkillExecution resumed = typed.continuation().apply(new InteractionResult<>(
+                    Optional.empty(), com.fuad.interaction.InteractionOutcome.SUBMITTED,
+                    Optional.of("android"), Optional.of(InputModality.TOUCH)));
+
+            assertInstanceOf(SkillExecution.Completed.class, resumed, action.name());
+            if (action == OsAction.CHECK_APPLICATION_INSTALLED) {
+                assertNull(controller.selectedId, action.name());
+                assertTrue(((SkillExecution.Completed) resumed).result().getText()
+                        .contains("Android Studio"), action.name());
+            }
+            else {
+                assertEquals("android", controller.selectedId, action.name());
+            }
+        }
+    }
+
+    @Test
+    void terminalOrInvalidSelectionShouldNeverReachController() {
+        ApplicationDefinition android = new ApplicationDefinition("android", "Android Studio",
+                Set.of(), List.of("android"), ApplicationProcessIdentity.empty());
+        ApplicationDefinition visual = new ApplicationDefinition("visual", "Visual Studio Code",
+                Set.of(), List.of("visual"), ApplicationProcessIdentity.empty());
+        TrackingController controller = new TrackingController();
+        OsCommandSkill skill = skill(
+                command -> new OsCommandIntent(OsAction.CLOSE_APPLICATION, "studio"),
+                Map.of(android.getId(), android, visual.getId(), visual), controller,
+                new CatalogSessionStore());
+        @SuppressWarnings("unchecked")
+        SkillExecution.AwaitingInteraction<String> awaiting =
+                (SkillExecution.AwaitingInteraction<String>) skill.executeTurn("cierra studio");
+
+        SkillExecution invalid = awaiting.continuation().apply(new InteractionResult<>(
+                Optional.empty(), com.fuad.interaction.InteractionOutcome.SUBMITTED,
+                Optional.of("outside"), Optional.of(InputModality.TOUCH)));
+        assertEquals("La selección de aplicación ya no es válida.",
+                assertInstanceOf(SkillExecution.Completed.class, invalid).result().getText());
+        assertNull(controller.selectedId);
+
+        SkillExecution cancelled = awaiting.continuation().apply(new InteractionResult<>(
+                Optional.empty(), com.fuad.interaction.InteractionOutcome.CANCELLED,
+                Optional.empty(), Optional.of(InputModality.VOICE)));
+        assertEquals("Acción cancelada.",
+                assertInstanceOf(SkillExecution.Completed.class, cancelled).result().getText());
+        assertNull(controller.selectedId);
+    }
+
+    @Test
+    void legitimateRestartWhileSelectorIsOpenShouldUseThePostSelectionInstance() {
+        ApplicationDefinition android = new ApplicationDefinition("android", "Android Studio",
+                Set.of(), List.of("android"), ApplicationProcessIdentity.empty());
+        ApplicationDefinition visual = new ApplicationDefinition("visual", "Visual Studio Code",
+                Set.of(), List.of("visual"), ApplicationProcessIdentity.empty());
+        TrackingController controller = new TrackingController();
+        controller.currentPid = 100L;
+        OsCommandSkill skill = skill(
+                command -> new OsCommandIntent(OsAction.CLOSE_APPLICATION, "studio"),
+                Map.of(android.getId(), android, visual.getId(), visual), controller,
+                new CatalogSessionStore());
+
+        @SuppressWarnings("unchecked")
+        SkillExecution.AwaitingInteraction<String> awaiting =
+                (SkillExecution.AwaitingInteraction<String>) skill.executeTurn("cierra studio");
+        assertNull(controller.observedPid);
+
+        controller.currentPid = 200L;
+        SkillExecution resumed = awaiting.continuation().apply(new InteractionResult<>(
+                Optional.empty(), com.fuad.interaction.InteractionOutcome.SUBMITTED,
+                Optional.of("android"), Optional.of(InputModality.TOUCH)));
+
+        assertEquals("Cerrando: Android Studio.",
+                assertInstanceOf(SkillExecution.Completed.class, resumed).result().getText());
+        assertEquals(200L, controller.observedPid);
+    }
+
+    @Test
     void listAndVoiceFollowUpShouldUseTheSameCatalogSession() {
         CatalogSessionStore sessions = new CatalogSessionStore();
         Map<String, ApplicationDefinition> applications = new LinkedHashMap<>();
@@ -157,20 +254,34 @@ class OsCommandSkillV2Test {
         private boolean limited;
         private OpenApplicationsResult openApplications = OpenApplicationsResult.success(List.of(), 0);
         private String openedId;
+        private String selectedId;
+        private Long currentPid;
+        private Long observedPid;
         @Override public boolean open(ApplicationDefinition applicationDefinition) {
             openedId = applicationDefinition.getId();
+            selectedId = applicationDefinition.getId();
             return true;
         }
-        @Override public boolean close(ApplicationDefinition applicationDefinition) { return true; }
+        @Override public boolean close(ApplicationDefinition applicationDefinition) {
+            selectedId = applicationDefinition.getId();
+            return true;
+        }
         @Override public ApplicationActionResult closeDetailed(ApplicationDefinition applicationDefinition) {
+            if (currentPid != null) {
+                observedPid = currentPid;
+                selectedId = applicationDefinition.getId();
+                return ApplicationActionResult.success();
+            }
             return limited ? ApplicationActionResult.of(ApplicationActionResult.Status.PROCESS_IDENTITY_UNAVAILABLE)
                     : ApplicationController.super.closeDetailed(applicationDefinition);
         }
         @Override public ApplicationActionResult focus(ApplicationDefinition applicationDefinition) {
+            selectedId = applicationDefinition.getId();
             return limited ? ApplicationActionResult.of(ApplicationActionResult.Status.PROCESS_IDENTITY_UNAVAILABLE)
                     : ApplicationController.super.focus(applicationDefinition);
         }
         @Override public ApplicationActionResult runtimeState(ApplicationDefinition applicationDefinition) {
+            selectedId = applicationDefinition.getId();
             return limited ? ApplicationActionResult.of(ApplicationActionResult.Status.PROCESS_IDENTITY_UNAVAILABLE)
                     : runtime;
         }
