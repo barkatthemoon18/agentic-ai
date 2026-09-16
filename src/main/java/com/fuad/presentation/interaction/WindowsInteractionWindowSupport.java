@@ -68,7 +68,6 @@ final class WindowsInteractionWindowSupport {
             return WindowConfiguration.unavailable();
         }
         if (window == null) {
-            diagnostics.accept("unable to locate interaction window");
             return WindowConfiguration.notLocated();
         }
 
@@ -119,9 +118,8 @@ final class WindowsInteractionWindowSupport {
     }
 
     private NativeWindow findWindow(String title, long processId) {
-        return nativeApi.topLevelWindows().stream()
-                .filter(window -> window.processId() == processId)
-                .filter(window -> title.equals(window.title()))
+        return nativeApi.topLevelWindows().stream().filter(window -> window.processId() == processId)
+                .filter(window -> title.equalsIgnoreCase(window.title()))
                 .findFirst().orElse(null);
     }
 

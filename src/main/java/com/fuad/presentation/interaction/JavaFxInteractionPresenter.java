@@ -51,6 +51,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class JavaFxInteractionPresenter implements InteractionPresenter {
+    private static final int MAX_CONFIGURATION_RETRIES = 4;
+    private static final Duration CONFIGURATION_RETRY_DELAY = Duration.millis(50.0);
     private static final String WINDOW_TITLE = "Ares Interaction Surface";
     private static final double ENTRANCE_OFFSET = 12.0;
 
@@ -104,25 +106,30 @@ public final class JavaFxInteractionPresenter implements InteractionPresenter {
     }
 
     private void createStage() {
-        host = new StackPane();
-        host.getStyleClass().add("interaction-root");
-        host.setPadding(new Insets(InteractionGeometry.HALO_PADDING));
-        host.setPickOnBounds(false);
+        stage = new Stage(StageStyle.TRANSPARENT);
+        stage.setTitle(WINDOW_TITLE);
+        stage.setAlwaysOnTop(true);
+        stage.setResizable(false);
+        createSceneGraph();
+        Screen.getScreens().addListener(screenListener);
+    }
 
-        Scene scene = new Scene(host);
+    private void createSceneGraph() {
+        StackPane newHost = new StackPane();
+        newHost.getStyleClass().add("interaction-root");
+        newHost.setPadding(new Insets(InteractionGeometry.HALO_PADDING));
+        newHost.setPickOnBounds(false);
+
+        Scene scene = new Scene(newHost);
         scene.setFill(Color.TRANSPARENT);
+
         URL stylesheet = JavaFxInteractionPresenter.class.getResource("/ui/interaction.css");
         if (stylesheet == null) {
             throw new IllegalStateException("Missing resource: /ui/interaction.css");
         }
         scene.getStylesheets().add(stylesheet.toExternalForm());
-
-        stage = new Stage(StageStyle.TRANSPARENT);
-        stage.setTitle(WINDOW_TITLE);
-        stage.setAlwaysOnTop(true);
-        stage.setResizable(false);
+        host = newHost;
         stage.setScene(scene);
-        Screen.getScreens().addListener(screenListener);
     }
 
     private <T> void presentInternal(UUID sessionId, InteractionRequest<T> request,
@@ -139,6 +146,8 @@ public final class JavaFxInteractionPresenter implements InteractionPresenter {
         if (rendered != null) {
             finishSession(rendered);
         }
+
+        createSceneGraph();
 
         Rectangle2D visualBounds = display.screen().getVisualBounds();
         InteractionGeometry.Surface surface = surfaceOf(request);
@@ -199,19 +208,23 @@ public final class JavaFxInteractionPresenter implements InteractionPresenter {
                 windowSupport.configureAfterShow(WINDOW_TITLE,
                         ProcessHandle.current().pid(), focusRequirement,
                         session.previousForegroundWindow);
-        if (configuration.retrySuggested() && attempt < 4) {
-            PauseTransition retry = new PauseTransition(Duration.millis(50.0));
-            configurationRetry = retry;
-            retry.setOnFinished(event -> {
-                if (configurationRetry != retry || rendered != session) {
-                    return;
-                }
-                configurationRetry = null;
-                configureVisibleSession(session, view, responder,
-                        focusRequirement, attempt + 1);
-            });
-            retry.play();
-            return;
+        if (configuration.retrySuggested()) {
+            if (attempt < MAX_CONFIGURATION_RETRIES) {
+                PauseTransition retry = new PauseTransition(CONFIGURATION_RETRY_DELAY);
+                configurationRetry = retry;
+                retry.setOnFinished(event -> {
+                    if (configurationRetry != retry || rendered != session) {
+                        return;
+                    }
+                    configurationRetry = null;
+                    configureVisibleSession(session, view, responder,
+                            focusRequirement, attempt + 1);
+                });
+                retry.play();
+                return;
+            }
+            System.err.println("Interation window: unable to locate interaction window after " + (attempt + 1) +
+                    " attempts");
         }
         session.interactionWindow = configuration.interactionWindow();
         session.restoreOnDismiss = configuration.restoreOnDismiss();
@@ -295,8 +308,8 @@ public final class JavaFxInteractionPresenter implements InteractionPresenter {
         HBox footer = new HBox(12.0, hint, footerSpacer, cancel);
         footer.setAlignment(Pos.CENTER_LEFT);
 
-        VBox frame = new VBox(10.0, header, separator, prompt, contentScroll, footer);
-        frame.setPadding(new Insets(18.0, 20.0, 16.0, 20.0));
+        VBox frame = new VBox(8.0, header, separator, prompt, contentScroll, footer);
+        frame.setPadding(new Insets(14.0, 20.0, 14.0, 20.0));
         frame.getStyleClass().add("interaction-frame");
         if (compact) {
             frame.getStyleClass().add("interaction-compact");
@@ -307,8 +320,12 @@ public final class JavaFxInteractionPresenter implements InteractionPresenter {
 
     private Content renderChoice(ChoiceRequest request, UUID sessionId,
                                  InteractionResponder<String> responder) {
-        VBox choices = new VBox(10.0);
+        boolean dense = request.options().size() >= 9;
+        VBox choices = new VBox(dense ? 6.0 : 10.0);
         choices.getStyleClass().add("interaction-choices");
+        if (dense) {
+            choices.getStyleClass().add("interaction-choices-dense");
+        }
         double rowHeight = request.options().size() <= 4 ? 92.0 : 72.0;
         for (int index = 0; index < request.options().size(); index++) {
             ChoiceOption option = request.options().get(index);
@@ -591,7 +608,9 @@ public final class JavaFxInteractionPresenter implements InteractionPresenter {
         }
         rendered = null;
         stage.hide();
-        host.getChildren().clear();
+        if (host != null) {
+            host.getChildren().clear();
+        }
     }
 
     private void stopConfigurationRetry() {
