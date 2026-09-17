@@ -14,6 +14,10 @@ el comando de apertura y la identidad de proceso siempre proceden de este catál
     "code": "Microsoft.VisualStudioCode",
     "vs code": "Microsoft.VisualStudioCode"
   },
+  "transcriptionAliases": {
+    "estudio": "studio",
+    "topas": "topaz"
+  },
   "removeAliases": [
     "alias automático no deseado"
   ],
@@ -44,6 +48,9 @@ el comando de apertura y la identidad de proceso siempre proceden de este catál
 
 - La clave de `aliases` es la frase que puede decir el usuario y el valor es el AppID mostrado por `Get-StartApps`.
 - Un alias manual reemplaza cualquier resolución automática del mismo nombre.
+- `transcriptionAliases` corrige términos que STT suele transcribir de otra forma. Se aplica únicamente a nombres y
+  filtros de aplicaciones, por tokens completos y antes de resolver; no modifica la transcripción general. Sus claves
+  se validan después de normalizar acentos y casing, por lo que variantes que colisionen rechazan el refresh completo.
 - `removeAliases` desactiva aliases automáticos sin ocultar la aplicación del catálogo.
 - `processNames` sólo localiza procesos candidatos; nunca basta para estado, cierre o focus.
 - `commandLineArgumentSets` usa semántica `CONTAINS_ALL`: todos los argumentos configurados deben aparecer como tokens
@@ -57,11 +64,22 @@ el comando de apertura y la identidad de proceso siempre proceden de este catál
 - `trustedProcessNamesWhenPathUnavailable` es una excepción explícita para aplicaciones cuyo contrato permite confiar
   en el nombre cuando Windows no expone la ruta. Si Windows sí expone una ruta, ésta siempre se valida.
 
-La resolución usa, en orden, un alias configurado, el nombre canónico, el nombre normalizado y una coincidencia natural
-determinista. Esta última sólo acepta equivalencias de separación (`Prime Video`/`Primevideo`) o prefijos de tokens
-completos (`IntelliJ`/`IntelliJ IDEA`) cuando existe un único candidato. Si hay varios, Ares informa la ambigüedad; no
-usa distancia de edición ni elige el nombre más parecido. Los aliases configurados son overrides y no forman una lista
-de AppID específicos de un equipo.
+La resolución usa, en orden, el nombre canónico exacto, un alias exacto, una secuencia contigua de varios tokens y un
+token completo en cualquier posición. Conserva equivalencias de separación como `Prime Video`/`Primevideo`, pero nunca
+usa substrings: `studio` coincide con `Android Studio`, no con `GraphStudioNext`. Si quedan varios candidatos, conserva
+el resultado ambiguo y solicita una selección; nunca elige el primero implícitamente.
+
+Antes de ordenar, el catálogo deduplica por una clave estable. Un AppID se compara sin distinguir casing. Las entradas
+sin AppID usan un fingerprint SHA-256 construido mediante una codificación canónica de todos sus atributos observables.
+Si dos entradas comparten AppID y su definición de identidad runtime difiere, el refresh se rechaza atómicamente y se
+conserva el último catálogo válido; diferencias sólo presentacionales se fusionan de forma determinista. Las opciones
+se ordenan por nombre normalizado, nombre original y clave estable, de modo que los ordinales no dependan del orden de
+`Get-StartApps`.
+
+Una respuesta de voz ambigua, desconocida o ajena a las opciones visibles deja la interacción pendiente para otro
+intento. Sólo una resolución única completa la selección. La aplicación elegida aporta identidad de catálogo; después
+de seleccionar, las operaciones sobre procesos obtienen una observación runtime nueva y conservan todas las
+revalidaciones anteriores a la acción.
 
 Los cambios requieren reiniciar Ares o provocar un refresh mediante una búsqueda de aplicación que no pueda resolverse.
 Las aplicaciones sin identidad runtime inequívoca todavía pueden abrirse y aparecer en listados, pero Ares rechazará

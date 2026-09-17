@@ -1,7 +1,10 @@
 package com.fuad.presentation;
 
 import javafx.application.Platform;
+import javafx.scene.text.Font;
 
+import java.net.URL;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -51,6 +54,7 @@ public final class JavaFxRuntime implements AutoCloseable {
         if (START_REQUESTED.compareAndSet(false, true)) {
             Runnable markReady = () -> {
                 Platform.setImplicitExit(false);
+                loadUiFonts();
                 READY.complete(null);
             };
             try {
@@ -69,6 +73,31 @@ public final class JavaFxRuntime implements AutoCloseable {
             }
         }
         READY.join();
+    }
+
+    private static void loadUiFonts() {
+        loadFont("/fonts/Inter-Medium.ttf");
+        loadFont("/fonts/Inter-Regular.ttf");
+        loadFont("/fonts/Inter-SemiBold.ttf");
+        loadFont("/fonts/JetBrainsMono-Bold.ttf");
+        loadFont("/fonts/JetBrainsMono-Regular.ttf");
+    }
+
+    private static void loadFont(String resourcePath) {
+        try (var input = JavaFxRuntime.class.getResourceAsStream(resourcePath)) {
+            if (input == null) {
+                throw new IllegalStateException("Missing UI font resource: " + resourcePath);
+            }
+            Font font = Font.loadFont(input, 12.0);
+            if (font == null) {
+                throw new IllegalStateException("JavaFX could not load UI font: " + resourcePath);
+            }
+            System.out.printf("Loaded UI font: family='%s', name'%s', style='%s'%n", font.getFamily(), font.getName(),
+                    font.getStyle());
+        }
+        catch (Exception e) {
+            throw new IllegalStateException("Unable to read UI font: " + resourcePath, e);
+        }
     }
 
     @Override

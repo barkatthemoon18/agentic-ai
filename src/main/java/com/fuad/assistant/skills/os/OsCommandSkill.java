@@ -7,6 +7,7 @@ import com.fuad.assistant.skills.SkillExecution;
 import com.fuad.enums.OsAction;
 import com.fuad.interaction.ChoiceOption;
 import com.fuad.interaction.ChoiceRequest;
+import com.fuad.interaction.ChoiceVoiceResolution;
 import com.fuad.interaction.FocusRequirement;
 import com.fuad.interaction.InputModality;
 import com.fuad.interaction.InteractionOutcome;
@@ -64,14 +65,7 @@ public class OsCommandSkill implements Skill {
             return new AssistantResult("Ese comando del sistema todavía no está soportado");
         }
         try {
-            return switch (intent.getAction()) {
-                case LIST_APPLICATIONS -> list(intent.getTarget());
-                case LIST_RUNNING_APPLICATIONS -> listRunning();
-                case CHECK_APPLICATION_INSTALLED -> installed(intent.getTarget());
-                case OPEN_APPLICATION, CLOSE_APPLICATION, FOCUS_APPLICATION, GET_APPLICATION_STATUS ->
-                        executeResolved(intent);
-                default -> new AssistantResult("Ese comando del sistema todavía no está soportado");
-            };
+            return executeParsed(intent);
         }
         catch (Exception e) {
             System.err.println("OS command failed: " + e.getMessage());
@@ -99,11 +93,10 @@ public class OsCommandSkill implements Skill {
             return SkillExecution.completed(new AssistantResult(
                     "Ese comando del sistema todavía no está soportado"));
         }
-        if (intent.getAction() != OsAction.OPEN_APPLICATION) {
-            return SkillExecution.completed(execute(command));
-        }
         try {
-            return openInteractively(intent);
+            return requiresUniqueApplication(intent.getAction())
+                    ? executeInteractively(intent)
+                    : SkillExecution.completed(executeParsed(intent));
         }
         catch (Exception e) {
             System.err.println("OS command failed: " + e.getMessage());
@@ -159,7 +152,7 @@ public class OsCommandSkill implements Skill {
         return executeTurn(command);
     }
 
-    private SkillExecution openInteractively(OsCommandIntent intent) throws IOException {
+    private SkillExecution executeInteractively(OsCommandIntent intent) throws IOException {
         ApplicationResolution resolution = applicationRegistry.resolve(intent.getTarget(), true);
         if (resolution.status() == ApplicationResolution.Status.CATALOG_UNAVAILABLE) {
             return SkillExecution.completed(new AssistantResult(
@@ -168,26 +161,34 @@ public class OsCommandSkill implements Skill {
         if (resolution.status() != ApplicationResolution.Status.AMBIGUOUS) {
             ApplicationDefinition application = resolution.found().orElse(null);
             return SkillExecution.completed(application == null
-                    ? new AssistantResult("No tengo registrada esa aplicación")
+                    ? unknown(intent)
                     : executeSelected(intent, application));
         }
 
         List<ApplicationDefinition> candidates = List.copyOf(resolution.candidates());
         List<ChoiceOption> options = candidates.stream()
-                .map(application -> new ChoiceOption(application.getId(),
+                .map(application -> new ChoiceOption(choiceId(application),
                         application.getDisplayName(), List.copyOf(application.getAliases())))
                 .toList();
         ChoiceRequest request = new ChoiceRequest(Optional.empty(),
-                "Encontré varias aplicaciones. ¿Cuál quieres abrir?",
+                ambiguityPrompt(intent.getAction()),
                 Set.of(InputModality.TOUCH, InputModality.VOICE), Optional.empty(),
-                FocusRequirement.PASSIVE, options);
+                FocusRequirement.PASSIVE, options, Optional.of(transcription -> {
+                    ApplicationResolution voice = applicationRegistry.resolveAmong(transcription, candidates);
+                    return switch (voice.status()) {
+                        case FOUND -> ChoiceVoiceResolution.resolved(
+                                choiceId(voice.found().orElseThrow()));
+                        case AMBIGUOUS -> ChoiceVoiceResolution.ambiguous();
+                        case UNKNOWN, CATALOG_UNAVAILABLE -> ChoiceVoiceResolution.unknown();
+                    };
+                }));
         return new SkillExecution.AwaitingInteraction<>(request,
-                result -> SkillExecution.completed(resumeAmbiguousOpen(intent, candidates, result)));
+                result -> SkillExecution.completed(resumeAmbiguous(intent, candidates, result)));
     }
 
-    private AssistantResult resumeAmbiguousOpen(OsCommandIntent intent,
-                                                List<ApplicationDefinition> candidates,
-                                                InteractionResult<String> result) {
+    private AssistantResult resumeAmbiguous(OsCommandIntent intent,
+                                            List<ApplicationDefinition> candidates,
+                                            InteractionResult<String> result) {
         if (result.outcome() != InteractionOutcome.SUBMITTED) {
             return switch (result.outcome()) {
                 case CANCELLED -> new AssistantResult("Acción cancelada.");
@@ -201,7 +202,7 @@ public class OsCommandSkill implements Skill {
         }
         String selectedId = result.value().orElse("");
         ApplicationDefinition selected = candidates.stream()
-                .filter(application -> application.getId().equals(selectedId))
+                .filter(application -> choiceId(application).equals(selectedId))
                 .findFirst().orElse(null);
         if (selected == null) {
             return new AssistantResult("La selección de aplicación ya no es válida.");
@@ -224,7 +225,7 @@ public class OsCommandSkill implements Skill {
             return ambiguous(resolution);
         }
         ApplicationDefinition application = resolution.found().orElse(null);
-        if (application == null) return new AssistantResult("No tengo registrada esa aplicación");
+        if (application == null) return unknown(intent);
         return executeSelected(intent, application);
     }
 
@@ -235,8 +236,50 @@ public class OsCommandSkill implements Skill {
             case CLOSE_APPLICATION -> close(application);
             case FOCUS_APPLICATION -> focus(application);
             case GET_APPLICATION_STATUS -> status(application);
+            case CHECK_APPLICATION_INSTALLED -> installed(application);
             default -> new AssistantResult("Ese comando del sistema todavía no está soportado");
         };
+    }
+
+    private AssistantResult executeParsed(OsCommandIntent intent) throws IOException {
+        return switch (intent.getAction()) {
+            case LIST_APPLICATIONS -> list(intent.getTarget());
+            case LIST_RUNNING_APPLICATIONS -> listRunning();
+            case OPEN_APPLICATION, CLOSE_APPLICATION, FOCUS_APPLICATION,
+                 GET_APPLICATION_STATUS, CHECK_APPLICATION_INSTALLED -> executeResolved(intent);
+            default -> new AssistantResult("Ese comando del sistema todavía no está soportado");
+        };
+    }
+
+    private boolean requiresUniqueApplication(OsAction action) {
+        return switch (action) {
+            case OPEN_APPLICATION, CLOSE_APPLICATION, FOCUS_APPLICATION,
+                 GET_APPLICATION_STATUS, CHECK_APPLICATION_INSTALLED -> true;
+            default -> false;
+        };
+    }
+
+    private String choiceId(ApplicationDefinition application) {
+        String id = application.getId();
+        return id == null || id.isBlank() ? applicationRegistry.catalogKey(application) : id;
+    }
+
+    private String ambiguityPrompt(OsAction action) {
+        return switch (action) {
+            case OPEN_APPLICATION -> "Encontré varias aplicaciones. ¿Cuál quieres abrir?";
+            case CLOSE_APPLICATION -> "Encontré varias aplicaciones. ¿Cuál quieres cerrar?";
+            case FOCUS_APPLICATION -> "Encontré varias aplicaciones. ¿Cuál quieres enfocar?";
+            case GET_APPLICATION_STATUS -> "Encontré varias aplicaciones. ¿De cuál quieres consultar el estado?";
+            case CHECK_APPLICATION_INSTALLED -> "Encontré varias aplicaciones. ¿Cuál quieres comprobar?";
+            default -> "Encontré varias aplicaciones. ¿Cuál quieres elegir?";
+        };
+    }
+
+    private AssistantResult unknown(OsCommandIntent intent) {
+        return intent.getAction() == OsAction.CHECK_APPLICATION_INSTALLED
+                ? new AssistantResult("No encontré " + intent.getTarget()
+                + " entre las aplicaciones instaladas.")
+                : new AssistantResult("No tengo registrada esa aplicación");
     }
 
     private CatalogNavigation navigation(String normalized) {
@@ -309,6 +352,10 @@ public class OsCommandSkill implements Skill {
                 .orElseGet(() -> new AssistantResult("No encontré " + target + " entre las aplicaciones instaladas."));
     }
 
+    private AssistantResult installed(ApplicationDefinition application) {
+        return new AssistantResult("Sí, " + application.getDisplayName() + " está instalada.");
+    }
+
     private AssistantResult ambiguous(ApplicationResolution resolution) {
         String choices = resolution.candidates().stream().limit(3)
                 .map(ApplicationDefinition::getDisplayName).reduce((a, b) -> a + ", " + b).orElse("");
@@ -320,7 +367,8 @@ public class OsCommandSkill implements Skill {
         if (!applicationRegistry.isAvailable()) {
             return new AssistantResult("El catálogo de aplicaciones no está disponible en este momento.");
         }
-        return catalogResult(catalogSessions.create(applications, filter));
+        return catalogResult(catalogSessions.create(applications, filter,
+                applicationRegistry::normalizeTarget));
     }
 
     private AssistantResult catalogResult(ApplicationCatalogPayload payload) {

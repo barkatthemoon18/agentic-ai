@@ -53,36 +53,62 @@ final class WindowsInteractionWindowSupport {
         }
     }
 
-    void configureAfterShow(String title, long processId,
-                            FocusRequirement focusRequirement,
-                            long previousForegroundWindow) {
+    WindowConfiguration configureAfterShow(String title, long processId,
+                                            FocusRequirement focusRequirement,
+                                            long previousForegroundWindow) {
         if (nativeApi == null) {
-            return;
+            return WindowConfiguration.unavailable();
         }
+        NativeWindow window;
         try {
-            NativeWindow window = findWindow(title, processId);
-            if (window == null) {
-                diagnostics.accept("unable to locate interaction window");
-            }
-            else {
-                setNoActivate(window.handle(), focusRequirement == FocusRequirement.PASSIVE);
-            }
+            window = findWindow(title, processId);
+        }
+        catch (RuntimeException | LinkageError e) {
+            diagnostics.accept("unable to locate interaction window: " + safeMessage(e));
+            return WindowConfiguration.unavailable();
+        }
+        if (window == null) {
+            return WindowConfiguration.notLocated();
+        }
+
+        StyleUpdate update;
+        try {
+            update = setNoActivate(window.handle(),
+                    focusRequirement == FocusRequirement.PASSIVE);
         }
         catch (RuntimeException | LinkageError e) {
             diagnostics.accept("unable to configure interaction window: " + safeMessage(e));
+            update = StyleUpdate.FAILED;
         }
-        if (focusRequirement == FocusRequirement.PASSIVE) {
-            restoreForegroundWindow(previousForegroundWindow);
+        boolean passiveFallback = focusRequirement == FocusRequirement.PASSIVE
+                && update == StyleUpdate.FAILED;
+        boolean accidentallyForeground = false;
+        try {
+            accidentallyForeground = focusRequirement == FocusRequirement.PASSIVE
+                    && isForeground(window.handle());
         }
+        catch (RuntimeException | LinkageError e) {
+            diagnostics.accept("unable to inspect foreground window: " + safeMessage(e));
+        }
+        if (passiveFallback || accidentallyForeground) {
+            restoreForegroundWindow(previousForegroundWindow, window.handle());
+        }
+        return new WindowConfiguration(window.handle(),
+                focusRequirement == FocusRequirement.REQUIRED || passiveFallback,
+                false);
     }
 
-    void restoreForegroundWindow(long previousForegroundWindow) {
-        if (nativeApi == null || previousForegroundWindow == 0) {
+    void restoreForegroundWindow(long previousForegroundWindow,
+                                 long interactionWindow) {
+        if (nativeApi == null || previousForegroundWindow == 0
+                || interactionWindow == 0) {
             return;
         }
         try {
-            if (nativeApi.foregroundWindow() != previousForegroundWindow
-                    && !nativeApi.setForegroundWindow(previousForegroundWindow)) {
+            if (!isForeground(interactionWindow)) {
+                return;
+            }
+            if (!nativeApi.setForegroundWindow(previousForegroundWindow)) {
                 diagnostics.accept("Windows rejected foreground-window restoration");
             }
         }
@@ -92,31 +118,36 @@ final class WindowsInteractionWindowSupport {
     }
 
     private NativeWindow findWindow(String title, long processId) {
-        return nativeApi.topLevelWindows().stream()
-                .filter(window -> window.processId() == processId)
-                .filter(window -> title.equals(window.title()))
+        return nativeApi.topLevelWindows().stream().filter(window -> window.processId() == processId)
+                .filter(window -> title.equalsIgnoreCase(window.title()))
                 .findFirst().orElse(null);
     }
 
-    private void setNoActivate(long handle, boolean enabled) {
+    private boolean isForeground(long handle) {
+        return nativeApi.foregroundWindow() == handle;
+    }
+
+    private StyleUpdate setNoActivate(long handle, boolean enabled) {
         nativeApi.clearLastError();
         int existing = nativeApi.getWindowLong(handle, GWL_EXSTYLE);
         int readError = nativeApi.lastError();
         if (existing == 0 && readError != 0) {
             diagnostics.accept("GetWindowLong failed with error " + readError);
-            return;
+            return StyleUpdate.FAILED;
         }
         int updated = enabled ? existing | WS_EX_NOACTIVATE
                 : existing & ~WS_EX_NOACTIVATE;
         if (updated == existing) {
-            return;
+            return StyleUpdate.UNCHANGED;
         }
         nativeApi.clearLastError();
         int previous = nativeApi.setWindowLong(handle, GWL_EXSTYLE, updated);
         int writeError = nativeApi.lastError();
         if (previous == 0 && writeError != 0) {
             diagnostics.accept("SetWindowLong failed with error " + writeError);
+            return StyleUpdate.FAILED;
         }
+        return StyleUpdate.APPLIED;
     }
 
     private static String safeMessage(Throwable failure) {
@@ -141,6 +172,24 @@ final class WindowsInteractionWindowSupport {
     }
 
     record NativeWindow(long handle, long processId, String title) {
+    }
+
+    record WindowConfiguration(long interactionWindow,
+                               boolean restoreOnDismiss,
+                               boolean retrySuggested) {
+        static WindowConfiguration unavailable() {
+            return new WindowConfiguration(0, false, false);
+        }
+
+        static WindowConfiguration notLocated() {
+            return new WindowConfiguration(0, false, true);
+        }
+    }
+
+    private enum StyleUpdate {
+        APPLIED,
+        UNCHANGED,
+        FAILED
     }
 
     private static final class JnaNativeApi implements NativeApi {

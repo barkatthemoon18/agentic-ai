@@ -61,16 +61,39 @@ public class ApplicationCatalog {
         return result;
     }
 
+    public ApplicationResolution resolveAmong(String target,
+                                               Collection<ApplicationDefinition> candidates) {
+        State current = state.get();
+        if (!current.available) return ApplicationResolution.unavailable();
+        Set<String> allowed = candidates == null ? Set.of() : candidates.stream()
+                .filter(Objects::nonNull)
+                .map(ApplicationCatalogIdentity::stableKey)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        if (allowed.isEmpty()) return ApplicationResolution.unknown();
+        List<ApplicationDefinition> scoped = current.applications.stream()
+                .filter(app -> allowed.contains(ApplicationCatalogIdentity.stableKey(app))).toList();
+        return resolveAgainst(current, scoped, target);
+    }
+
+    public String catalogKey(ApplicationDefinition application) {
+        return ApplicationCatalogIdentity.stableKey(Objects.requireNonNull(application));
+    }
+
+    public String normalizeTarget(String value) {
+        return state.get().nameMatcher.normalizeTarget(value);
+    }
+
     public List<ApplicationDefinition> search(String filter, boolean refreshIfUnavailable) {
         State current = state.get();
         if (!current.available && refreshIfUnavailable && refresh()) current = state.get();
         if (!current.available) return List.of();
-        String normalized = ApplicationNames.normalize(filter);
+        String normalized = current.nameMatcher.normalizeTarget(filter);
         return current.applications.stream()
                 .filter(app -> normalized.isBlank()
                         || ApplicationNames.normalize(app.getDisplayName()).contains(normalized)
-                        || app.getAliases().stream().anyMatch(alias -> ApplicationNames.normalize(alias).contains(normalized)))
-                .sorted(Comparator.comparing(ApplicationDefinition::getDisplayName, String.CASE_INSENSITIVE_ORDER))
+                        || app.getAliases().stream().anyMatch(alias ->
+                        ApplicationNames.normalize(alias).contains(normalized)))
+                .sorted(ApplicationCatalogIdentity.STABLE_ORDER)
                 .toList();
     }
 
@@ -81,65 +104,83 @@ public class ApplicationCatalog {
     private ApplicationResolution resolveCurrent(String target) {
         State current = state.get();
         if (!current.available) return ApplicationResolution.unavailable();
-        String normalized = ApplicationNames.normalize(target);
+        return resolveAgainst(current, current.applications, target);
+    }
+
+    private ApplicationResolution resolveAgainst(State current, List<ApplicationDefinition> candidates,
+                                                 String target) {
+        String normalized = current.nameMatcher.normalizeTarget(target);
         if (normalized.isBlank()) return ApplicationResolution.unknown();
-        ApplicationDefinition application = current.aliasIndex.get(normalized);
-        if (application != null) return ApplicationResolution.found(application);
-        List<ApplicationDefinition> ambiguous = current.ambiguousIndex.get(normalized);
-        if (ambiguous != null) {
-            return new ApplicationResolution(ApplicationResolution.Status.AMBIGUOUS, null, ambiguous);
-        }
         if (current.removedAliases.contains(normalized)) return ApplicationResolution.unknown();
-        return resolveNatural(current.applications, normalized);
+        List<ApplicationDefinition> exactNames = candidates.stream()
+                .filter(app -> ApplicationNames.normalize(app.getDisplayName()).equals(normalized)
+                        || ApplicationNames.compact(app.getDisplayName())
+                        .equals(ApplicationNames.compact(normalized)))
+                .toList();
+        if (!exactNames.isEmpty()) return resolution(exactNames);
+        List<ApplicationDefinition> indexed = current.exactAliases.get(normalized);
+        if (indexed != null) {
+            Set<String> allowed = candidates.stream().map(ApplicationCatalogIdentity::stableKey)
+                    .collect(java.util.stream.Collectors.toSet());
+            List<ApplicationDefinition> scoped = indexed.stream()
+                    .filter(app -> allowed.contains(ApplicationCatalogIdentity.stableKey(app))).toList();
+            return scoped.isEmpty() ? ApplicationResolution.unknown() : resolution(scoped);
+        }
+        return resolveNatural(candidates, normalized);
     }
 
     private ApplicationResolution resolveNatural(List<ApplicationDefinition> applications, String normalizedTarget) {
-        String compactTarget = ApplicationNames.compact(normalizedTarget);
         List<ApplicationDefinition> matches = applications.stream()
-                .filter(app -> naturalNameMatch(app.getDisplayName(), normalizedTarget, compactTarget)
-                        || app.getAliases().stream().anyMatch(alias ->
-                        naturalNameMatch(alias, normalizedTarget, compactTarget)))
-                .distinct()
-                .sorted(Comparator.comparing(ApplicationDefinition::getDisplayName,
-                        String.CASE_INSENSITIVE_ORDER))
+                .filter(app -> ApplicationNames.containsWholeTokenSequence(
+                        app.getDisplayName(), normalizedTarget))
+                .sorted(ApplicationCatalogIdentity.STABLE_ORDER)
                 .toList();
-        if (matches.size() == 1) return ApplicationResolution.found(matches.getFirst());
-        if (matches.size() > 1) {
-            return new ApplicationResolution(ApplicationResolution.Status.AMBIGUOUS, null, matches);
+        return resolution(matches);
+    }
+
+    private ApplicationResolution resolution(List<ApplicationDefinition> matches) {
+        List<ApplicationDefinition> ordered = matches.stream()
+                .collect(java.util.stream.Collectors.toMap(ApplicationCatalogIdentity::stableKey,
+                        app -> app, (left, right) -> left, TreeMap::new))
+                .values().stream().sorted(ApplicationCatalogIdentity.STABLE_ORDER).toList();
+        if (ordered.size() == 1) return ApplicationResolution.found(ordered.getFirst());
+        if (ordered.size() > 1) {
+            return new ApplicationResolution(ApplicationResolution.Status.AMBIGUOUS, null, ordered);
         }
         return ApplicationResolution.unknown();
     }
 
-    private boolean naturalNameMatch(String candidate, String normalizedTarget, String compactTarget) {
-        return (!compactTarget.isBlank() && ApplicationNames.compact(candidate).equals(compactTarget))
-                || ApplicationNames.startsWithWholeTokens(candidate, normalizedTarget);
-    }
-
     private State buildState(List<ApplicationDefinition> discovered, ApplicationAliasConfig config) {
-        Map<String, ApplicationDefinition> byId = new LinkedHashMap<>();
-        for (ApplicationDefinition app : discovered) {
-            if (app.getId() == null || app.getId().isBlank() || app.getDisplayName() == null || app.getDisplayName().isBlank()) continue;
-            byId.putIfAbsent(app.getId(), app);
-        }
+        ApplicationNameMatcher nameMatcher = new ApplicationNameMatcher(config.transcriptionAliases());
+        List<ApplicationDefinition> canonical = ApplicationCatalogIdentity.canonicalize(discovered);
+        Map<String, ApplicationDefinition> byKey = canonical.stream().collect(
+                java.util.stream.Collectors.toMap(ApplicationCatalogIdentity::stableKey, app -> app,
+                        (left, right) -> left, LinkedHashMap::new));
+        Map<String, ApplicationDefinition> byId = canonical.stream()
+                .filter(app -> ApplicationCatalogIdentity.canonicalId(app.getId()) != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        app -> ApplicationCatalogIdentity.canonicalId(app.getId()), app -> app));
 
         Map<String, Set<String>> primaryCandidates = new HashMap<>();
         Map<String, Set<String>> derivedCandidates = new HashMap<>();
-        for (ApplicationDefinition app : byId.values()) {
-            addCandidate(primaryCandidates, app.getDisplayName(), app.getId());
+        for (ApplicationDefinition app : canonical) {
+            String key = ApplicationCatalogIdentity.stableKey(app);
+            addCandidate(primaryCandidates, app.getDisplayName(), key);
+            app.getAliases().forEach(alias -> addCandidate(derivedCandidates, alias, key));
             String withoutVersion = app.getDisplayName().replaceFirst("(?i)\\s+v?\\d+(?:[.\\-]\\d+)*.*$", "");
             if (!withoutVersion.equals(app.getDisplayName()) && withoutVersion.split("\\s+").length > 1) {
-                addCandidate(derivedCandidates, withoutVersion, app.getId());
+                addCandidate(derivedCandidates, withoutVersion, key);
             }
             String[] words = ApplicationNames.normalize(app.getDisplayName()).split(" ");
             if (words.length > 1) {
                 StringBuilder acronym = new StringBuilder();
                 for (String word : words) if (word.matches("[a-z]+")) acronym.append(word.charAt(0));
-                if (acronym.length() >= 2) addCandidate(derivedCandidates, acronym.toString(), app.getId());
+                if (acronym.length() >= 2) addCandidate(derivedCandidates, acronym.toString(), key);
             }
             for (String path : app.getProcessIdentity().executablePaths()) {
                 try {
                     String filename = Path.of(path).getFileName().toString().replaceFirst("(?i)\\.exe$", "");
-                    if (filename.length() >= 3) addCandidate(derivedCandidates, filename, app.getId());
+                    if (filename.length() >= 3) addCandidate(derivedCandidates, filename, key);
                 }
                 catch (Exception ignored) { }
             }
@@ -149,17 +190,17 @@ public class ApplicationCatalog {
         config.removeAliases().forEach(value -> removed.add(ApplicationNames.normalize(value)));
         Map<String, ApplicationDefinition> index = new HashMap<>();
         Map<String, List<ApplicationDefinition>> ambiguous = new HashMap<>();
-        Map<String, Set<String>> aliasesById = new HashMap<>();
-        int collisions = registerAutomaticAliases(primaryCandidates, byId, removed, index, ambiguous, aliasesById,
+        Map<String, Set<String>> aliasesByKey = new HashMap<>();
+        int collisions = registerAutomaticAliases(primaryCandidates, byKey, removed, index, ambiguous, aliasesByKey,
                 false);
-        collisions += registerAutomaticAliases(derivedCandidates, byId, removed, index, ambiguous, aliasesById,
+        collisions += registerAutomaticAliases(derivedCandidates, byKey, removed, index, ambiguous, aliasesByKey,
                 true);
         if (collisions > 0) {
             System.out.println("APPLICATION ALIAS -> skipped " + collisions + " collisions");
         }
 
         for (Map.Entry<String, String> override : config.aliases().entrySet()) {
-            ApplicationDefinition target = byId.get(override.getValue());
+            ApplicationDefinition target = byId.get(ApplicationCatalogIdentity.canonicalId(override.getValue()));
             if (target == null) {
                 System.err.println("APPLICATION ALIAS -> unknown AppID: " + override.getValue());
                 continue;
@@ -168,52 +209,69 @@ public class ApplicationCatalog {
             if (alias.isBlank()) continue;
             index.put(alias, target);
             ambiguous.remove(alias);
-            aliasesById.computeIfAbsent(target.getId(), ignored -> new HashSet<>()).add(alias);
+            aliasesByKey.computeIfAbsent(ApplicationCatalogIdentity.stableKey(target), ignored -> new HashSet<>())
+                    .add(alias);
         }
 
         List<ApplicationDefinition> resolved = new ArrayList<>();
-        Map<String, ApplicationDefinition> resolvedById = new HashMap<>();
-        Map<String, String> inferredHosts = inferHostRelationships(byId.values());
-        for (ApplicationDefinition app : byId.values()) {
-            Set<String> processNames = new HashSet<>(config.processNames().getOrDefault(app.getId(), List.of()));
-            Set<String> trustedProcessNames = new HashSet<>(config.trustedProcessNamesWhenPathUnavailable()
-                    .getOrDefault(app.getId(), List.of()));
-            List<Set<String>> commandLineArgumentSets = config.commandLineArgumentSets()
-                    .getOrDefault(app.getId(), List.of()).stream()
+        Map<String, ApplicationDefinition> resolvedByKey = new HashMap<>();
+        Map<String, String> inferredHosts = inferHostRelationships(canonical);
+        for (ApplicationDefinition app : canonical) {
+            String catalogKey = ApplicationCatalogIdentity.stableKey(app);
+            Set<String> processNames = new HashSet<>(configured(
+                    config.processNames(), app.getId(), List.of()));
+            Set<String> trustedProcessNames = new HashSet<>(configured(
+                    config.trustedProcessNamesWhenPathUnavailable(), app.getId(), List.of()));
+            List<Set<String>> commandLineArgumentSets = configured(config.commandLineArgumentSets(),
+                    app.getId(), List.<List<String>>of()).stream()
                     .filter(arguments -> arguments != null && !arguments.isEmpty())
                     .map(Set::copyOf)
                     .toList();
-            List<List<String>> exactCommandLineArgumentSets = config.exactCommandLineArgumentSets()
-                    .getOrDefault(app.getId(), List.of()).stream()
+            List<List<String>> exactCommandLineArgumentSets = configured(config.exactCommandLineArgumentSets(),
+                    app.getId(), List.<List<String>>of()).stream()
                     .filter(Objects::nonNull).map(List::copyOf).toList();
-            String hostApplicationId = config.hostRelationships()
-                    .getOrDefault(app.getId(), inferredHosts.getOrDefault(app.getId(), ""));
+            String inferredHost = app.getId() == null ? "" : inferredHosts.getOrDefault(app.getId(), "");
+            String hostApplicationId = configured(config.hostRelationships(), app.getId(), inferredHost);
             if (!hostApplicationId.isBlank()
-                    && (!byId.containsKey(hostApplicationId) || hostApplicationId.equals(app.getId()))) {
+                    && (!byId.containsKey(ApplicationCatalogIdentity.canonicalId(hostApplicationId))
+                    || hostApplicationId.equalsIgnoreCase(Objects.toString(app.getId(), "")))) {
                 System.err.println("APPLICATION HOST -> invalid relationship for AppID: " + app.getId());
                 hostApplicationId = "";
             }
-            List<ApplicationWindowSignature> windowSignatures = config.windowSignatures()
-                    .getOrDefault(app.getId(), List.of());
-            boolean windowAssociationEnabled = Boolean.TRUE.equals(
-                    config.windowAssociationsEnabled().get(app.getId()));
+            else if (!hostApplicationId.isBlank()) {
+                hostApplicationId = byId.get(
+                        ApplicationCatalogIdentity.canonicalId(hostApplicationId)).getId();
+            }
+            List<ApplicationWindowSignature> windowSignatures = configured(
+                    config.windowSignatures(), app.getId(), List.of());
+            boolean windowAssociationEnabled = Boolean.TRUE.equals(configured(
+                    config.windowAssociationsEnabled(), app.getId(), false));
+            Set<String> resolvedAliases = new HashSet<>(app.getAliases());
+            resolvedAliases.addAll(aliasesByKey.getOrDefault(catalogKey, Set.of()));
             ApplicationDefinition updated = enrichDefinitions
-                    ? app.withCatalogConfiguration(aliasesById.getOrDefault(app.getId(), Set.of()), processNames,
+                    ? app.withCatalogConfiguration(resolvedAliases, processNames,
                             trustedProcessNames, commandLineArgumentSets, exactCommandLineArgumentSets,
                             hostApplicationId, windowSignatures, windowAssociationEnabled)
                     : app;
             resolved.add(updated);
-            resolvedById.put(updated.getId(), updated);
+            resolvedByKey.put(catalogKey, updated);
         }
-        index.replaceAll((alias, old) -> resolvedById.get(old.getId()));
-        ambiguous.replaceAll((alias, apps) -> apps.stream().map(app -> resolvedById.get(app.getId())).toList());
-        return new State(true, null, List.copyOf(resolved), Map.copyOf(index), Map.copyOf(ambiguous),
-                Set.copyOf(removed));
+        index.replaceAll((alias, old) -> resolvedByKey.get(ApplicationCatalogIdentity.stableKey(old)));
+        ambiguous.replaceAll((alias, apps) -> apps.stream()
+                .map(app -> resolvedByKey.get(ApplicationCatalogIdentity.stableKey(app)))
+                .sorted(ApplicationCatalogIdentity.STABLE_ORDER).toList());
+        Map<String, List<ApplicationDefinition>> exactAliases = new HashMap<>();
+        index.forEach((alias, app) -> exactAliases.put(alias, List.of(app)));
+        exactAliases.putAll(ambiguous);
+        resolved.sort(ApplicationCatalogIdentity.STABLE_ORDER);
+        return new State(true, null, List.copyOf(resolved), Map.copyOf(exactAliases),
+                Set.copyOf(removed), nameMatcher);
     }
 
     private Map<String, String> inferHostRelationships(Collection<ApplicationDefinition> applications) {
         Map<String, List<ApplicationDefinition>> byPath = new HashMap<>();
         for (ApplicationDefinition application : applications) {
+            if (application.getId() == null || application.getId().isBlank()) continue;
             for (String path : application.getProcessIdentity().executablePaths()) {
                 String normalized = path.replace('/', '\\').toLowerCase(Locale.ROOT);
                 byPath.computeIfAbsent(normalized, ignored -> new ArrayList<>()).add(application);
@@ -263,7 +321,8 @@ public class ApplicationCatalog {
                 aliasesById.computeIfAbsent(id, ignored -> new HashSet<>()).add(entry.getKey());
             }
             else if (entry.getValue().size() > 1) {
-                ambiguous.put(entry.getKey(), entry.getValue().stream().map(byId::get).toList());
+                ambiguous.put(entry.getKey(), entry.getValue().stream().map(byId::get)
+                        .sorted(ApplicationCatalogIdentity.STABLE_ORDER).toList());
                 collisions++;
             }
         }
@@ -275,12 +334,21 @@ public class ApplicationCatalog {
         if (!normalized.isBlank()) candidates.computeIfAbsent(normalized, ignored -> new HashSet<>()).add(id);
     }
 
+    private static <T> T configured(Map<String, T> values, String id, T fallback) {
+        if (id == null) return fallback;
+        T exact = values.get(id);
+        if (exact != null) return exact;
+        return values.entrySet().stream()
+                .filter(entry -> entry.getKey().equalsIgnoreCase(id))
+                .map(Map.Entry::getValue).findFirst().orElse(fallback);
+    }
+
     private record State(boolean available, String error, List<ApplicationDefinition> applications,
-                          Map<String, ApplicationDefinition> aliasIndex,
-                          Map<String, List<ApplicationDefinition>> ambiguousIndex,
-                          Set<String> removedAliases) {
+                         Map<String, List<ApplicationDefinition>> exactAliases,
+                         Set<String> removedAliases, ApplicationNameMatcher nameMatcher) {
         static State unavailable(String error) {
-            return new State(false, error, List.of(), Map.of(), Map.of(), Set.of());
+            return new State(false, error, List.of(), Map.of(), Set.of(),
+                    new ApplicationNameMatcher(Map.of()));
         }
     }
 }

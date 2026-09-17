@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 public record ApplicationAliasConfig(Map<String, String> aliases,
+                                     Map<String, String> transcriptionAliases,
                                      List<String> removeAliases,
                                      Map<String, List<String>> processNames,
                                      Map<String, List<String>> trustedProcessNamesWhenPathUnavailable,
@@ -14,11 +15,12 @@ public record ApplicationAliasConfig(Map<String, String> aliases,
                                      Map<String, Boolean> windowAssociationsEnabled) {
     public ApplicationAliasConfig(Map<String, String> aliases, List<String> removeAliases,
                                   Map<String, List<String>> processNames) {
-        this(aliases, removeAliases, processNames, Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        this(aliases, Map.of(), removeAliases, processNames, Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     public ApplicationAliasConfig {
         aliases = aliases == null ? Map.of() : Map.copyOf(aliases);
+        transcriptionAliases = transcriptionAliases == null ? Map.of() : Map.copyOf(transcriptionAliases);
         removeAliases = removeAliases == null ? List.of() : List.copyOf(removeAliases);
         processNames = copyStringLists(processNames);
         trustedProcessNamesWhenPathUnavailable = copyStringLists(trustedProcessNamesWhenPathUnavailable);
@@ -31,7 +33,7 @@ public record ApplicationAliasConfig(Map<String, String> aliases,
     }
 
     public static ApplicationAliasConfig empty() {
-        return new ApplicationAliasConfig(Map.of(), List.of(), Map.of(), Map.of(), Map.of(),
+        return new ApplicationAliasConfig(Map.of(), Map.of(), List.of(), Map.of(), Map.of(), Map.of(),
                 Map.of(), Map.of(), Map.of(), Map.of());
     }
 

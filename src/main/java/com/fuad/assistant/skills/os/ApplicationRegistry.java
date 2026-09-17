@@ -1,6 +1,7 @@
 package com.fuad.assistant.skills.os;
 
 import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 
@@ -21,6 +22,19 @@ public class ApplicationRegistry {
 
     public ApplicationResolution resolve(String application, boolean refreshOnMiss) {
         return catalog.resolve(application, refreshOnMiss);
+    }
+
+    public ApplicationResolution resolveAmong(String application,
+                                              Collection<ApplicationDefinition> candidates) {
+        return catalog.resolveAmong(application, candidates);
+    }
+
+    public String catalogKey(ApplicationDefinition application) {
+        return catalog.catalogKey(application);
+    }
+
+    public String normalizeTarget(String application) {
+        return catalog.normalizeTarget(application);
     }
 
     public List<ApplicationDefinition> search(String filter, boolean refreshIfUnavailable) {
