@@ -159,11 +159,7 @@ public final class JavaFxInteractionPresenterDemo {
             }
 
             @Override
-            public void submit(
-                    UUID sessionId,
-                    T value,
-                    InputModality modality
-            ) {
+            public void submit(UUID sessionId, T value, InputModality modality) {
                 System.out.println(
                         "Seleccionado: "
                                 + value

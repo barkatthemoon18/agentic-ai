@@ -157,6 +157,7 @@ public final class JavaFxInteractionPresenter implements InteractionPresenter {
         prepareForMeasurement(view, panelWidth);
         host.getChildren().setAll(view.frame);
         host.applyCss();
+        measureStyledContent(view, panelWidth);
         host.layout();
         double naturalHeight = Math.ceil(view.frame.prefHeight(panelWidth));
         InteractionGeometry.Layout geometry = InteractionGeometry.calculate(
@@ -242,8 +243,11 @@ public final class JavaFxInteractionPresenter implements InteractionPresenter {
         view.frame.setPrefWidth(panelWidth);
         view.frame.setMaxWidth(panelWidth);
         view.contentScroll.setPrefViewportWidth(Math.max(0.0, panelWidth - 40.0));
-        double contentHeight = Math.max(0.0,
-                view.content.prefHeight(Math.max(0.0, panelWidth - 40.0)));
+    }
+
+    private void measureStyledContent(View view, double panelWidth) {
+        double contentWidth = Math.max(0.0, panelWidth - 40.0);
+        double contentHeight = Math.ceil(view.content.prefHeight(contentWidth));
         view.contentScroll.setPrefViewportHeight(contentHeight);
     }
 

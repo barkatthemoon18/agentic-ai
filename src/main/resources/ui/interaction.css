@@ -1,47 +1,66 @@
+/* =========================================================
+   ROOT / FRAME
+   ========================================================= */
+
 .interaction-root {
     -fx-background-color: transparent;
+
+    /* Fallback general mientras las fuentes custom no estén cargadas. */
     -fx-font-family: "Segoe UI";
 }
 
 .interaction-frame {
-    -fx-background-color: linear-gradient(to bottom right,
-    rgba(8, 20, 32, 0.96),
-    rgba(12, 37, 51, 0.92));
-
+    -fx-background-color: linear-gradient(to bottom right, rgba(8, 20, 32, 0.96), rgba(12, 37, 51, 0.92));
     -fx-background-radius: 24px;
     -fx-border-radius: 24px;
-
     -fx-border-color: rgba(120, 236, 255, 0.24);
     -fx-border-width: 1px;
-
-    -fx-effect: dropshadow(
-            gaussian,
-            rgba(34, 207, 245, 0.22),
-            18,
-            0.05,
-            0,
-            0
-    );
+    -fx-effect: dropshadow(gaussian, rgba(34, 207, 245, 0.22), 18, 0.05, 0, 0);
 }
 
+/* =========================================================
+   TYPOGRAPHY
+   ========================================================= */
+
+/*
+ * Human-readable content.
+ *
+ * Por ahora JavaFX hará fallback si Inter no está disponible.
+ * Cuando carguemos los TTF, estas reglas empezarán a usarla
+ * realmente sin tener que volver a modificar el CSS.
+ */
+.interaction-prompt,
+.interaction-choice-name,
+.interaction-choice-detail,
+.interaction-editor {
+    -fx-font-family: "Inter";
+}
+
+/*
+ * Technical / HUD typography.
+ */
 .interaction-title,
 .interaction-status,
 .interaction-hint,
 .interaction-choice-index,
 .interaction-choice-monogram,
-.interaction-choice-chevron {
-    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Consolas";
+.interaction-choice-chevron,
+.interaction-action,
+.interaction-cancel {
+    -fx-font-family: "JetBrains Mono";
 }
 
+/* =========================================================
+   HEADER
+   ========================================================= */
+
 .interaction-title {
-    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Consolas";
     -fx-font-size: 13px;
     -fx-font-weight: bold;
     -fx-text-fill: #78ecff;
 }
 
 .interaction-status {
-    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Consolas";
     -fx-font-size: 10px;
     -fx-font-weight: bold;
     -fx-text-fill: #39d5ff;
@@ -51,22 +70,29 @@
     -fx-min-height: 1px;
     -fx-pref-height: 1px;
     -fx-max-height: 1px;
-    -fx-background-color: linear-gradient(to right,
-        rgba(120, 236, 255, 0.36), rgba(34, 207, 245, 0.02));
+    -fx-background-color: linear-gradient(to right, rgba(120, 236, 255, 0.36), rgba(34, 207, 245, 0.02));
 }
 
+/* =========================================================
+   PROMPT
+   ========================================================= */
+
 .interaction-prompt {
-    -fx-font-family: "Inter", "Segoe UI Variable", "Segoe UI";
-    -fx-font-size: 19px;
-    -fx-font-weight: normal;
+    -fx-font-family: "Inter Medium";
+    -fx-font-size: 18px;
+    -fx-font-weight: 500;
     -fx-line-spacing: 2px;
     -fx-text-fill: #eaf8fc;
-    -fx-padding: 2px 0 3px 0;
+    -fx-padding: 3px 0 4px 0;
 }
+
+/* =========================================================
+   CONTENT SCROLL
+   ========================================================= */
 
 .interaction-content-scroll {
     -fx-background-color: transparent;
-    -fx-border-color: transparent;
+    -fx-border-width: 0;
     -fx-padding: 0;
 }
 
@@ -95,37 +121,33 @@
     -fx-opacity: 0;
 }
 
-.interaction-choices {
-    -fx-padding: 1px 7px 1px 1px;
-}
+/* =========================================================
+   GENERIC INTERACTION BUTTON
+   ========================================================= */
 
 .interaction-button {
-    -fx-font-family: "Inter", "Segoe UI Variable", "Segoe UI";
+    /*
+     * Sin font-family aquí.
+     *
+     * Choice usa Labels dentro del graphic.
+     * Action y Cancel tienen tipografía propia.
+     * Keyboard tiene tipografía propia.
+     */
+
     -fx-background-color: rgba(34, 207, 245, 0.065);
     -fx-background-radius: 12px;
-
     -fx-border-color: rgba(120, 236, 255, 0.22);
     -fx-border-radius: 12px;
     -fx-border-width: 1px;
-
     -fx-text-fill: #eaf8fc;
     -fx-cursor: hand;
 }
-
 
 .interaction-button:hover,
 .interaction-button:focused {
     -fx-background-color: rgba(34, 207, 245, 0.15);
     -fx-border-color: rgba(120, 236, 255, 0.58);
-
-    -fx-effect: dropshadow(
-            gaussian,
-            rgba(34, 207, 245, 0.20),
-            12,
-            0.06,
-            0,
-            0
-    );
+    -fx-effect: dropshadow(gaussian, rgba(34, 207, 245, 0.20), 12, 0.06, 0, 0);
 }
 
 .interaction-button:armed,
@@ -137,6 +159,14 @@
 .interaction-button:disabled {
     -fx-opacity: 0.45;
     -fx-effect: none;
+}
+
+/* =========================================================
+   CHOICE
+   ========================================================= */
+
+.interaction-choices {
+    -fx-padding: 1px 7px 1px 1px;
 }
 
 .interaction-choice {
@@ -171,15 +201,15 @@
 }
 
 .interaction-choice-name {
-    -fx-font-family: "Inter", "Segoe UI Variable", "Segoe UI";
+    -fx-font-family: "Inter SemiBold";
     -fx-font-size: 17px;
-    -fx-font-weight: bold;
+    -fx-font-weight: 600;
     -fx-text-fill: #eaf8fc;
 }
 
 .interaction-choice-detail {
-    -fx-font-family: "Inter", "Segoe UI Variable", "Segoe UI";
     -fx-font-size: 12px;
+    -fx-font-weight: 400;
     -fx-text-fill: #7699a7;
 }
 
@@ -189,12 +219,12 @@
     -fx-padding: 0 2px 0 8px;
 }
 
+/* =========================================================
+   CHOICE — DENSE
+   ========================================================= */
+
 .interaction-choices-dense .interaction-choice {
     -fx-padding: 8px 14px;
-}
-
-.interaction-choices-dense .interaction-choice-detail {
-    -fx-text-fill: #7699a7;
 }
 
 .interaction-choices-dense .interaction-choice-index {
@@ -206,7 +236,6 @@
     -fx-min-width: 40px;
     -fx-pref-width: 40px;
     -fx-max-width: 40px;
-
     -fx-min-height: 40px;
     -fx-pref-height: 40px;
     -fx-max-height: 40px;
@@ -216,32 +245,35 @@
     -fx-font-size: 15px;
 }
 
+/* =========================================================
+   FOOTER / HINT
+   ========================================================= */
+
 .interaction-hint {
     -fx-font-size: 10px;
     -fx-text-fill: #8aa8b5;
 }
 
+/* =========================================================
+   ACTIONS
+   ========================================================= */
+
 .interaction-action {
-    -fx-font-family: "Inter", "Segoe UI Variable", "Segoe UI";
-    -fx-min-height: 64px;
-    -fx-font-size: 17px;
+    -fx-min-height: 56px;
+    -fx-font-size: 14px;
     -fx-font-weight: bold;
-    -fx-padding: 12px 22px;
+    -fx-padding: 10px 20px;
 }
+
+/* Primary action */
 
 .interaction-confirm {
     -fx-background-color: rgba(34, 207, 245, 0.20);
     -fx-border-color: rgba(120, 236, 255, 0.82);
     -fx-text-fill: #78ecff;
-
     -fx-effect: dropshadow(
             gaussian,
-            rgba(34, 207, 245, 0.16),
-            10,
-            0.04,
-            0,
-            0
-    );
+            rgba(34, 207, 245, 0.16), 10, 0.04, 0, 0);
 }
 
 .interaction-confirm:hover,
@@ -250,6 +282,7 @@
     -fx-border-color: #78ecff;
 }
 
+/* Secondary action */
 .interaction-reject {
     -fx-background-color: rgba(255, 255, 255, 0.025);
     -fx-border-color: rgba(130, 169, 184, 0.24);
@@ -262,10 +295,10 @@
     -fx-border-color: rgba(130, 169, 184, 0.48);
 }
 
+/* Cancel */
 .interaction-cancel {
     -fx-min-width: 112px;
     -fx-min-height: 42px;
-    -fx-font-family: "Consolas";
     -fx-font-size: 11px;
     -fx-font-weight: bold;
     -fx-text-fill: #b7d6df;
@@ -273,15 +306,27 @@
     -fx-border-color: rgba(130, 169, 184, 0.22);
 }
 
+
+/* =========================================================
+   TEXT INPUT
+   ========================================================= */
+
 .interaction-editor {
     -fx-font-size: 18px;
     -fx-text-fill: #eaf8fc;
-    -fx-prompt-text-fill: #82a9b8;
-    -fx-control-inner-background: rgba(255, 255, 255, 0.065);
-    -fx-background-color: rgba(255, 255, 255, 0.065);
-    -fx-background-radius: 12px;
+    -fx-prompt-text-fill: #8aa8b5;
+    -fx-background-color: transparent;
     -fx-border-color: rgba(120, 236, 255, 0.34);
     -fx-border-radius: 12px;
+    -fx-background-radius: 12px;
+    -fx-highlight-fill: rgba(34, 207, 245, 0.28);
+    -fx-highlight-text-fill: #eaf8fc;
+    -fx-display-caret: true;
+}
+
+.interaction-editor .content {
+    -fx-background-color: rgba(18, 41, 56, 0.88);
+    -fx-background-radius: 12px;
 }
 
 .interaction-editor:focused {
@@ -289,6 +334,18 @@
     -fx-effect: dropshadow(gaussian, rgba(34, 207, 245, 0.20), 12, 0.05, 0, 0);
 }
 
+.interaction-editor:focused .content {
+    -fx-background-color: rgba(18, 41, 56, 0.94);
+}
+
+/* =========================================================
+   KEYBOARD
+   ========================================================= */
+
+/*
+ * Temporal: lo podemos reemplazar cuando definamos
+ * el nuevo diseño del teclado.
+ */
 .interaction-key {
     -fx-font-family: "Consolas";
     -fx-font-size: 15px;
@@ -299,8 +356,15 @@
     -fx-min-width: 300px;
 }
 
+/* =========================================================
+   COMPACT MODE
+   ========================================================= */
+
+/*
+ * Compact debería reducir, no aumentar, el tamaño.
+ */
 .interaction-compact .interaction-prompt {
-    -fx-font-size: 19px;
+    -fx-font-size: 17px;
 }
 
 .interaction-compact .interaction-space {
