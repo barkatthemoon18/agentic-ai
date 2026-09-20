@@ -97,17 +97,6 @@ public class AresCoreView extends StackPane {
         graphicsContext.strokeOval(cx - radius, cy - radius, radius * 2.0, radius * 2.0);
     }
 
-    private double waveformOpacity() {
-        return switch (visualState) {
-            case IDLE -> 0.52;
-            case LISTENING -> 0.95;
-            case PROCESSING -> 0.60;
-            case EXECUTING -> 0.72;
-            case SPEAKING -> 1.00;
-            case DEGRADED -> 0.28;
-        };
-    }
-
     private void drawOuterGuides(GraphicsContext graphicsContext, double cx, double cy) {
         graphicsContext.setStroke(Color.rgb(120, 236, 255, 0.10));
         graphicsContext.setLineWidth(1.0);
@@ -172,7 +161,7 @@ public class AresCoreView extends StackPane {
     }
 
     private void drawCoreHalo(GraphicsContext graphicsContext, double cx, double cy, CoreVisualProfile profile) {
-        double pulse = (Math.sin(time * 2.3) + 1.0);
+        double pulse = (Math.sin(time * 2.2) + 1.0) / 2.0;
         double intensity = profile.corePulse() * (0.55 + pulse * 0.45);
         for (int i = 4; i >= 1; i--) {
              double radius = 88.0 + i * 13.0;
@@ -212,7 +201,7 @@ public class AresCoreView extends StackPane {
     private void drawWaveform(GraphicsContext graphicsContext, double cx, double cy, CoreVisualProfile profile) {
         double waveformY = cy - 22.0;
 
-        graphicsContext.setStroke(Color.rgb(120, 236, 255, waveformOpacity()));
+        graphicsContext.setStroke(Color.rgb(120, 236, 255, profile.waveformOpacity()));
         graphicsContext.setLineWidth(1.0);
         graphicsContext.strokeLine(cx - 115.0, waveformY, cx + 115.0, waveformY);
         double width = 222.0;
@@ -235,7 +224,7 @@ public class AresCoreView extends StackPane {
     }
 
     private void drawCorePulse(GraphicsContext graphicsContext, double cx, double cy) {
-        double pulse = (Math.sin(time * 2.2) + 1.0 / 2.0);
+        double pulse = (Math.sin(time * 2.2) + 1.0) / 2.0;
         double radius = 2.0 + pulse * 1.5;
 
         graphicsContext.setFill(Color.rgb(120, 236, 255, 0.45 + pulse * 0.35));

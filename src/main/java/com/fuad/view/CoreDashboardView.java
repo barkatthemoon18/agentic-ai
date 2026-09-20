@@ -1,6 +1,7 @@
 package com.fuad.view;
 
 import com.fuad.presentation.core.CoreVisualSnapshot;
+import com.fuad.presentation.core.WorkspaceType;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.geometry.Insets;
@@ -50,6 +51,10 @@ public final class CoreDashboardView extends StackPane {
         assistantStateLabel.setText("● " + visualSnapshot.assistantVisualState().name());
         runtimeSummaryLabel.setText("PHI " + visualSnapshot.runtimeSnapshot().phiState() + "  //  QWEN " +
                 visualSnapshot.runtimeSnapshot().qwenState());
+    }
+
+    public void showWorkspace(WorkspaceType workspaceType) {
+        aresWorkspaceView.showWorkspace(workspaceType);
     }
 
     public void dispose() {
