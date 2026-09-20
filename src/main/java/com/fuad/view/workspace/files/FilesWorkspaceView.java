@@ -1,6 +1,5 @@
 package com.fuad.view.workspace.files;
 
-import io.swagger.v3.oas.annotations.links.Link;
 import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
