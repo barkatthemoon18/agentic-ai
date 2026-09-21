@@ -974,3 +974,276 @@
     -fx-font-weight: bold;
     -fx-text-fill: rgba(183, 214, 223, 0.86);
 }
+
+/* =========================================================
+   RESEARCH WORKSPACE
+   ========================================================= */
+
+.research-provider {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill: rgba(120, 236, 255, 0.48);
+}
+
+
+/* STATUS */
+
+.research-status-bar {
+    -fx-padding: 7px 2px;
+}
+
+.research-status,
+.research-meta {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-font-weight: bold;
+}
+
+.research-status {
+    -fx-text-fill: #7699a7;
+}
+
+.research-status:complete {
+    -fx-text-fill: #39d5ff;
+}
+
+.research-status:researching {
+    -fx-text-fill: #78ecff;
+}
+
+.research-status:partial {
+    -fx-text-fill: #b7d6df;
+}
+
+.research-status:failed {
+    -fx-text-fill: #d99090;
+}
+
+.research-meta {
+    -fx-text-fill: #7699a7;
+}
+
+
+/* QUERY */
+
+.research-query-panel,
+.research-card,
+.research-source-context {
+    -fx-background-color: rgba(5, 21, 32, 0.46);
+    -fx-background-insets: 0;
+    -fx-background-radius: 10px;
+
+    -fx-border-color: rgba(120, 236, 255, 0.14);
+    -fx-border-width: 1px;
+    -fx-border-radius: 10px;
+}
+
+.research-caption,
+.research-section-title,
+.research-subsection-title,
+.research-context-title {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.research-caption,
+.research-section-title,
+.research-context-title {
+    -fx-font-size: 10px;
+}
+
+.research-subsection-title {
+    -fx-font-size: 8px;
+    -fx-text-fill: rgba(120, 236, 255, 0.58);
+}
+
+.research-query {
+    -fx-font-family: "Inter Medium";
+    -fx-font-size: 13px;
+    -fx-text-fill: #eaf8fc;
+}
+
+
+/* SUMMARY */
+
+.research-summary {
+    -fx-font-family: "Inter";
+    -fx-font-size: 11px;
+    -fx-text-fill: #b7d6df;
+    -fx-line-spacing: 2px;
+}
+
+
+/* FINDINGS */
+
+.research-finding-row {
+    -fx-background-color: rgba(34, 207, 245, 0.025);
+    -fx-background-radius: 6px;
+    -fx-padding: 6px 7px;
+}
+
+.research-finding-index {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+    -fx-min-width: 22px;
+}
+
+.research-finding-text {
+    -fx-font-family: "Inter";
+    -fx-font-size: 10px;
+    -fx-text-fill: #b7d6df;
+}
+
+
+/* VISUAL EVIDENCE */
+
+.research-visual-card {
+    -fx-background-color: rgba(34, 207, 245, 0.025);
+    -fx-background-radius: 7px;
+    -fx-padding: 7px;
+}
+
+.research-visual-image {
+    -fx-background-color:
+            linear-gradient(
+                    to bottom right,
+                    rgba(34, 207, 245, 0.12),
+                    rgba(5, 21, 32, 0.72)
+            );
+
+    -fx-background-radius: 6px;
+
+    -fx-border-color: rgba(120, 236, 255, 0.18);
+    -fx-border-radius: 6px;
+}
+
+.research-visual-placeholder {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: rgba(120, 236, 255, 0.72);
+}
+
+.research-visual-caption {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-text-fill: #7699a7;
+}
+
+
+/* SOURCES */
+
+.research-source {
+    -fx-background-color: rgba(34, 207, 245, 0.025);
+    -fx-background-insets: 0;
+    -fx-background-radius: 7px;
+
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+    -fx-border-radius: 7px;
+
+    -fx-padding: 7px 9px;
+
+    -fx-cursor: hand;
+}
+
+.research-source:hover,
+.research-source:focused {
+    -fx-background-color: rgba(34, 207, 245, 0.08);
+    -fx-border-color: rgba(120, 236, 255, 0.24);
+}
+
+.research-source:selected {
+    -fx-background-color:
+            rgba(34, 207, 245, 0.12);
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.52);
+}
+
+.research-source-id {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+    -fx-min-width: 22px;
+}
+
+.research-source-domain {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 7px;
+    -fx-text-fill: #7699a7;
+}
+
+.research-source-title {
+    -fx-font-family: "Inter Medium";
+    -fx-font-size: 10px;
+    -fx-text-fill: #eaf8fc;
+}
+
+
+/* SOURCE CONTEXT */
+
+.research-source-domain-active {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.research-source-context-title {
+    -fx-font-family: "Inter SemiBold";
+    -fx-font-size: 11px;
+    -fx-text-fill: #eaf8fc;
+}
+
+.research-source-excerpt {
+    -fx-font-family: "Inter";
+    -fx-font-size: 9px;
+    -fx-text-fill: rgba(183, 214, 223, 0.78);
+    -fx-line-spacing: 1px;
+}
+
+
+/* SCROLL */
+
+.research-scroll {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.research-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.research-scroll > .corner {
+    -fx-background-color: transparent;
+}
+
+.research-scroll .scroll-bar:vertical {
+    -fx-pref-width: 6px;
+    -fx-background-color: transparent;
+}
+
+.research-scroll .scroll-bar:vertical .track {
+    -fx-background-color: rgba(34, 207, 245, 0.06);
+    -fx-background-radius: 4px;
+}
+
+.research-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(120, 236, 255, 0.42);
+    -fx-background-radius: 4px;
+}
+
+.research-scroll .scroll-bar:vertical .increment-button,
+.research-scroll .scroll-bar:vertical .decrement-button {
+    -fx-pref-height: 0;
+    -fx-padding: 0;
+    -fx-opacity: 0;
+}

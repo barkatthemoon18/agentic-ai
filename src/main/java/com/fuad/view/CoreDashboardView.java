@@ -2,6 +2,7 @@ package com.fuad.view;
 
 import com.fuad.presentation.core.CoreVisualSnapshot;
 import com.fuad.presentation.core.WorkspaceType;
+import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.geometry.Insets;
@@ -27,6 +28,9 @@ public final class CoreDashboardView extends StackPane {
     public CoreDashboardView() {
         HudBackground hudBackground = new HudBackground();
         VBox left = new VBox(18.0, telemetryPanel, runtimePanel);
+        left.setMinHeight(0.0);
+        coreView.setMinHeight(0.0);
+        aresWorkspaceView.setMinHeight(0.0);
         left.setPrefWidth(390.0);
         telemetryPanel.setPrefWidth(390.0);
         runtimePanel.setPrefWidth(390.0);
@@ -34,12 +38,15 @@ public final class CoreDashboardView extends StackPane {
         aresWorkspaceView.setPrefWidth(666.0);
         HBox body = new HBox(24.0, left, coreView, aresWorkspaceView);
         body.setAlignment(Pos.CENTER);
+        body.setMinHeight(0.0);
+        body.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(body, Priority.ALWAYS);
         VBox layout = new VBox(18.0, createHeader(), body, createFooter());
         layout.setPadding(new Insets(28.0));
         getChildren().addAll(hudBackground, layout);
         getStyleClass().add("ares-core-root");
         clock = new Timeline(new KeyFrame(Duration.ZERO, event -> updateClock()), new KeyFrame(Duration.seconds(1)));
-        clock.setCycleCount(Timeline.INDEFINITE);
+        clock.setCycleCount(Animation.INDEFINITE);
         clock.play();
     }
 
@@ -80,7 +87,9 @@ public final class CoreDashboardView extends StackPane {
         separator.setPrefHeight(1.0);
         separator.setMaxHeight(1.0);
         VBox header = new VBox(10.0, headerContent, separator);
+        header.setMinHeight(72.0);
         header.setPrefHeight(72.0);
+        header.setMaxHeight(72.0);
         return header;
     }
 
@@ -97,7 +106,9 @@ public final class CoreDashboardView extends StackPane {
         HBox.setHgrow(rightSpacer, Priority.ALWAYS);
         HBox footer = new HBox(18.0, left, leftSpacer, runtimeSummaryLabel, rightSpacer, modality);
         footer.setAlignment(Pos.CENTER_LEFT);
+        footer.setMinHeight(52.0);
         footer.setPrefHeight(52.0);
+        footer.setMaxHeight(52.0);
         footer.getStyleClass().add("core-footer");
         return footer;
     }

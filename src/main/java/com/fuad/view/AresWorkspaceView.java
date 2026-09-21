@@ -36,6 +36,7 @@ public class AresWorkspaceView extends VBox {
         navigation.getStyleClass().add("workspace-tabs");
         contentHost.getStyleClass().add("workspace-content");
         contentHost.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        contentHost.setMinHeight(0.0);
         VBox.setVgrow(contentHost, Priority.ALWAYS);
         registerMockWorkspaces();
         createNavigation();
@@ -51,6 +52,7 @@ public class AresWorkspaceView extends VBox {
         }
         Region workspace = instances.computeIfAbsent(workspaceType, ignored -> supplier.get());
         workspace.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        workspace.setMinHeight(0.0);
         activeWorkspace = workspaceType;
         workspaceSubtitle.setText("WORKSPACE // " + workspaceType.getSubtitle().toUpperCase());
         navigationButtons.forEach((wsType, button) -> button.pseudoClassStateChanged(ACTIVE_CATEGORY,
