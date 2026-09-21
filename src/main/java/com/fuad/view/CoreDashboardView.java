@@ -1,7 +1,11 @@
 package com.fuad.view;
 
+import com.fuad.presentation.core.AssistantVisualState;
+import com.fuad.presentation.core.AssistantVisualStateCoordinator;
 import com.fuad.presentation.core.CoreVisualSnapshot;
 import com.fuad.presentation.core.WorkspaceType;
+import com.fuad.view.workspace.web.ResearchTtsState;
+import com.fuad.view.workspace.web.ResearchWorkspaceSnapshot;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -18,14 +22,19 @@ public final class CoreDashboardView extends StackPane {
     private static final DateTimeFormatter CLOCK_FORMAT = DateTimeFormatter.ofPattern("dd MMM yyyy  HH:mm:ss");
     private final TelemetryPanel telemetryPanel = new TelemetryPanel();
     private final AresCoreView coreView =  new AresCoreView();
-    private final AresWorkspaceView aresWorkspaceView = new AresWorkspaceView();
+    private final AresWorkspaceView aresWorkspaceView;
     private final RuntimePanel runtimePanel = new RuntimePanel();
     private final Label assistantStateLabel = new Label("● IDLE");
     private final Label runtimeSummaryLabel = new Label("MOCK TELEMETRY");
     private final Label clockLabel = new Label();
     private final Timeline clock;
+    private CoreVisualSnapshot latestSnapshot;
+    private AssistantVisualStateCoordinator stateCoordinator;
 
     public CoreDashboardView() {
+        stateCoordinator = new AssistantVisualStateCoordinator(this::handleEffectiveVisualState);
+        aresWorkspaceView = new AresWorkspaceView(this::handleResearchLifecycle);
+
         HudBackground hudBackground = new HudBackground();
         VBox left = new VBox(18.0, telemetryPanel, runtimePanel);
         left.setMinHeight(0.0);
@@ -51,13 +60,10 @@ public final class CoreDashboardView extends StackPane {
     }
 
     public void update(CoreVisualSnapshot visualSnapshot) {
-        telemetryPanel.update(visualSnapshot);
-        runtimePanel.update(visualSnapshot);
-        coreView.update(visualSnapshot);
+        latestSnapshot = visualSnapshot;
+        stateCoordinator.updateBaseState(visualSnapshot.assistantVisualState());
 
-        assistantStateLabel.setText("● " + visualSnapshot.assistantVisualState().name());
-        runtimeSummaryLabel.setText("PHI " + visualSnapshot.runtimeSnapshot().phiState() + "  //  QWEN " +
-                visualSnapshot.runtimeSnapshot().qwenState());
+        renderSnapshot(visualSnapshot.withAssistantVisualState(stateCoordinator.getEffectiveState()));
     }
 
     public void showWorkspace(WorkspaceType workspaceType) {
@@ -115,5 +121,41 @@ public final class CoreDashboardView extends StackPane {
 
     private void updateClock() {
         clockLabel.setText(LocalDateTime.now().format(CLOCK_FORMAT).toUpperCase());
+    }
+
+    private void renderSnapshot(CoreVisualSnapshot visualSnapshot) {
+        telemetryPanel.update(visualSnapshot);
+        runtimePanel.update(visualSnapshot);
+        coreView.update(visualSnapshot);
+
+        assistantStateLabel.setText("● " + visualSnapshot.assistantVisualState().name());
+        runtimeSummaryLabel.setText("PHI " + visualSnapshot.runtimeSnapshot().phiState() + "  //  QWEN " +
+                visualSnapshot.runtimeSnapshot().qwenState());
+    }
+
+    private void handleResearchLifecycle(ResearchWorkspaceSnapshot snapshot) {
+        switch (snapshot.state()) {
+            case RESEARCHING, PARTIAL -> stateCoordinator.setOverride(AssistantVisualStateCoordinator.Source.RESEARCH,
+                    AssistantVisualState.PROCESSING);
+            case COMPLETE -> {
+                if (snapshot.ttsState() == ResearchTtsState.SPEAKING) {
+                    stateCoordinator.clearOverride(AssistantVisualStateCoordinator.Source.RESEARCH);
+                    stateCoordinator.setOverride(AssistantVisualStateCoordinator.Source.TTS, AssistantVisualState.SPEAKING);
+                }
+                else if (snapshot.ttsState() == ResearchTtsState.DELIVERED) {
+                    stateCoordinator.clearOverride(AssistantVisualStateCoordinator.Source.RESEARCH);
+                    stateCoordinator.clearOverride(AssistantVisualStateCoordinator.Source.TTS);
+                }
+            }
+            case FAILED -> stateCoordinator.setOverride(AssistantVisualStateCoordinator.Source.RESEARCH, AssistantVisualState.DEGRADED);
+            case IDLE -> stateCoordinator.clearOverride(AssistantVisualStateCoordinator.Source.RESEARCH);
+        }
+    }
+
+    private void handleEffectiveVisualState(AssistantVisualState state) {
+        if (latestSnapshot == null) {
+            return;
+        }
+        renderSnapshot(latestSnapshot.withAssistantVisualState(state));
     }
 }

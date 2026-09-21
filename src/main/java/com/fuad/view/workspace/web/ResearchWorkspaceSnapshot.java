@@ -10,7 +10,7 @@ public record ResearchWorkspaceSnapshot(
         List<String> findings,
         List<ResearchSource> sources,
         List<ResearchVisual> visuals,
-        boolean ttsDelivered,
+        ResearchTtsState ttsState,
         String completedAt) {
     /* Empty intentionally */
 }

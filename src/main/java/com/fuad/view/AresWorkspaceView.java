@@ -5,6 +5,7 @@ import com.fuad.view.workspace.dev.DevWorkspaceView;
 import com.fuad.view.workspace.files.FilesWorkspaceView;
 import com.fuad.view.workspace.media.MediaWorkspaceView;
 import com.fuad.view.workspace.system.SystemWorkspaceView;
+import com.fuad.view.workspace.web.ResearchLifecycleListener;
 import com.fuad.view.workspace.web.ResearchWorkspaceView;
 import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
@@ -24,10 +25,18 @@ public class AresWorkspaceView extends VBox {
     private final Map<WorkspaceType, Button> navigationButtons = new EnumMap<>(WorkspaceType.class);
     private final Map<WorkspaceType, Supplier<? extends Region>> factories = new EnumMap<>(WorkspaceType.class);
     private final Map<WorkspaceType, Region> instances = new  EnumMap<>(WorkspaceType.class);
+    private final ResearchLifecycleListener researchLifecycleListener;
     private WorkspaceType activeWorkspace = WorkspaceType.DEV;
 
     public AresWorkspaceView() {
+        this(ResearchLifecycleListener.noop());
+    }
+
+    public AresWorkspaceView(ResearchLifecycleListener researchLifecycleListener) {
+        this.researchLifecycleListener = researchLifecycleListener != null ? researchLifecycleListener : ResearchLifecycleListener.noop();
+
         setSpacing(12.0);
+
         setPadding(new Insets(18.0));
         getStyleClass().addAll("core-panel", "ares-workspace");
         Label title = new Label("ARES // WORKSPACE");
@@ -65,7 +74,7 @@ public class AresWorkspaceView extends VBox {
         factories.put(WorkspaceType.MEDIA, MediaWorkspaceView::new);
         factories.put(WorkspaceType.FILES, FilesWorkspaceView::new);
         factories.put(WorkspaceType.SYSTEM, SystemWorkspaceView::new);
-        factories.put(WorkspaceType.WEB, ResearchWorkspaceView::new);
+        factories.put(WorkspaceType.WEB, () -> new ResearchWorkspaceView(researchLifecycleListener));
     }
 
     private void createNavigation() {

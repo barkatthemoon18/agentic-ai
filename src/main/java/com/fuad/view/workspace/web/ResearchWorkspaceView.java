@@ -38,11 +38,18 @@ public class ResearchWorkspaceView extends VBox {
     private final VBox findingsBox = new VBox(7.0);
     private final VBox sourcesList = new VBox(6.0);
     private final HBox visualsBox = new HBox(8.0);
+    private final ResearchLifecycleListener lifecycleListener;
     private Button selectedSourceButton;
     private Timeline mockLifecycle;
     private FadeTransition statusPulse;
 
     public ResearchWorkspaceView() {
+        this(ResearchLifecycleListener.noop());
+    }
+
+    public ResearchWorkspaceView(ResearchLifecycleListener lifecycleListener) {
+        this.lifecycleListener = lifecycleListener != null ? lifecycleListener : ResearchLifecycleListener.noop();
+
         setSpacing(10.0);
 
         Label title = new Label("WEB // RESEARCH");
@@ -63,7 +70,7 @@ public class ResearchWorkspaceView extends VBox {
     public void update(ResearchWorkspaceSnapshot snapshot) {
         providerLabel.setText("ENGINE //  " + snapshot.provider().toUpperCase() + " // MOCK");
         updateState(snapshot.state());
-        ttsStatusLabel.setText(snapshot.ttsDelivered() ? "TTS // DELIVERED" : "TTS // PENDING");
+        ttsStatusLabel.setText("TTS // " + snapshot.ttsState().name());
         sourceCountLabel.setText("SOURCES // %02d".formatted(snapshot.sources().size()));
         completedAtLabel.setText("UPDATED // " + snapshot.completedAt());
         queryLabel.setText(snapshot.query());
@@ -72,6 +79,7 @@ public class ResearchWorkspaceView extends VBox {
         renderVisuals(snapshot.visuals());
         renderSources(snapshot.sources(), snapshot.state());
         updateSectionVisibility(snapshot);
+        lifecycleListener.onResearchUpdated(snapshot);
     }
 
     private HBox createStatusBar() {
@@ -259,7 +267,7 @@ public class ResearchWorkspaceView extends VBox {
             VBox card = createVisualCard(visual);
             HBox.setHgrow(card, Priority.ALWAYS);
             visualsBox.getChildren().add(card);
-            animateArrival(card, i++ * 0.70);
+            animateArrival(card, i++ * 110.0);
         }
     }
 
@@ -347,8 +355,9 @@ public class ResearchWorkspaceView extends VBox {
             mockLifecycle.stop();
         }
         mockLifecycle = new Timeline(new KeyFrame(Duration.ZERO, event -> update(researchingSnapshot())),
-                new KeyFrame(Duration.seconds(2.2), event -> update(partialSnapshot())),
-                new KeyFrame(Duration.seconds(4.7), event -> update(completeSnapshot())));
+                        new KeyFrame(Duration.seconds(2.2), event -> update(partialSnapshot())),
+                        new KeyFrame(Duration.seconds(4.7), event -> update(speakingSnapshot())),
+                        new KeyFrame(Duration.seconds(7.0), event -> update(completeSnapshot())));
         mockLifecycle.setCycleCount(1);
         mockLifecycle.play();
     }
@@ -422,7 +431,7 @@ public class ResearchWorkspaceView extends VBox {
                 List.of(),
                 List.of(),
                 List.of(),
-                false,
+                ResearchTtsState.PENDING,
                 "--:--"
         );
     }
@@ -459,8 +468,75 @@ public class ResearchWorkspaceView extends VBox {
                         )
                 ),
                 List.of(),
-                false,
+                ResearchTtsState.PENDING,
                 "--:--"
+        );
+    }
+
+    private static ResearchWorkspaceSnapshot speakingSnapshot() {
+        return new ResearchWorkspaceSnapshot(
+                ResearchState.COMPLETE,
+                "GPT API + BROWSER",
+                "¿Qué modelos locales son adecuados para una RTX 4070 "
+                        + "de 12 GB evitando CPU off-load?",
+                "Se compararon alternativas locales priorizando ajuste "
+                        + "completo en VRAM, latencia interactiva y "
+                        + "estabilidad de ejecución. La evidencia reunida "
+                        + "queda resumida en los hallazgos siguientes.",
+                List.of(
+                        "El ajuste completo dentro de VRAM debe ser una "
+                                + "restricción explícita del despliegue.",
+                        "La cuantización modifica el consumo de memoria "
+                                + "y debe evaluarse junto con la calidad.",
+                        "Las mediciones locales de latencia y estabilidad "
+                                + "son necesarias antes de fijar el modelo."
+                ),
+                List.of(
+                        new ResearchSource(
+                                "01",
+                                "NVIDIA // DOCUMENTATION",
+                                "GPU memory and execution constraints",
+                                "Referencia técnica utilizada para contextualizar "
+                                        + "los límites de ejecución sobre GPU."
+                        ),
+                        new ResearchSource(
+                                "02",
+                                "LM STUDIO // RUNTIME",
+                                "Local model runtime characteristics",
+                                "Información de runtime utilizada para contrastar "
+                                        + "carga, memoria y ejecución local."
+                        ),
+                        new ResearchSource(
+                                "03",
+                                "MODEL CARD // REFERENCE",
+                                "Model architecture and quantization",
+                                "Ficha del modelo utilizada para contrastar "
+                                        + "arquitectura, contexto y variantes."
+                        ),
+                        new ResearchSource(
+                                "04",
+                                "LOCAL BENCHMARK // ARES",
+                                "Interactive latency measurements",
+                                "Resultados locales utilizados para comparar "
+                                        + "latencia y estabilidad."
+                        )
+                ),
+                List.of(
+                        new ResearchVisual(
+                                "01",
+                                "VISUAL // 01",
+                                "VRAM envelope"
+                        ),
+                        new ResearchVisual(
+                                "02",
+                                "VISUAL // 02",
+                                "Latency profile"
+                        )
+                ),
+                ResearchTtsState.SPEAKING,
+                LocalTime.now().format(
+                        RESEARCH_TIME
+                )
         );
     }
 
@@ -524,7 +600,7 @@ public class ResearchWorkspaceView extends VBox {
                                 "Latency profile"
                         )
                 ),
-                true,
+                ResearchTtsState.DELIVERED,
                 LocalTime.now().format(
                         RESEARCH_TIME
                 )

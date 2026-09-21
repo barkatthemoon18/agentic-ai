@@ -8,6 +8,10 @@ public record CoreVisualSnapshot(
         NetworkSnapshot networkSnapshot,
         RuntimeSnapshot runtimeSnapshot) {
 
+    public CoreVisualSnapshot withAssistantVisualState(AssistantVisualState state) {
+        return new CoreVisualSnapshot(state, systemSnapshot, gpuSnapshot, networkSnapshot, runtimeSnapshot);
+    }
+
     public record SystemSnapshot(
             double cpuUsage,
             double ramUsedGb,
