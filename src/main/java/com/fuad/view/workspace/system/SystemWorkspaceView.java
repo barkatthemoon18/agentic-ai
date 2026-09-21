@@ -1,5 +1,7 @@
 package com.fuad.view.workspace.system;
 
+import com.fuad.view.icon.HudIcon;
+import com.fuad.view.icon.HudIconView;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
@@ -134,7 +136,7 @@ public class SystemWorkspaceView extends VBox {
     }
 
     private VBox createAudioPanel() {
-        Label title = sectionTitle("AUDIO // DEVICES");
+        HBox title = sectionTitle(HudIcon.AUDIO, "AUDIO // DEVICES");
 
         audioStatus.getStyleClass().add("system-status");
 
@@ -184,7 +186,7 @@ public class SystemWorkspaceView extends VBox {
     }
 
     private VBox createNetworkPanel() {
-        Label title = sectionTitle("NETWORK // LINK");
+        HBox title = sectionTitle(HudIcon.NETWORK, "NETWORK // LINK");
 
         networkStatus.getStyleClass().add("system-status");
 
@@ -218,7 +220,7 @@ public class SystemWorkspaceView extends VBox {
     }
 
     private VBox createDisplaysPanel() {
-        Label title = sectionTitle("DISPLAYS // TOPOLOGY");
+        HBox title = sectionTitle(HudIcon.DISPLAY, "DISPLAYS // TOPOLOGY");
 
         VBox panel = new VBox(13.0, title, displayList);
         configureCard(panel);
@@ -255,7 +257,7 @@ public class SystemWorkspaceView extends VBox {
     }
 
     private VBox createPowerPanel() {
-        Label title = sectionTitle("POWER // SYSTEM");
+        HBox title = sectionTitle(HudIcon.POWER, "POWER // SYSTEM");
         Label powerCaption = subsectionTitle("POWER");
         Label sessionCaption = subsectionTitle("SESSION");
 
@@ -328,10 +330,14 @@ public class SystemWorkspaceView extends VBox {
         panel.getStyleClass().add("system-card");
     }
 
-    private static Label sectionTitle(String title) {
+    private static HBox sectionTitle(HudIcon icon, String title) {
+        HudIconView iconView = new HudIconView(icon, 13.0);
         Label label = new Label(title);
         label.getStyleClass().add("system-section-title");
-        return label;
+
+        HBox result = new HBox(8.0, iconView, label);
+        result.setAlignment(Pos.CENTER_LEFT);
+        return result;
     }
 
     private static Label propertyKey(String text) {

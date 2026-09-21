@@ -1,12 +1,11 @@
 package com.fuad.view.workspace.files;
 
+import com.fuad.view.icon.HudIcon;
+import com.fuad.view.icon.HudIconView;
 import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
 import java.util.*;
@@ -70,9 +69,14 @@ public class FilesWorkspaceView extends VBox {
     }
 
     private HBox createNavigation() {
-        Button back = navigationButton("<");
-        Button up = navigationButton("^");
-        Button home = navigationButton("HOME");
+        Button back = navigationButton(HudIcon.BACK);
+        Button up = navigationButton(HudIcon.UP);
+        Button home = navigationButton(HudIcon.HOME);
+
+        /* Tooltip */
+        back.setTooltip(new Tooltip("Back"));
+        up.setTooltip(new Tooltip("Up"));
+        home.setTooltip(new Tooltip("Home"));
 
         /* Button actions */
         back.setOnAction(event -> {
@@ -105,9 +109,10 @@ public class FilesWorkspaceView extends VBox {
         return result;
     }
 
-    private Button navigationButton(String text) {
-        Button button = new Button(text);
+    private Button navigationButton(HudIcon icon) {
+        Button button = new Button();
 
+        button.setGraphic(new HudIconView(icon, 14.0));
         button.getStyleClass().add("files-nav-button");
         return button;
     }

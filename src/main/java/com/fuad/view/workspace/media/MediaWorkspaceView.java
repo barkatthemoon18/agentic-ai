@@ -1,12 +1,13 @@
 package com.fuad.view.workspace.media;
 
+import com.fuad.view.icon.HudIcon;
+import com.fuad.view.icon.HudIconView;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.*;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class MediaWorkspaceView extends VBox {
@@ -18,6 +19,7 @@ public class MediaWorkspaceView extends VBox {
     private final Label volumeValue = new Label();
     private final Label output = new Label();
     private final Label quality = new Label();
+    private final Button playPauseButton = transportButton(HudIcon.PLAY);
     private final Region progressFill = new Region();
     private final Region volumeFill = new Region();
 
@@ -47,6 +49,7 @@ public class MediaWorkspaceView extends VBox {
     }
 
     public void update(MediaPlayerSnapshot snapshot) {
+        double progress;
         MediaTrack track = snapshot.currentTrack();
 
         title.setText(track.title());
@@ -57,8 +60,9 @@ public class MediaWorkspaceView extends VBox {
         volumeValue.setText("%.0f %%".formatted(snapshot.volume() * 100.0));
         output.setText(snapshot.outputDevice());
         quality.setText(snapshot.quality());
+        playPauseButton.setGraphic(new HudIconView(snapshot.playing() ? HudIcon.PAUSE : HudIcon.PLAY, 16.0));
 
-        double progress = snapshot.positionSeconds() / track.durationSeconds();
+        progress = snapshot.positionSeconds() / track.durationSeconds();
         progressFill.setPrefWidth(320.0 * Math.clamp(progress, 0.0, 1.0));
         volumeFill.setMinWidth(250.0 * Math.clamp(snapshot.volume(), 0.0, 1.0));
         volumeFill.setPrefWidth(250.0 * Math.clamp(snapshot.volume(), 0.0, 1.0));
@@ -145,20 +149,20 @@ public class MediaWorkspaceView extends VBox {
     }
 
     private HBox createTransportControls() {
-        Button previous = transportButton("◀");
-        Button playPause = transportButton("▶ / ❚❚");
-        Button next = transportButton("▶");
+        Button previous = transportButton(HudIcon.PREVIOUS);
+        Button next = transportButton(HudIcon.NEXT);
 
-        playPause.getStyleClass().add("media-transport-primary");
-        HBox controls = new HBox(12.0, previous, playPause, next);
+        playPauseButton.getStyleClass().add("media-transport-primary");
+        HBox controls = new HBox(12.0, previous, playPauseButton, next);
         controls.setAlignment(Pos.CENTER);
 
         return controls;
     }
 
-    private Button transportButton(String symbol) {
-        Button button = new Button(symbol);
+    private Button transportButton(HudIcon symbol) {
+        Button button = new Button();
 
+        button.setGraphic(new HudIconView(symbol, 16.0));
         button.getStyleClass().add("media-transport");
         return button;
     }

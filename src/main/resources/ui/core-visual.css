@@ -46,21 +46,57 @@
 
 .core-header-subtitle {
     -fx-font-family: "JetBrains Mono";
-    -fx-font-size: 10px;
-    -fx-text-fill: rgba(120, 236, 255, 0.58);
+    -fx-font-size: 9px;
+    -fx-text-fill: rgba(120, 236, 255, 0.46);
 }
 
 .core-header-status {
     -fx-font-family: "JetBrains Mono";
-    -fx-font-size: 12px;
+    -fx-font-size: 10px;
     -fx-font-weight: bold;
+    -fx-text-fill: #7699a7;
+}
+
+.core-header-status:idle {
+    -fx-text-fill: #78ecff;
+}
+
+.core-header-status:listening {
     -fx-text-fill: #39d5ff;
+}
+
+.core-header-status:processing {
+    -fx-text-fill: #78ecff;
+}
+
+.core-header-status:executing {
+    -fx-text-fill: #b7d6df;
+}
+
+.core-header-status:speaking {
+    -fx-text-fill: #39d5ff;
+}
+
+.core-header-status:degraded {
+    -fx-text-fill: #d9b06c;
+}
+
+.core-header-date {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-text-fill: rgba(183, 214, 223, 0.62);
+}
+
+.core-header-clock-separator {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-text-fill: rgba(120, 236, 255, 0.34);
 }
 
 .core-header-clock {
     -fx-font-family: "JetBrains Mono";
-    -fx-font-size: 12px;
-    -fx-text-fill: rgba(234, 248, 252, 0.78);
+    -fx-font-size: 11px;
+    -fx-text-fill: rgba(234, 248, 252, 0.84);
 }
 
 .core-header-separator {
@@ -1343,4 +1379,25 @@
 
 .runtime-state:offline {
     -fx-text-fill: #8b6f76;
+}
+
+/* =========================================================
+   HUD ICONOGRAPHY
+   ========================================================= */
+
+.hud-icon {
+    -fx-opacity: 0.90;
+}
+
+.hud-icon-stroke {
+    -fx-fill: transparent;
+    -fx-stroke: #78ecff;
+    -fx-stroke-width: 1.6px;
+    -fx-stroke-line-cap: round;
+    -fx-stroke-line-join: round;
+}
+
+.hud-icon-fill {
+    -fx-fill: #78ecff;
+    -fx-stroke: transparent;
 }
