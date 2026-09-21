@@ -28,28 +28,46 @@ public final class CoreDashboardView extends StackPane {
     private final Label runtimeSummaryLabel = new Label("MOCK TELEMETRY");
     private final Label clockLabel = new Label();
     private final Timeline clock;
+    private final AssistantVisualStateCoordinator stateCoordinator;
     private CoreVisualSnapshot latestSnapshot;
-    private AssistantVisualStateCoordinator stateCoordinator;
 
     public CoreDashboardView() {
         stateCoordinator = new AssistantVisualStateCoordinator(this::handleEffectiveVisualState);
         aresWorkspaceView = new AresWorkspaceView(this::handleResearchLifecycle);
 
         HudBackground hudBackground = new HudBackground();
+
         VBox left = new VBox(18.0, telemetryPanel, runtimePanel);
-        left.setMinHeight(0.0);
-        coreView.setMinHeight(0.0);
-        aresWorkspaceView.setMinHeight(0.0);
         left.setPrefWidth(390.0);
+        left.setMinHeight(0.0);
+        left.setMaxHeight(Double.MAX_VALUE);
+        left.setFillWidth(true);
+
         telemetryPanel.setPrefWidth(390.0);
+        telemetryPanel.setMaxWidth(Double.MAX_VALUE);
+
         runtimePanel.setPrefWidth(390.0);
+        runtimePanel.setMinHeight(0.0);
+        runtimePanel.setMaxHeight(Double.MAX_VALUE);
+
+        VBox.setVgrow(runtimePanel, Priority.ALWAYS);
+
         coreView.setPrefWidth(760.0);
+        coreView.setMinHeight(0.0);
+        coreView.setMaxHeight(Double.MAX_VALUE);
+
         aresWorkspaceView.setPrefWidth(666.0);
+        aresWorkspaceView.setMinHeight(0.0);
+        aresWorkspaceView.setMaxHeight(Double.MAX_VALUE);
+
         HBox body = new HBox(24.0, left, coreView, aresWorkspaceView);
         body.setAlignment(Pos.CENTER);
+        body.setFillHeight(true);
         body.setMinHeight(0.0);
         body.setMaxHeight(Double.MAX_VALUE);
+
         VBox.setVgrow(body, Priority.ALWAYS);
+
         VBox layout = new VBox(18.0, createHeader(), body, createFooter());
         layout.setPadding(new Insets(28.0));
         getChildren().addAll(hudBackground, layout);
