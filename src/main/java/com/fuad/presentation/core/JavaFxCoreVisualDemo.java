@@ -2,6 +2,8 @@ package com.fuad.presentation.core;
 
 import com.fuad.presentation.JavaFxRuntime;
 import com.fuad.presentation.interaction.DefaultInteractionDisplayResolver;
+import com.fuad.telemetry.gpu.nvidia.NvidiaGpuTelemetryProvider;
+import com.fuad.telemetry.host.oshi.OshiHostTelemetryProvider;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Control;
 
@@ -21,9 +23,9 @@ public class JavaFxCoreVisualDemo {
 
         var displayResolver = DefaultInteractionDisplayResolver.platformDefault(Path.of("config", "interaction-display.json"));
         try (JavaFxRuntime runtime = new JavaFxRuntime(); JavaFxCoreVisual visual = new JavaFxCoreVisual(runtime, displayResolver);
-             MockCoreVisualSource mock = new MockCoreVisualSource()) {
+             RealCoreVisualSource source = new RealCoreVisualSource(new OshiHostTelemetryProvider(), new NvidiaGpuTelemetryProvider())) {
             visual.show();
-            mock.start(visual::update);
+            source.start(visual::update);
             System.out.println("""
                     
                     ARES // CORE VISUAL DEMO

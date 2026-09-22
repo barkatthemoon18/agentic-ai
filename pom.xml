@@ -18,9 +18,15 @@
         <junit.excluded.tags>model-evaluation</junit.excluded.tags>
         <javafx.version>21.0.10</javafx.version>
         <jna.version>5.19.1</jna.version>
+        <oshi.version>7.6.1</oshi.version>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>com.github.oshi</groupId>
+            <artifactId>oshi-core</artifactId>
+            <version>${oshi.version}</version>
+        </dependency>
         <!-- Source: https://mvnrepository.com/artifact/com.microsoft.onnxruntime/onnxruntime -->
         <dependency>
             <groupId>com.microsoft.onnxruntime</groupId>

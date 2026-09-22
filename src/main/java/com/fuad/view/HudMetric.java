@@ -24,6 +24,7 @@ public class HudMetric extends VBox {
         HBox.setHgrow(spacer, Priority.ALWAYS);
         HBox header = new HBox(8.0, title, spacer, value);
         header.setAlignment(Pos.BASELINE_LEFT);
+        header.setMaxWidth(Double.MAX_VALUE);
 
         Rectangle track = new Rectangle(BAR_WIDTH, BAR_HEIGHT);
         track.getStyleClass().add("core-metric-track");
@@ -34,7 +35,7 @@ public class HudMetric extends VBox {
         bar.setMinSize(BAR_WIDTH, BAR_HEIGHT);
         bar.setPrefSize(BAR_WIDTH, BAR_HEIGHT);
 
-        getChildren().addAll(title, value, bar);
+        getChildren().addAll(header, bar);
     }
 
     protected void setValue(String text, double percentage) {
