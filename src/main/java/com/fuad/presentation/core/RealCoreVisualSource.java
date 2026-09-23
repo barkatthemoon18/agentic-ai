@@ -21,7 +21,7 @@ public class RealCoreVisualSource implements CoreVisualSource {
             .name("ares-core-telemetry")
             .daemon()
             .factory());
-    private volatile Consumer<CoreVisualSnapshot> consumer;
+    private Consumer<CoreVisualSnapshot> consumer;
     private CoreVisualSnapshot latestSnapshot;
     private AutoCloseable stateSubscription;
 
