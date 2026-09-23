@@ -128,12 +128,13 @@ public class Main {
             cleanup.register(ResourceCleanup.Resource.INTERACTION, interactionService);
             LmStudioStartupCoordinator modelRuntime = new LmStudioStartupCoordinator();
             RuntimeStatusCoordinator runtimeStatusCoordinator = new RuntimeStatusCoordinator();
+            AssistantVisualStateStore assistantVisualStateStore = new AssistantVisualStateStore();
             Object voiceRuntimeLock = new Object();
             AtomicBoolean applicationClosing = new AtomicBoolean(false);
             CoreVisual coreVisual = presentation.coreVisual();
             if (coreVisual != null) {
                 RealCoreVisualSource coreVisualSource = new RealCoreVisualSource(new OshiHostTelemetryProvider(),
-                        new NvidiaGpuTelemetryProvider(), runtimeStatusCoordinator);
+                        new NvidiaGpuTelemetryProvider(), runtimeStatusCoordinator, assistantVisualStateStore);
                 cleanup.register(ResourceCleanup.Resource.CORE_VISUAL_SOURCE, coreVisualSource);
                 cleanup.register(ResourceCleanup.Resource.CORE_VISUAL, coreVisual);
                 coreVisual.show();
@@ -196,7 +197,7 @@ public class Main {
                     .orElseThrow();
 
             AudioPipeline audioPipeline = new AudioPipeline(
-                    tts, playbackService, deviceOutFocusrite, audioController);
+                    tts, playbackService, deviceOutFocusrite, audioController, assistantVisualStateStore);
             AssistantOutputCoordinator outputCoordinator = new AssistantOutputCoordinator(audioController,
                     presentationPolicy, audioPipeline, visualOutput);
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, outputCoordinator);
@@ -205,7 +206,7 @@ public class Main {
                     new ConversationSession(), audioPipeline, speechSegmentValidator, utteranceClassifier,
                     outputCoordinator, interactionService, interactionVoiceRouter);
             cleanup.register(ResourceCleanup.Resource.SPEECH_PROCESSOR, speechProcessor);
-            VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline);
+            VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline, assistantVisualStateStore);
 
             AtomicBoolean voiceRuntimeStarted = new AtomicBoolean(false);
             modelRuntime.subscribe(snapshot -> {
@@ -268,7 +269,8 @@ public class Main {
 
         try {
             javaFxRuntime = new JavaFxRuntime();
-            var displayResolver = DefaultInteractionDisplayResolver.platformDefault(Path.of("config", "iteration-display.json"));
+            var displayResolver = DefaultInteractionDisplayResolver.platformDefault(Path.of("config",
+                    "interaction-display.json"));
             visualOutput = new JavaFxVisualOutput(catalogSessions, javaFxRuntime);
             InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(javaFxRuntime, displayResolver);
             coreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver);

@@ -1,6 +1,7 @@
 package com.fuad.pipeline;
 
 import com.fuad.audio.AudioFrame;
+import com.fuad.enums.AudioState;
 import com.fuad.enums.VoiceState;
 import com.fuad.speech.SpeechBuffer;
 import com.fuad.speech.SpeechSegment;
@@ -15,6 +16,7 @@ public class VoicePipeline {
     private static final int SILENCE_END_FRAMES = 20;
     private static final int PRE_ROLL_FRAMES = 10;
     private final Deque<AudioFrame> preRoll = new ArrayDeque<>();
+    private final AssistantActivityListener activityListener;
     private final VadEngine vadEngine;
     private final SpeechBuffer speechBuffer;
     private final SpeechSegmentListener segmentListener;
@@ -25,11 +27,12 @@ public class VoicePipeline {
     private int silenceFrames = 0;
 
     public VoicePipeline(VadEngine vadEngine, SpeechBuffer speechBuffer,  SpeechSegmentListener segmentListener,
-                         AudioPipeline audioPipeline) {
+                         AudioPipeline audioPipeline, AssistantActivityListener activityListener) {
         this.vadEngine = vadEngine;
         this.speechBuffer = speechBuffer;
         this.segmentListener = segmentListener;
         this.audioPipeline = audioPipeline;
+        this.activityListener = activityListener;
     }
 
     public void process(AudioFrame frame) {
@@ -66,6 +69,7 @@ public class VoicePipeline {
     private void startSpeech() {
         state = VoiceState.SPEAKING;
 
+        activityListener.onStateChanged(AssistantActivityState.LISTENING);
         silenceFrames = 0;
         speechFrames = 0;
         speechBuffer.clear();
@@ -97,6 +101,9 @@ public class VoicePipeline {
         speechFrames = 0;
         speechBuffer.clear();
         segmentListener.onSpeechSegment(segment);
+        if (!audioPipeline.isProcessing() && !audioPipeline.isSpeaking()) {
+            activityListener.onStateChanged(AssistantActivityState.IDLE);
+        }
     }
 
     private void updatePreRoll(AudioFrame frame) {

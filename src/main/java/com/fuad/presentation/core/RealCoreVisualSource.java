@@ -5,12 +5,15 @@ import com.fuad.telemetry.gpu.GpuTelemetrySnapshot;
 import com.fuad.telemetry.host.HostTelemetryProvider;
 import com.fuad.telemetry.host.HostTelemetrySnapshot;
 
+import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class RealCoreVisualSource implements CoreVisualSource {
+    private final AssistantVisualStateStore assistantStateStore;
+    private final Object publishLock = new Object();
     private final HostTelemetryProvider telemetryProvider;
     private final GpuTelemetryProvider gpuTelemetryProvider;
     private final RuntimeStatusCoordinator runtimeStatusCoordinator;
@@ -18,27 +21,36 @@ public class RealCoreVisualSource implements CoreVisualSource {
             .name("ares-core-telemetry")
             .daemon()
             .factory());
+    private volatile Consumer<CoreVisualSnapshot> consumer;
+    private CoreVisualSnapshot latestSnapshot;
+    private AutoCloseable stateSubscription;
 
     public RealCoreVisualSource(HostTelemetryProvider telemetryProvider, GpuTelemetryProvider gpuTelemetryProvider,
-                                RuntimeStatusCoordinator runtimeStatusCoordinator) {
+                                RuntimeStatusCoordinator runtimeStatusCoordinator, AssistantVisualStateStore assistantStateStore) {
         this.telemetryProvider = telemetryProvider;
         this.gpuTelemetryProvider = gpuTelemetryProvider;
         this.runtimeStatusCoordinator = runtimeStatusCoordinator;
+        this.assistantStateStore = assistantStateStore;
     }
 
     @Override
     public void start(Consumer<CoreVisualSnapshot> consumer) {
-        executor.scheduleAtFixedRate(() -> poll(consumer), 0, 1, TimeUnit.SECONDS);
+        this.consumer = Objects.requireNonNull(consumer);
+        stateSubscription = assistantStateStore.subscribe(this::publishAssistantState);
+        executor.scheduleAtFixedRate(this::poll, 0, 1, TimeUnit.SECONDS);
     }
 
     @Override
     public void close() throws Exception {
+        if (stateSubscription != null) {
+            stateSubscription.close();
+        }
         executor.shutdownNow();
         telemetryProvider.close();
         gpuTelemetryProvider.close();
     }
 
-    private void poll(Consumer<CoreVisualSnapshot> consumer) {
+    private void poll() {
         try {
             GpuTelemetrySnapshot gpuSnapshot;
             HostTelemetrySnapshot snapshot = telemetryProvider.sample();
@@ -50,16 +62,30 @@ public class RealCoreVisualSource implements CoreVisualSource {
                 gpuSnapshot = GpuTelemetrySnapshot.unavailable();
             }
 
-            consumer.accept(new CoreVisualSnapshot(AssistantVisualState.IDLE, new CoreVisualSnapshot.SystemSnapshot(
-                    snapshot.cpuUsage(),
-                    snapshot.ramUsedGb(),
-                    snapshot.ramTotalGb()), new CoreVisualSnapshot.GpuSnapshot(gpuSnapshot.usage(), gpuSnapshot.vramUsedGb(),
-                    gpuSnapshot.vramTotalGb(), gpuSnapshot.temperature()),
-                    new CoreVisualSnapshot.NetworkSnapshot(snapshot.localIp(), snapshot.downloadMbps(), snapshot.uploadMbps()),
-                    runtimeStatusCoordinator.snapshot()));
+            synchronized (publishLock) {
+                CoreVisualSnapshot next = new CoreVisualSnapshot(assistantStateStore.current(),
+                        new CoreVisualSnapshot.SystemSnapshot(snapshot.cpuUsage(), snapshot.ramUsedGb(), snapshot.ramTotalGb()),
+                        new CoreVisualSnapshot.GpuSnapshot(gpuSnapshot.usage(), gpuSnapshot.vramUsedGb(), gpuSnapshot.vramTotalGb(),
+                                gpuSnapshot.temperature()),
+                        new CoreVisualSnapshot.NetworkSnapshot(snapshot.localIp(), snapshot.downloadMbps(),
+                                snapshot.uploadMbps()), runtimeStatusCoordinator.snapshot());
+                latestSnapshot = next;
+                consumer.accept(next);
+            }
         }
         catch (Exception | LinkageError e) {
             System.err.println("Telemetry sampling failed: " + e.getMessage());
+        }
+    }
+
+    private void publishAssistantState(AssistantVisualState state) {
+        synchronized (publishLock) {
+            if (consumer == null || latestSnapshot == null) {
+                return;
+            }
+            CoreVisualSnapshot updated = latestSnapshot.withAssistantVisualState(state);
+            latestSnapshot = updated;
+            consumer.accept(updated);
         }
     }
 }
