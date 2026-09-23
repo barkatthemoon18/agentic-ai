@@ -7,7 +7,7 @@ import java.util.Objects;
 /** Owns shutdown actions in dependency order, including partially initialized applications. */
 final class ResourceCleanup implements AutoCloseable {
     enum Resource {
-        MODEL_RUNTIME, CAPTURE, INTERACTION, SPEECH_PROCESSOR, TTS,
+        MODEL_RUNTIME, CORE_VISUAL, CORE_VISUAL_SOURCE, CAPTURE, INTERACTION, SPEECH_PROCESSOR, TTS,
         VISUAL_OUTPUT, STT, VAD, JAVAFX_RUNTIME
     }
 

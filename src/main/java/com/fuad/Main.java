@@ -58,6 +58,7 @@ import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.pipeline.VoicePipeline;
 import com.fuad.presentation.*;
+import com.fuad.presentation.core.*;
 import com.fuad.presentation.interaction.DefaultInteractionDisplayResolver;
 import com.fuad.presentation.interaction.JavaFxInteractionPresenter;
 import com.fuad.presentation.interaction.UnavailableInteractionPresenter;
@@ -68,6 +69,8 @@ import com.fuad.speech.validation.SpeechSegmentValidator;
 import com.fuad.stt.SttEngine;
 import com.fuad.stt.fasterwhisper.FasterWhisperClient;
 import com.fuad.stt.fasterwhisper.FasterWhisperSttEngine;
+import com.fuad.telemetry.gpu.nvidia.NvidiaGpuTelemetryProvider;
+import com.fuad.telemetry.host.oshi.OshiHostTelemetryProvider;
 import com.fuad.tts.TtsEngine;
 import com.fuad.tts.piper.PiperClient;
 import com.fuad.tts.piper.PiperTtsEngine;
@@ -124,8 +127,18 @@ public class Main {
                     new InteractionVoiceRouter(interactionService);
             cleanup.register(ResourceCleanup.Resource.INTERACTION, interactionService);
             LmStudioStartupCoordinator modelRuntime = new LmStudioStartupCoordinator();
+            RuntimeStatusCoordinator runtimeStatusCoordinator = new RuntimeStatusCoordinator();
             Object voiceRuntimeLock = new Object();
             AtomicBoolean applicationClosing = new AtomicBoolean(false);
+            CoreVisual coreVisual = presentation.coreVisual();
+            if (coreVisual != null) {
+                RealCoreVisualSource coreVisualSource = new RealCoreVisualSource(new OshiHostTelemetryProvider(),
+                        new NvidiaGpuTelemetryProvider(), runtimeStatusCoordinator);
+                cleanup.register(ResourceCleanup.Resource.CORE_VISUAL_SOURCE, coreVisualSource);
+                cleanup.register(ResourceCleanup.Resource.CORE_VISUAL, coreVisual);
+                coreVisual.show();
+                coreVisualSource.start(coreVisual::update);
+            }
             cleanup.register(ResourceCleanup.Resource.MODEL_RUNTIME, () -> {
                 synchronized (voiceRuntimeLock) {
                     applicationClosing.set(true);
@@ -196,17 +209,32 @@ public class Main {
 
             AtomicBoolean voiceRuntimeStarted = new AtomicBoolean(false);
             modelRuntime.subscribe(snapshot -> {
-                visualOutput.showInfrastructureStatus(
-                        new InfrastructureStatus(snapshot, modelRuntime::retry));
+                runtimeStatusCoordinator.updateModels(snapshot);
+                visualOutput.showInfrastructureStatus(new InfrastructureStatus(snapshot, modelRuntime::retry));
                 if (snapshot.isPhiUsable()) {
                     synchronized (voiceRuntimeLock) {
-                        if (applicationClosing.get()
-                                || !voiceRuntimeStarted.compareAndSet(false, true)) {
+                        if (applicationClosing.get() || !voiceRuntimeStarted.compareAndSet(false, true)) {
                             return;
                         }
                         try {
-                            client.start();
-                            piperClient.start();
+                            runtimeStatusCoordinator.setStt(RuntimeVisualState.LOADING);
+                            try {
+                                client.start();
+                                runtimeStatusCoordinator.setStt(RuntimeVisualState.READY);
+                            }
+                            catch (Exception e) {
+                                runtimeStatusCoordinator.setStt(RuntimeVisualState.FAILED);
+                                throw e;
+                            }
+                            runtimeStatusCoordinator.setTts(RuntimeVisualState.LOADING);
+                            try {
+                                piperClient.start();
+                                runtimeStatusCoordinator.setTts(RuntimeVisualState.READY);
+                            }
+                            catch (Exception e) {
+                                runtimeStatusCoordinator.setTts(RuntimeVisualState.FAILED);
+                                throw e;
+                            }
                             captureService.start(deviceFocusrite, pipeline::process);
                             System.out.println("Voice runtime active: daemon, API server and phi-router are ready");
                         }
@@ -236,17 +264,21 @@ public class Main {
     private static PresentationComponents createPresentation(CatalogSessionStore catalogSessions) {
         JavaFxRuntime javaFxRuntime = null;
         JavaFxVisualOutput visualOutput = null;
+        CoreVisual coreVisual = null;
+
         try {
             javaFxRuntime = new JavaFxRuntime();
+            var displayResolver = DefaultInteractionDisplayResolver.platformDefault(Path.of("config", "iteration-display.json"));
             visualOutput = new JavaFxVisualOutput(catalogSessions, javaFxRuntime);
-            InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(
-                    javaFxRuntime,
-                    DefaultInteractionDisplayResolver.platformDefault(
-                            Path.of("config", "interaction-display.json")));
-            return new PresentationComponents(visualOutput, interactionPresenter, javaFxRuntime);
+            InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(javaFxRuntime, displayResolver);
+            coreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver);
+            return new PresentationComponents(visualOutput, interactionPresenter, coreVisual, javaFxRuntime);
         }
         catch (Exception e) {
             System.err.println("Unable to initialize JavaFX visual output: " + e.getMessage());
+            if (coreVisual != null) {
+                coreVisual.close();
+            }
             if (visualOutput != null) {
                 visualOutput.close();
             }
@@ -255,11 +287,12 @@ public class Main {
             }
         }
         return new PresentationComponents(new ConsoleVisualOutput(),
-                new UnavailableInteractionPresenter("JavaFX is unavailable"), null);
+                new UnavailableInteractionPresenter("JavaFX is unavailable"), null, null);
     }
 
     private record PresentationComponents(VisualOutput visualOutput,
                                           InteractionPresenter interactionPresenter,
+                                          CoreVisual coreVisual,
                                           JavaFxRuntime javaFxRuntime) {
     }
 }

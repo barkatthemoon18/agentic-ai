@@ -35,10 +35,10 @@ public record CoreVisualSnapshot(
     }
 
     public record RuntimeSnapshot(
-        String phiState,
-        String qwenState,
-        String sttState,
-        String ttsState) {
+        RuntimeVisualState phiState,
+        RuntimeVisualState qwenState,
+        RuntimeVisualState sttState,
+        RuntimeVisualState ttsState) {
         /* Empty intentionally */
     }
 }

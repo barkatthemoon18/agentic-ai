@@ -27,6 +27,6 @@ public class MockCoreVisualSource implements AutoCloseable {
         return new CoreVisualSnapshot(AssistantVisualState.IDLE, new CoreVisualSnapshot.SystemSnapshot(32.0 + Math.sin(phase) * 12.0, 14.8, 32.0),
                 new CoreVisualSnapshot.GpuSnapshot(46.0 + Math.sin(phase * 0.7) * 18.0, 7.2, 12.0, 52.0),
                 new CoreVisualSnapshot.NetworkSnapshot("192.168.1.42", 14.5, 3.2),
-                new CoreVisualSnapshot.RuntimeSnapshot("READY", "READY", "READY", "READY"));
+                new CoreVisualSnapshot.RuntimeSnapshot(RuntimeVisualState.READY, RuntimeVisualState.READY, RuntimeVisualState.READY, RuntimeVisualState.READY));
     }
 }

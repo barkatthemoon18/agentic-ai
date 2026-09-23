@@ -1,6 +1,7 @@
 package com.fuad.view;
 
 import com.fuad.presentation.core.CoreVisualSnapshot;
+import com.fuad.presentation.core.RuntimeVisualState;
 import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -82,26 +83,18 @@ public class RuntimePanel extends VBox {
         return label;
     }
 
-    private static void updateState(Label label, String state) {
-        String normalized;
-
+    private static void updateState(Label label, RuntimeVisualState state) {
         clearStatePseudoClasses(label);
 
-        normalized = state == null ? "UNKNOWN" : state.trim().toUpperCase();
-        switch (normalized) {
-            case "READY" -> label.pseudoClassStateChanged(READY, true);
-            case "ACTIVE",
-                 "RUNNING",
-                 "SPEAKING",
-                 "LISTENING" -> label.pseudoClassStateChanged(ACTIVE, true);
-            case "LOADING" -> label.pseudoClassStateChanged(LOADING, true);
-            case "DEGRADED" -> label.pseudoClassStateChanged(DEGRADED, true);
-            case "OFFLINE",
-                 "STOPPED",
-                 "UNAVAILABLE" -> label.pseudoClassStateChanged(OFFLINE, true);
-            default -> { /* Empty intentionally */ }
+        switch (state) {
+            case READY -> label.pseudoClassStateChanged(READY, true);
+            case CHECKING,
+                 LOADING -> label.pseudoClassStateChanged(LOADING, true);
+            case RETRY_WAIT -> label.pseudoClassStateChanged(DEGRADED, true);
+            case FAILED,
+                 OFFLINE -> label.pseudoClassStateChanged(OFFLINE, true);
         }
-        label.setText("● " + normalized);
+        label.setText("● " + state.name());
     }
 
     private static void clearStatePseudoClasses(Label label) {

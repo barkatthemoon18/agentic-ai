@@ -23,7 +23,7 @@ public class JavaFxCoreVisualDemo {
 
         var displayResolver = DefaultInteractionDisplayResolver.platformDefault(Path.of("config", "interaction-display.json"));
         try (JavaFxRuntime runtime = new JavaFxRuntime(); JavaFxCoreVisual visual = new JavaFxCoreVisual(runtime, displayResolver);
-             RealCoreVisualSource source = new RealCoreVisualSource(new OshiHostTelemetryProvider(), new NvidiaGpuTelemetryProvider())) {
+             RealCoreVisualSource source = new RealCoreVisualSource(new OshiHostTelemetryProvider(), new NvidiaGpuTelemetryProvider(), new RuntimeStatusCoordinator())) {
             visual.show();
             source.start(visual::update);
             System.out.println("""

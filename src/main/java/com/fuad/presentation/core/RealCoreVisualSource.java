@@ -13,14 +13,17 @@ import java.util.function.Consumer;
 public class RealCoreVisualSource implements CoreVisualSource {
     private final HostTelemetryProvider telemetryProvider;
     private final GpuTelemetryProvider gpuTelemetryProvider;
+    private final RuntimeStatusCoordinator runtimeStatusCoordinator;
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform()
             .name("ares-core-telemetry")
             .daemon()
             .factory());
 
-    public RealCoreVisualSource(HostTelemetryProvider telemetryProvider, GpuTelemetryProvider gpuTelemetryProvider) {
+    public RealCoreVisualSource(HostTelemetryProvider telemetryProvider, GpuTelemetryProvider gpuTelemetryProvider,
+                                RuntimeStatusCoordinator runtimeStatusCoordinator) {
         this.telemetryProvider = telemetryProvider;
         this.gpuTelemetryProvider = gpuTelemetryProvider;
+        this.runtimeStatusCoordinator = runtimeStatusCoordinator;
     }
 
     @Override
@@ -53,7 +56,7 @@ public class RealCoreVisualSource implements CoreVisualSource {
                     snapshot.ramTotalGb()), new CoreVisualSnapshot.GpuSnapshot(gpuSnapshot.usage(), gpuSnapshot.vramUsedGb(),
                     gpuSnapshot.vramTotalGb(), gpuSnapshot.temperature()),
                     new CoreVisualSnapshot.NetworkSnapshot(snapshot.localIp(), snapshot.downloadMbps(), snapshot.uploadMbps()),
-                    new CoreVisualSnapshot.RuntimeSnapshot("READY", "READY", "READY", "READY")));
+                    runtimeStatusCoordinator.snapshot()));
         }
         catch (Exception | LinkageError e) {
             System.err.println("Telemetry sampling failed: " + e.getMessage());
