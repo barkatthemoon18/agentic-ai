@@ -35,7 +35,9 @@ public class RealCoreVisualSource implements CoreVisualSource {
 
     @Override
     public void start(Consumer<CoreVisualSnapshot> consumer) {
-        this.consumer = Objects.requireNonNull(consumer);
+        synchronized (publishLock) {
+            this.consumer = Objects.requireNonNull(consumer);
+        }
         stateSubscription = assistantStateStore.subscribe(this::publishAssistantState);
         executor.scheduleAtFixedRate(this::poll, 0, 1, TimeUnit.SECONDS);
     }
