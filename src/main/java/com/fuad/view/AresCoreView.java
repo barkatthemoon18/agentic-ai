@@ -1,5 +1,6 @@
 package com.fuad.view;
 
+import com.fuad.pipeline.VoiceSignalSnapshot;
 import com.fuad.presentation.core.AssistantVisualState;
 import com.fuad.presentation.core.CoreVisualProfile;
 import com.fuad.presentation.core.CoreVisualSnapshot;
@@ -13,12 +14,16 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.ArcType;
 
+import java.util.Objects;
+import java.util.function.Supplier;
+
 public class AresCoreView extends StackPane {
     private static final double CORE_RADIUS = 88.0;
     private final Canvas canvas = new Canvas(620, 620);
     private final Label coreTitle = new Label("ARES");
     private final Label state = new Label("● IDLE");
     private final VBox identity = new VBox(4.0, coreTitle, state);
+    private final Supplier<VoiceSignalSnapshot> voiceSignalSupplier;
     private AssistantVisualState visualState = AssistantVisualState.IDLE;
     private double innerRotation;
     private double middleRotation;
@@ -47,6 +52,12 @@ public class AresCoreView extends StackPane {
     };
 
     public AresCoreView() {
+        this(VoiceSignalSnapshot::silence);
+    }
+
+    public AresCoreView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier) {
+        this.voiceSignalSupplier = Objects.requireNonNull(voiceSignalSupplier);
+
         setAlignment(Pos.CENTER);
         getStyleClass().add("ares-core");
         coreTitle.getStyleClass().add("ares-core-title");
@@ -204,6 +215,12 @@ public class AresCoreView extends StackPane {
         graphicsContext.setStroke(Color.rgb(120, 236, 255, profile.waveformOpacity()));
         graphicsContext.setLineWidth(1.0);
         graphicsContext.strokeLine(cx - 115.0, waveformY, cx + 115.0, waveformY);
+
+        if (visualState == AssistantVisualState.LISTENING) {
+            drawLiveWaveform(graphicsContext, cx, waveformY, profile, voiceSignalSupplier.get());
+            return;
+        }
+
         double width = 222.0;
         double startX = cx - width / 2.0;
         graphicsContext.beginPath();
@@ -213,6 +230,35 @@ public class AresCoreView extends StackPane {
             double signal = Math.sin(time * profile.waveformFrequency() + i * 0.52) * 0.68 +
                     Math.sin(time * profile.waveformFrequency() * 1.7 + i * 0.23);
             double y = waveformY + signal * envelope * profile.waveformAmplitude();
+            if (i == 0) {
+                graphicsContext.moveTo(x, y);
+            }
+            else {
+                graphicsContext.lineTo(x, y);
+            }
+        }
+        graphicsContext.stroke();
+    }
+
+    private void drawLiveWaveform(GraphicsContext graphicsContext, double cx, double waveformY, CoreVisualProfile profile, VoiceSignalSnapshot signal) {
+        int sampleCount = signal.sampleCount();
+
+        if (sampleCount == 0) {
+            return;
+        }
+        final int points = 72;
+        final double width = 222.0;
+        final double startX = cx - width / 2.0;
+        double amplitude = profile.waveformAmplitude() * 2.5;
+
+        graphicsContext.beginPath();
+
+        for (int i = 0; i <= points; i++) {
+            int sampleIdx = (int) Math.round((sampleCount - 1) * i / (double) points);
+            double x = startX + width * i / points;
+            double sample = signal.sampleAt(sampleIdx);
+            double y = waveformY - sample * amplitude;
+
             if (i == 0) {
                 graphicsContext.moveTo(x, y);
             }
@@ -235,19 +281,14 @@ public class AresCoreView extends StackPane {
         return switch (visualState) {
             case IDLE -> new CoreVisualProfile(4.0, -2.0, 1.0, 5.0,
                     1.8, 0.48, 0.05, 0.0);
-
             case LISTENING -> new CoreVisualProfile(1.0, -6.0, 3.0, 24.0,
                     5.0, 0.95, 0.18, 0.12);
-
             case PROCESSING -> new CoreVisualProfile(30.0, -18.0, 7.0,
                     7.0, 7.0, 0.60, 0.12, 0.80);
-
             case EXECUTING -> new CoreVisualProfile(20.0, -10.0, 5.0,
                     11.0, 3.5,0.72, 0.14, 0.48);
-
             case SPEAKING -> new CoreVisualProfile(8.0, -4.0, 2.0, 28.0,
                     6.2, 1.00,0.20, 0.08);
-
             case DEGRADED -> new CoreVisualProfile(2.0, -1.0, 0.5, 2.0,
                     1.2, 0.28,0.02, 0.0);
         };

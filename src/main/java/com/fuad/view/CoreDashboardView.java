@@ -1,5 +1,6 @@
 package com.fuad.view;
 
+import com.fuad.pipeline.VoiceSignalSnapshot;
 import com.fuad.presentation.core.AssistantVisualState;
 import com.fuad.presentation.core.AssistantVisualStateCoordinator;
 import com.fuad.presentation.core.CoreVisualSnapshot;
@@ -18,6 +19,8 @@ import javafx.util.Duration;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 public final class CoreDashboardView extends StackPane {
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd MMM yyyy");
@@ -29,7 +32,7 @@ public final class CoreDashboardView extends StackPane {
     public static final PseudoClass STATE_SPEAKING = PseudoClass.getPseudoClass("speaking");
     public static final PseudoClass STATE_DEGRADED = PseudoClass.getPseudoClass("degraded");
     private final TelemetryPanel telemetryPanel = new TelemetryPanel();
-    private final AresCoreView coreView =  new AresCoreView();
+    private final AresCoreView coreView;
     private final AresWorkspaceView aresWorkspaceView;
     private final RuntimePanel runtimePanel = new RuntimePanel();
     private final Label assistantStateLabel = new Label("● IDLE");
@@ -41,6 +44,12 @@ public final class CoreDashboardView extends StackPane {
     private CoreVisualSnapshot latestSnapshot;
 
     public CoreDashboardView() {
+        this (VoiceSignalSnapshot::silence);
+    }
+
+    public CoreDashboardView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier) {
+        coreView = new AresCoreView(Objects.requireNonNull(voiceSignalSupplier));
+
         stateCoordinator = new AssistantVisualStateCoordinator(this::handleEffectiveVisualState);
         aresWorkspaceView = new AresWorkspaceView(this::handleResearchLifecycle);
 

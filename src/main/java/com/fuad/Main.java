@@ -57,6 +57,7 @@ import com.fuad.interaction.InteractionVoiceRouter;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.pipeline.VoicePipeline;
+import com.fuad.pipeline.VoiceSignalSnapshot;
 import com.fuad.presentation.*;
 import com.fuad.presentation.core.*;
 import com.fuad.presentation.interaction.DefaultInteractionDisplayResolver;
@@ -81,6 +82,7 @@ import com.openai.client.okhttp.OpenAIOkHttpClient;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public class Main {
     public static void main(String[] args) {
@@ -114,7 +116,8 @@ public class Main {
             OsCommandSkill osCommandSkill = new OsCommandSkill(
                     osCommandParser, applicationRegistry, applicationController, safetyGuard, catalogSessions);
             OutputPresentationPolicy presentationPolicy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
-            PresentationComponents presentation = createPresentation(catalogSessions);
+            VoiceSignalStore voiceSignalStore = new VoiceSignalStore();
+            PresentationComponents presentation = createPresentation(catalogSessions, voiceSignalStore::current);
             VisualOutput visualOutput = presentation.visualOutput();
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, visualOutput);
             if (presentation.javaFxRuntime() != null) {
@@ -206,7 +209,8 @@ public class Main {
                     new ConversationSession(), audioPipeline, speechSegmentValidator, utteranceClassifier,
                     outputCoordinator, interactionService, interactionVoiceRouter);
             cleanup.register(ResourceCleanup.Resource.SPEECH_PROCESSOR, speechProcessor);
-            VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline, assistantVisualStateStore);
+            VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline,
+                    assistantVisualStateStore, voiceSignalStore);
 
             AtomicBoolean voiceRuntimeStarted = new AtomicBoolean(false);
             modelRuntime.subscribe(snapshot -> {
@@ -262,7 +266,7 @@ public class Main {
         }
     }
 
-    private static PresentationComponents createPresentation(CatalogSessionStore catalogSessions) {
+    private static PresentationComponents createPresentation(CatalogSessionStore catalogSessions, Supplier<VoiceSignalSnapshot> voiceSignalSupplier) {
         JavaFxRuntime javaFxRuntime = null;
         JavaFxVisualOutput visualOutput = null;
         CoreVisual coreVisual = null;
@@ -273,7 +277,7 @@ public class Main {
                     "interaction-display.json"));
             visualOutput = new JavaFxVisualOutput(catalogSessions, javaFxRuntime);
             InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(javaFxRuntime, displayResolver);
-            coreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver);
+            coreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver, voiceSignalSupplier);
             return new PresentationComponents(visualOutput, interactionPresenter, coreVisual, javaFxRuntime);
         }
         catch (Exception e) {

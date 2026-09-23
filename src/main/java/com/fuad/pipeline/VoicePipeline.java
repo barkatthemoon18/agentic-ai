@@ -21,6 +21,7 @@ public class VoicePipeline {
     private final SpeechBuffer speechBuffer;
     private final SpeechSegmentListener segmentListener;
     private final AudioPipeline audioPipeline;
+    private final VoiceSignalListener signalListener;
     private VoiceState state = VoiceState.IDLE;
     private boolean audioWasBlocked = false;
     private int speechFrames = 0;
@@ -28,11 +29,17 @@ public class VoicePipeline {
 
     public VoicePipeline(VadEngine vadEngine, SpeechBuffer speechBuffer,  SpeechSegmentListener segmentListener,
                          AudioPipeline audioPipeline, AssistantActivityListener activityListener) {
+        this(vadEngine, speechBuffer, segmentListener, audioPipeline, activityListener, VoiceSignalListener.noop());
+    }
+
+    public VoicePipeline(VadEngine vadEngine, SpeechBuffer speechBuffer,  SpeechSegmentListener segmentListener,
+                         AudioPipeline audioPipeline, AssistantActivityListener activityListener, VoiceSignalListener signalListener) {
         this.vadEngine = vadEngine;
         this.speechBuffer = speechBuffer;
         this.segmentListener = segmentListener;
         this.audioPipeline = audioPipeline;
         this.activityListener = activityListener;
+        this.signalListener = signalListener;
     }
 
     public void process(AudioFrame frame) {
@@ -47,6 +54,7 @@ public class VoicePipeline {
             System.out.println("AUDIO INPUT -> READY");
         }
         VadResult result = vadEngine.process(frame);
+        signalListener.onSignal(createSignalSnapshot(frame, result));
         switch (state) {
             case IDLE -> processIdle(frame, result);
             case SPEAKING -> processSpeaking(frame, result);
@@ -121,5 +129,26 @@ public class VoicePipeline {
         state = VoiceState.IDLE;
         speechFrames = 0;
         silenceFrames = 0;
+    }
+
+    private static VoiceSignalSnapshot createSignalSnapshot(AudioFrame frame, VadResult result) {
+        float[] samples = frame.getSamples();
+
+        if (samples.length == 0) {
+            return VoiceSignalSnapshot.silence();
+        }
+        double sumSquares = 0.0;
+        double peak = 0.0;
+
+        for (float sample : samples) {
+            double value = sample;
+
+            sumSquares += Math.pow(value, 2);
+            peak = Math.max(peak, Math.abs(value));
+        }
+
+        double rms = Math.sqrt(sumSquares / samples.length);
+
+        return new VoiceSignalSnapshot(samples, rms, peak, result.getProbability());
     }
 }
