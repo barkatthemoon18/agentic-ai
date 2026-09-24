@@ -177,7 +177,7 @@ public class Main {
                     Capability.OS_COMMAND, osCommandSkill,
                     Capability.CURRENT_RESEARCH, currentResearchSkill));
             SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);
-            AssistantPipeline assistantPipeline = new AssistantPipeline(skillRouter);
+            AssistantPipeline assistantPipeline = new AssistantPipeline(skillRouter, presentation.executionLifecycleListener);
             WakeWordMatcher wakeWordMatcher = new WakeWordMatcher(
                     AppConfig.wakeWords, AppConfig.WAKE_HIGH_THRESHOLD, AppConfig.WAKE_LOW_THRESHOLD);
             WakeClassifier wakeClassifier = new LocalWakeClassifier(localAiClient);
@@ -282,7 +282,8 @@ public class Main {
             InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(javaFxRuntime, displayResolver);
             JavaFxCoreVisual javaFxCoreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver, voiceSignalSupplier, voiceInputController);
             coreVisual = javaFxCoreVisual;
-            return new PresentationComponents(visualOutput, interactionPresenter, coreVisual, javaFxCoreVisual, javaFxRuntime);
+            return new PresentationComponents(visualOutput, interactionPresenter, coreVisual, javaFxCoreVisual,
+                    javaFxCoreVisual, javaFxRuntime);
         }
         catch (Exception e) {
             System.err.println("Unable to initialize JavaFX visual output: " + e.getMessage());
@@ -297,13 +298,15 @@ public class Main {
             }
         }
         return new PresentationComponents(new ConsoleVisualOutput(),
-                new UnavailableInteractionPresenter("JavaFX is unavailable"), null, InteractionLifecycleListener.noop(), null);
+                new UnavailableInteractionPresenter("JavaFX is unavailable"), null, InteractionLifecycleListener.noop(),
+                AssistantExecutionLifecycleListener.noop(), null);
     }
 
     private record PresentationComponents(VisualOutput visualOutput,
                                           InteractionPresenter interactionPresenter,
                                           CoreVisual coreVisual,
                                           InteractionLifecycleListener interactionLifecycleListener,
+                                          AssistantExecutionLifecycleListener executionLifecycleListener,
                                           JavaFxRuntime javaFxRuntime) {
     }
 }

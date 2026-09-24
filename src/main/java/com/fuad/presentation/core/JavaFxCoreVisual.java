@@ -1,7 +1,9 @@
 package com.fuad.presentation.core;
 
+import com.fuad.enums.Capability;
 import com.fuad.interaction.InteractionLifecycleListener;
 import com.fuad.interaction.InteractionOutcome;
+import com.fuad.pipeline.AssistantExecutionLifecycleListener;
 import com.fuad.pipeline.VoiceInputController;
 import com.fuad.pipeline.VoiceSignalSnapshot;
 import com.fuad.presentation.JavaFxRuntime;
@@ -19,7 +21,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
 
-public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListener {
+public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListener, AssistantExecutionLifecycleListener {
     private final JavaFxRuntime javaFxRuntime;
     private final InteractionDisplayResolver interactionDisplayResolver;
     private final Supplier<VoiceSignalSnapshot> voiceSignalSupplier;
@@ -64,6 +66,16 @@ public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListene
     @Override
     public void onCompleted(UUID sessionId, InteractionOutcome outcome) {
         javaFxRuntime.runLater(() -> dashboardView.interactionCompleted(sessionId));
+    }
+
+    @Override
+    public void onExecutionCompleted(UUID executionId, Capability capability) {
+        javaFxRuntime.runLater(() -> dashboardView.executionCompleted(executionId));
+    }
+
+    @Override
+    public void onExecutionStarted(UUID executionId, Capability capability) {
+        javaFxRuntime.runLater(() -> dashboardView.executionStarted(executionId));
     }
 
     private void createStage() {

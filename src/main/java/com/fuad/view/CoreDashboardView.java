@@ -48,6 +48,7 @@ public final class CoreDashboardView extends StackPane {
     private final AssistantVisualStateCoordinator stateCoordinator;
     private CoreVisualSnapshot latestSnapshot;
     private UUID activeInteractionSessionId;
+    private UUID activeExecutionId;
 
     public CoreDashboardView() {
         this (VoiceSignalSnapshot::silence, null);
@@ -120,6 +121,19 @@ public final class CoreDashboardView extends StackPane {
         }
         activeInteractionSessionId = null;
         stateCoordinator.clearOverride(AssistantVisualStateCoordinator.Source.INTERACTION);
+    }
+
+    public void executionStarted(UUID executionId) {
+        activeExecutionId = Objects.requireNonNull(executionId);
+        stateCoordinator.setOverride(AssistantVisualStateCoordinator.Source.EXECUTION, AssistantVisualState.EXECUTING);
+    }
+
+    public void executionCompleted(UUID executionId) {
+        if (!Objects.equals(activeExecutionId, executionId)) {
+            return;
+        }
+        activeExecutionId = null;
+        stateCoordinator.clearOverride(AssistantVisualStateCoordinator.Source.EXECUTION);
     }
 
     public void showWorkspace(WorkspaceType workspaceType) {

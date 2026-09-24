@@ -9,15 +9,22 @@ import com.fuad.assistant.skills.Skill;
 import com.fuad.assistant.skills.SkillRoute;
 import com.fuad.assistant.skills.SkillExecution;
 import com.fuad.assistant.skills.SkillRouter;
-import com.fuad.enums.Capability;
 
 import java.util.Objects;
+import java.util.UUID;
+import java.util.function.Supplier;
 
 public class AssistantPipeline {
+    private final AssistantExecutionLifecycleListener executionLifecycleListener;
     private final SkillRouter skillRouter;
 
     public AssistantPipeline(SkillRouter skillRouter) {
+        this(skillRouter, AssistantExecutionLifecycleListener.noop());
+    }
+
+    public AssistantPipeline(SkillRouter skillRouter, AssistantExecutionLifecycleListener executionLifecycleListener) {
         this.skillRouter = Objects.requireNonNull(skillRouter, "skillRouter cannot be null");
+        this.executionLifecycleListener = Objects.requireNonNull(executionLifecycleListener, "listener cannot be null");
     }
 
     public AssistantExecutionResult process(ActivationResult activationResult) {
@@ -33,7 +40,7 @@ public class AssistantPipeline {
         SkillRoute skillRoute = skillRouter.route(activationResult.getCommand());
         Skill skill = skillRoute.getSkill();
         System.out.println("SKILL -> " + skill.getClass().getSimpleName());
-        return map(skill.executeTurn(activationResult.getCommand()), skill, skillRoute);
+        return execute(() -> skill.executeTurn(activationResult.getCommand()), skill, skillRoute);
     }
 
     public AssistantTurn processFollowUpTurn(ActivationResult activationResult,
@@ -43,30 +50,48 @@ public class AssistantPipeline {
         SkillRoute skillRoute = skillRouter.routeFollowUp(activationResult.getCommand(), conversationSnapshot);
         Skill skill = skillRoute.getSkill();
         System.out.println("SKILL -> " + skill.getClass().getSimpleName());
-        return map(skill.executeFollowUpTurn(activationResult.getCommand(), conversationSnapshot),
-                skill, skillRoute);
+        return execute(() -> skill.executeFollowUpTurn(activationResult.getCommand(), conversationSnapshot), skill, skillRoute);
     }
 
-    private AssistantTurn map(SkillExecution execution, Skill skill, SkillRoute route) {
+    private AssistantTurn execute(Supplier<SkillExecution> action, Skill skill, SkillRoute skillRoute) {
+        UUID executionId = UUID.randomUUID();
+
+        executionLifecycleListener.onExecutionStarted(executionId, skillRoute.getCapability());
+        try {
+            SkillExecution execution = action.get();
+            return map(execution, skill, skillRoute, executionId);
+        }
+        catch (RuntimeException e) {
+            executionLifecycleListener.onExecutionCompleted(executionId, skillRoute.getCapability());
+            throw e;
+        }
+    }
+
+    private AssistantTurn map(SkillExecution execution, Skill skill, SkillRoute route, UUID executionId) {
         return switch (execution) {
-            case SkillExecution.Completed completed ->
-                    new AssistantTurn.Completed(executionResult(completed.result(), skill, route));
-            case SkillExecution.Async async -> new AssistantTurn.Async(
-                    async.stage().thenApply(result -> executionResult(result, skill, route)));
-            case SkillExecution.AwaitingInteraction<?> awaiting ->
-                    mapAwaiting(awaiting, skill, route);
+            case SkillExecution.Completed completed -> {
+                executionLifecycleListener.onExecutionCompleted(executionId, route.getCapability());
+                yield new AssistantTurn.Completed(executionResult(completed.result(), skill, route));
+            }
+            case SkillExecution.Async async -> new AssistantTurn.Async(async.stage().whenComplete((result, failure) ->
+                        executionLifecycleListener.onExecutionCompleted(executionId, route.getCapability()))
+                        .thenApply(result -> executionResult(result, skill, route)));
+            case SkillExecution.AwaitingInteraction<?> awaiting -> {
+                executionLifecycleListener.onExecutionCompleted(executionId, route.getCapability());
+                yield mapAwaiting(awaiting, skill, route);
+            }
         };
     }
 
     private <T> AssistantTurn mapAwaiting(SkillExecution.AwaitingInteraction<T> awaiting,
                                           Skill skill, SkillRoute route) {
         return new AssistantTurn.AwaitingInteraction<>(awaiting.request(),
-                result -> map(awaiting.continuation().apply(result), skill, route));
+                result -> execute(() -> awaiting.continuation().apply(result), skill, route));
     }
 
     private AssistantExecutionResult completed(AssistantTurn turn) {
-        if (turn instanceof AssistantTurn.Completed completed) {
-            return completed.result();
+        if (turn instanceof AssistantTurn.Completed(AssistantExecutionResult result)) {
+            return result;
         }
         throw new IllegalStateException("Interactive or asynchronous turn requires processTurn");
     }
