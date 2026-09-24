@@ -1,5 +1,7 @@
 package com.fuad.presentation.core;
 
+import com.fuad.interaction.InteractionLifecycleListener;
+import com.fuad.interaction.InteractionOutcome;
 import com.fuad.pipeline.VoiceInputController;
 import com.fuad.pipeline.VoiceSignalSnapshot;
 import com.fuad.presentation.JavaFxRuntime;
@@ -14,9 +16,10 @@ import javafx.stage.StageStyle;
 
 import java.net.URL;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Supplier;
 
-public class JavaFxCoreVisual implements CoreVisual {
+public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListener {
     private final JavaFxRuntime javaFxRuntime;
     private final InteractionDisplayResolver interactionDisplayResolver;
     private final Supplier<VoiceSignalSnapshot> voiceSignalSupplier;
@@ -51,6 +54,16 @@ public class JavaFxCoreVisual implements CoreVisual {
     @Override
     public void close() {
         javaFxRuntime.runAndWait(stage::close);
+    }
+
+    @Override
+    public void onVisible(UUID sessionId) {
+        javaFxRuntime.runLater(() -> dashboardView.interactionVisible(sessionId));
+    }
+
+    @Override
+    public void onCompleted(UUID sessionId, InteractionOutcome outcome) {
+        javaFxRuntime.runLater(() -> dashboardView.interactionCompleted(sessionId));
     }
 
     private void createStage() {

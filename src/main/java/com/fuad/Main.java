@@ -50,6 +50,7 @@ import com.fuad.audio.AudioDeviceManager;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
+import com.fuad.interaction.InteractionLifecycleListener;
 import com.fuad.model.runtime.LmStudioStartupCoordinator;
 import com.fuad.interaction.DefaultInteractionService;
 import com.fuad.interaction.InteractionPresenter;
@@ -123,7 +124,7 @@ public class Main {
                         presentation.javaFxRuntime());
             }
             DefaultInteractionService interactionService = new DefaultInteractionService(
-                    presentation.interactionPresenter());
+                    presentation.interactionPresenter(), presentation.interactionLifecycleListener());
             InteractionVoiceRouter interactionVoiceRouter =
                     new InteractionVoiceRouter(interactionService);
             cleanup.register(ResourceCleanup.Resource.INTERACTION, interactionService);
@@ -279,8 +280,9 @@ public class Main {
             OverlayDisplayResolver overlayDisplayResolver =  new OverlayDisplayResolver(displayResolver, overlayWindowSupport);
             visualOutput = new JavaFxVisualOutput(catalogSessions, javaFxRuntime, overlayDisplayResolver);
             InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(javaFxRuntime, displayResolver);
-            coreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver, voiceSignalSupplier, voiceInputController);
-            return new PresentationComponents(visualOutput, interactionPresenter, coreVisual, javaFxRuntime);
+            JavaFxCoreVisual javaFxCoreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver, voiceSignalSupplier, voiceInputController);
+            coreVisual = javaFxCoreVisual;
+            return new PresentationComponents(visualOutput, interactionPresenter, coreVisual, javaFxCoreVisual, javaFxRuntime);
         }
         catch (Exception e) {
             System.err.println("Unable to initialize JavaFX visual output: " + e.getMessage());
@@ -295,12 +297,13 @@ public class Main {
             }
         }
         return new PresentationComponents(new ConsoleVisualOutput(),
-                new UnavailableInteractionPresenter("JavaFX is unavailable"), null, null);
+                new UnavailableInteractionPresenter("JavaFX is unavailable"), null, InteractionLifecycleListener.noop(), null);
     }
 
     private record PresentationComponents(VisualOutput visualOutput,
                                           InteractionPresenter interactionPresenter,
                                           CoreVisual coreVisual,
+                                          InteractionLifecycleListener interactionLifecycleListener,
                                           JavaFxRuntime javaFxRuntime) {
     }
 }

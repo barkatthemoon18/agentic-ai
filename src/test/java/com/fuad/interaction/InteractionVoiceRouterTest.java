@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class InteractionVoiceRouterTest {
     private final TrackingPresenter presenter = new TrackingPresenter();
-    private final DefaultInteractionService service = new DefaultInteractionService(presenter);
+    private final DefaultInteractionService service = new DefaultInteractionService(presenter, InteractionLifecycleListener.noop());
     private final InteractionVoiceRouter router = new InteractionVoiceRouter(service);
 
     @AfterEach

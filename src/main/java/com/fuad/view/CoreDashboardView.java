@@ -22,6 +22,7 @@ import javafx.util.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 public final class CoreDashboardView extends StackPane {
@@ -30,6 +31,7 @@ public final class CoreDashboardView extends StackPane {
     private static final PseudoClass STATE_IDLE = PseudoClass.getPseudoClass("idle");
     public static final PseudoClass STATE_LISTENING = PseudoClass.getPseudoClass("listening");
     public static final PseudoClass STATE_PROCESSING = PseudoClass.getPseudoClass("processing");
+    public static final PseudoClass STATE_INTERACTING = PseudoClass.getPseudoClass("interacting");
     public static final PseudoClass STATE_EXECUTING = PseudoClass.getPseudoClass("executing");
     public static final PseudoClass STATE_SPEAKING = PseudoClass.getPseudoClass("speaking");
     public static final PseudoClass STATE_DEGRADED = PseudoClass.getPseudoClass("degraded");
@@ -45,6 +47,7 @@ public final class CoreDashboardView extends StackPane {
     private final Timeline clock;
     private final AssistantVisualStateCoordinator stateCoordinator;
     private CoreVisualSnapshot latestSnapshot;
+    private UUID activeInteractionSessionId;
 
     public CoreDashboardView() {
         this (VoiceSignalSnapshot::silence, null);
@@ -104,6 +107,19 @@ public final class CoreDashboardView extends StackPane {
         stateCoordinator.updateBaseState(visualSnapshot.assistantVisualState());
 
         renderSnapshot(visualSnapshot.withAssistantVisualState(stateCoordinator.getEffectiveState()));
+    }
+
+    public void interactionVisible(UUID sessionId) {
+        activeInteractionSessionId = Objects.requireNonNull(sessionId);
+        stateCoordinator.setOverride(AssistantVisualStateCoordinator.Source.INTERACTION, AssistantVisualState.INTERACTING);
+    }
+
+    public void interactionCompleted(UUID sessionId) {
+        if (!Objects.equals(activeInteractionSessionId, sessionId)) {
+            return;
+        }
+        activeInteractionSessionId = null;
+        stateCoordinator.clearOverride(AssistantVisualStateCoordinator.Source.INTERACTION);
     }
 
     public void showWorkspace(WorkspaceType workspaceType) {
@@ -261,6 +277,7 @@ public final class CoreDashboardView extends StackPane {
             case IDLE -> STATE_IDLE;
             case LISTENING -> STATE_LISTENING;
             case PROCESSING -> STATE_PROCESSING;
+            case INTERACTING -> STATE_INTERACTING;
             case EXECUTING -> STATE_EXECUTING;
             case SPEAKING -> STATE_SPEAKING;
             case DEGRADED -> STATE_DEGRADED;
@@ -272,6 +289,7 @@ public final class CoreDashboardView extends StackPane {
         assistantStateLabel.pseudoClassStateChanged(STATE_IDLE, false);
         assistantStateLabel.pseudoClassStateChanged(STATE_LISTENING, false);
         assistantStateLabel.pseudoClassStateChanged(STATE_PROCESSING, false);
+        assistantStateLabel.pseudoClassStateChanged(STATE_INTERACTING, false);
         assistantStateLabel.pseudoClassStateChanged(STATE_EXECUTING, false);
         assistantStateLabel.pseudoClassStateChanged(STATE_SPEAKING, false);
         assistantStateLabel.pseudoClassStateChanged(STATE_DEGRADED, false);

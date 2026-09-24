@@ -20,7 +20,7 @@ class DefaultInteractionServiceTest {
     private final TrackingPresenter presenter = new TrackingPresenter();
     private final TrackingScheduler scheduler = new TrackingScheduler();
     private final DefaultInteractionService service = new DefaultInteractionService(
-            presenter, scheduler, Duration.ofMillis(80));
+            presenter, scheduler, Duration.ofMillis(80), InteractionLifecycleListener.noop());
 
     @AfterEach
     void close() {

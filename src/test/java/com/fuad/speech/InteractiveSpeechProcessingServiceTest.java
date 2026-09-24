@@ -12,15 +12,7 @@ import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.enums.ActivationType;
 import com.fuad.enums.Capability;
-import com.fuad.interaction.ChoiceOption;
-import com.fuad.interaction.ChoiceRequest;
-import com.fuad.interaction.DefaultInteractionService;
-import com.fuad.interaction.FocusRequirement;
-import com.fuad.interaction.InputModality;
-import com.fuad.interaction.InteractionPresenter;
-import com.fuad.interaction.InteractionRequest;
-import com.fuad.interaction.InteractionResponder;
-import com.fuad.interaction.InteractionVoiceRouter;
+import com.fuad.interaction.*;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.presentation.AssistantOutputCoordinator;
@@ -47,7 +39,7 @@ class InteractiveSpeechProcessingServiceTest {
     @Test
     void interactionContinuationShouldRunOnAresExecutorNotCompletingThread() throws Exception {
         TrackingPresenter presenter = new TrackingPresenter();
-        DefaultInteractionService interactionService = new DefaultInteractionService(presenter);
+        DefaultInteractionService interactionService = new DefaultInteractionService(presenter, InteractionLifecycleListener.noop());
         InteractionVoiceRouter voiceRouter = new InteractionVoiceRouter(interactionService);
         AtomicReference<String> continuationThread = new AtomicReference<>();
         Skill skill = new Skill() {

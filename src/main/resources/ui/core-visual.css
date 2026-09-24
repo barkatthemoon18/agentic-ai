@@ -57,6 +57,10 @@
     -fx-text-fill: #7699a7;
 }
 
+.core-header-status:interacting {
+    -fx-text-fill: #b7d6df;
+}
+
 .core-header-status:idle {
     -fx-text-fill: #78ecff;
 }

@@ -19,23 +19,25 @@ public final class DefaultInteractionService implements InteractionService {
     private final InteractionPresenter presenter;
     private final ScheduledExecutorService scheduler;
     private final Duration defaultTimeout;
+    private final InteractionLifecycleListener lifecycleListener;
     private final AtomicReference<Session<?>> active = new AtomicReference<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    public DefaultInteractionService(InteractionPresenter presenter) {
+    public DefaultInteractionService(InteractionPresenter presenter, InteractionLifecycleListener lifecycleListener) {
         this(presenter, Executors.newSingleThreadScheduledExecutor(runnable -> {
             Thread thread = new Thread(runnable, "ares-interaction-timeout");
             thread.setDaemon(true);
             return thread;
-        }), DEFAULT_TIMEOUT);
+        }), DEFAULT_TIMEOUT, lifecycleListener);
     }
 
     DefaultInteractionService(InteractionPresenter presenter,
                               ScheduledExecutorService scheduler,
-                              Duration defaultTimeout) {
+                              Duration defaultTimeout, InteractionLifecycleListener lifecycleListener) {
         this.presenter = Objects.requireNonNull(presenter, "presenter must not be null");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler must not be null");
         this.defaultTimeout = Objects.requireNonNull(defaultTimeout, "defaultTimeout must not be null");
+        this.lifecycleListener = Objects.requireNonNull(lifecycleListener, "lifecycleListener must not be null");
         if (defaultTimeout.isZero() || defaultTimeout.isNegative()) {
             throw new IllegalArgumentException("defaultTimeout must be positive");
         }
@@ -98,6 +100,7 @@ public final class DefaultInteractionService implements InteractionService {
             }
             session.phase = InteractionPhase.VISIBLE;
             Duration timeout = session.request.timeoutOverride().orElse(defaultTimeout);
+            notifyVisible(session);
             try {
                 session.timeout = scheduler.schedule(() -> {
                     completeUntyped(session, InteractionOutcome.EXPIRED, null, null);
@@ -141,6 +144,7 @@ public final class DefaultInteractionService implements InteractionService {
                 : InteractionResult.terminal(session.request, outcome, modality);
         session.result.complete(interactionResult);
         presenter.dismiss(session.id);
+        notifyCompleted(session, outcome);
         return true;
     }
 
@@ -155,6 +159,24 @@ public final class DefaultInteractionService implements InteractionService {
         }
         scheduler.shutdownNow();
         presenter.close();
+    }
+
+    private void notifyVisible(Session<?> session) {
+        try {
+            lifecycleListener.onVisible(session.id);
+        }
+        catch (RuntimeException e) {
+            System.err.println("Interaction lifecycle listener failed: " + e.getMessage());
+        }
+    }
+
+    private void notifyCompleted(Session<?> session, InteractionOutcome outcome) {
+        try {
+            lifecycleListener.onCompleted(session.id, outcome);
+        }
+        catch (RuntimeException e) {
+            System.err.println("Interaction lifecycle listener failed: " + e.getMessage());
+        }
     }
 
     private final class BoundResponder<T> implements InteractionResponder<T> {

@@ -317,6 +317,8 @@ public class AresCoreView extends StackPane {
                     5.0, 0.95, 0.18, 0.12);
             case PROCESSING -> new CoreVisualProfile(30.0, -18.0, 7.0,
                     7.0, 7.0, 0.60, 0.12, 0.80);
+            case INTERACTING -> new CoreVisualProfile(6.0, -4.0, 2.0, 8.0,
+                    2.8, 0.72, 0.10, 0.18);
             case EXECUTING -> new CoreVisualProfile(20.0, -10.0, 5.0,
                     11.0, 3.5,0.72, 0.14, 0.48);
             case SPEAKING -> new CoreVisualProfile(8.0, -4.0, 2.0, 28.0,
