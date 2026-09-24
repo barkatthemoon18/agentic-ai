@@ -5,6 +5,7 @@ import com.sun.jna.Pointer;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef;
 import com.sun.jna.ptr.IntByReference;
+import javafx.geometry.Rectangle2D;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,14 +13,14 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-final class WindowsOverlayOwnerSupport {
+public final class WindowsOverlayOwnerSupport {
     static final int GWL_EXSTYLE = -20;
     static final int WS_EX_NOACTIVATE = 0x08000000;
 
     private final NativeApi nativeApi;
     private final Consumer<String> diagnostics;
 
-    static WindowsOverlayOwnerSupport platformDefault() {
+    public static WindowsOverlayOwnerSupport platformDefault() {
         Consumer<String> diagnostics = message ->
                 System.err.println("JavaFX overlay owner: " + message);
         if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")) {
@@ -37,6 +38,23 @@ final class WindowsOverlayOwnerSupport {
     WindowsOverlayOwnerSupport(NativeApi nativeApi, Consumer<String> diagnostics) {
         this.nativeApi = nativeApi;
         this.diagnostics = Objects.requireNonNull(diagnostics, "diagnostics must not be null");
+    }
+
+    Rectangle2D foregroundWindowBounds() {
+        if (nativeApi == null) {
+            return null;
+        }
+        try {
+            long handle = nativeApi.foregroundWindow();
+            if (handle == 0) {
+                return null;
+            }
+            return nativeApi.windowBounds(handle);
+        }
+        catch (RuntimeException | LinkageError e) {
+            diagnostics.accept("Unable to resolve foreground window bounds: " + safeMessage(e));
+            return null;
+        }
     }
 
     long captureForegroundWindow() {
@@ -134,6 +152,8 @@ final class WindowsOverlayOwnerSupport {
     }
 
     interface NativeApi {
+        Rectangle2D windowBounds(long handle);
+
         long foregroundWindow();
 
         List<NativeWindow> topLevelWindows();
@@ -154,6 +174,16 @@ final class WindowsOverlayOwnerSupport {
 
     private static final class JnaNativeApi implements NativeApi {
         private final User32 user32 = User32.INSTANCE;
+
+        @Override
+        public Rectangle2D windowBounds(long handle) {
+            WinDef.RECT rect = new WinDef.RECT();
+
+            if (!user32.GetWindowRect(toNative(handle), rect)) {
+                return null;
+            }
+            return new Rectangle2D(rect.left, rect.top, (double)rect.right - rect.left, (double)rect.bottom - rect.top);
+        }
 
         @Override
         public long foregroundWindow() {

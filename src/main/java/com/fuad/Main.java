@@ -273,9 +273,11 @@ public class Main {
 
         try {
             javaFxRuntime = new JavaFxRuntime();
+            WindowsOverlayOwnerSupport overlayWindowSupport = WindowsOverlayOwnerSupport.platformDefault();
             var displayResolver = DefaultInteractionDisplayResolver.platformDefault(Path.of("config",
                     "interaction-display.json"));
-            visualOutput = new JavaFxVisualOutput(catalogSessions, javaFxRuntime);
+            OverlayDisplayResolver overlayDisplayResolver =  new OverlayDisplayResolver(displayResolver, overlayWindowSupport);
+            visualOutput = new JavaFxVisualOutput(catalogSessions, javaFxRuntime, overlayDisplayResolver);
             InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(javaFxRuntime, displayResolver);
             coreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver, voiceSignalSupplier);
             return new PresentationComponents(visualOutput, interactionPresenter, coreVisual, javaFxRuntime);

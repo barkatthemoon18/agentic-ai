@@ -41,6 +41,7 @@ public class JavaFxVisualOutput implements VisualOutput {
     private final JavaFxRuntime fxRuntime;
     private final boolean ownsRuntime;
     private final WindowsOverlayOwnerSupport ownerSupport;
+    private final OverlayDisplayResolver displayResolver;
     private final String ownerWindowTitle = "Ares Overlay Owner " + UUID.randomUUID();
     private Stage ownerStage;
     private Stage stage;
@@ -64,35 +65,20 @@ public class JavaFxVisualOutput implements VisualOutput {
     private InfrastructureStatus pendingInfrastructureStatus;
     private DisplayMode displayMode = DisplayMode.NONE;
 
-    public JavaFxVisualOutput() {
-        this(new CatalogSessionStore(), new JavaFxRuntime(),
-                WindowsOverlayOwnerSupport.platformDefault(), true);
-    }
-
-    public JavaFxVisualOutput(CatalogSessionStore catalogSessions) {
-        this(catalogSessions, new JavaFxRuntime(),
-                WindowsOverlayOwnerSupport.platformDefault(), true);
-    }
-
     public JavaFxVisualOutput(CatalogSessionStore catalogSessions,
-                              JavaFxRuntime fxRuntime) {
-        this(catalogSessions, fxRuntime,
-                WindowsOverlayOwnerSupport.platformDefault(), false);
+                              JavaFxRuntime fxRuntime, OverlayDisplayResolver displayResolver) {
+        this(catalogSessions, fxRuntime, WindowsOverlayOwnerSupport.platformDefault(), displayResolver, false);
     }
 
-    JavaFxVisualOutput(CatalogSessionStore catalogSessions,
-                       WindowsOverlayOwnerSupport ownerSupport) {
-        this(catalogSessions, new JavaFxRuntime(), ownerSupport, true);
-    }
-
-    JavaFxVisualOutput(CatalogSessionStore catalogSessions,
-                       JavaFxRuntime fxRuntime,
-                       WindowsOverlayOwnerSupport ownerSupport,
-                       boolean ownsRuntime) {
-        this.catalogSessions = Objects.requireNonNull(catalogSessions, "catalogSessions must not be null");
+    JavaFxVisualOutput(CatalogSessionStore catalogSessions, JavaFxRuntime fxRuntime, WindowsOverlayOwnerSupport ownerSupport,
+            OverlayDisplayResolver displayResolver, boolean ownsRuntime) {
+        this.catalogSessions =
+                Objects.requireNonNull(catalogSessions, "catalogSessions must not be null");
         this.fxRuntime = Objects.requireNonNull(fxRuntime, "fxRuntime must not be null");
         this.ownerSupport = Objects.requireNonNull(ownerSupport, "ownerSupport must not be null");
+        this.displayResolver = Objects.requireNonNull(displayResolver, "displayResolver must not be null");
         this.ownsRuntime = ownsRuntime;
+
         fxRuntime.runAndWait(this::createOverlay);
     }
 
@@ -318,7 +304,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         messageScroll.setVvalue(0.0);
         overlayRoot.setOpacity(0.0);
         overlayRoot.setTranslateX(20.0);
-        Rectangle2D screenBounds = resolveTargetScreen().getVisualBounds();
+        Rectangle2D screenBounds = displayResolver.resolve().getVisualBounds();
         sizeOverlay(screenBounds, catalog || openApplications);
         if (!stage.isShowing()) {
             stage.show();
@@ -402,7 +388,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         timeLabel.setText(LocalTime.now().format(TIME_FORMATTER));
         overlayRoot.setOpacity(0.0);
         overlayRoot.setTranslateX(20.0);
-        Rectangle2D screenBounds = resolveTargetScreen().getVisualBounds();
+        Rectangle2D screenBounds = displayResolver.resolve().getVisualBounds();
         double preferredHeight = status.snapshot().state() == RuntimeState.READY
                 ? MINIMUM_HEIGHT : 150.0 + RuntimeComponent.values().length * 48.0;
         Rectangle2D bounds = calculateOverlayBounds(screenBounds, preferredHeight);
