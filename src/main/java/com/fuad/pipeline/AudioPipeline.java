@@ -10,6 +10,7 @@ import lombok.Getter;
 
 public class AudioPipeline {
     private static final long POST_PLAYBACK_GUARD_NANOS = 350_000_000L;
+    private final VoiceSignalListener voiceSignalListener;
     private final AssistantActivityListener activityListener;
     private final TtsEngine ttsEngine;
     private final AudioPlaybackService playbackService;
@@ -21,16 +22,19 @@ public class AudioPipeline {
 
     public AudioPipeline(TtsEngine ttsEngine, AudioPlaybackService playbackService, AudioDeviceInfo outputDevice,
                          AssistantAudioController assistantAudioController) {
-        this(ttsEngine, playbackService, outputDevice, assistantAudioController, AssistantActivityListener.noop());
+        this(ttsEngine, playbackService, outputDevice, assistantAudioController, AssistantActivityListener.noop(),
+                VoiceSignalListener.noop());
     }
 
     public AudioPipeline(TtsEngine ttsEngine, AudioPlaybackService playbackService, AudioDeviceInfo outputDevice,
-                         AssistantAudioController assistantAudioController, AssistantActivityListener activityListener) {
+                         AssistantAudioController assistantAudioController, AssistantActivityListener activityListener,
+                         VoiceSignalListener voiceSignalListener) {
         this.ttsEngine = ttsEngine;
         this.playbackService = playbackService;
         this.outputDevice = outputDevice;
         this.assistantAudioController = assistantAudioController;
         this.activityListener = activityListener;
+        this.voiceSignalListener = voiceSignalListener;
     }
 
     public synchronized boolean beginProcessing() {
@@ -52,7 +56,7 @@ public class AudioPipeline {
             activityListener.onStateChanged(AssistantActivityState.SPEAKING);
             playbackStarted = true;
             System.out.println("AUDIO STATE -> SPEAKING");
-            playbackService.play(outputDevice, audio, assistantAudioController.getGain());
+            playbackService.play(outputDevice, audio, assistantAudioController.getGain(), this::publishPlaybackSignal);
         }
         finally {
             if (playbackStarted) {
@@ -60,6 +64,7 @@ public class AudioPipeline {
             }
             state = AudioState.LISTENING;
             activityListener.onStateChanged(AssistantActivityState.IDLE);
+            voiceSignalListener.onSignal(VoiceSignalSnapshot.silence());
             System.out.println("AUDIO STATE -> LISTENING (guard 350 ms)");
         }
     }
@@ -82,5 +87,21 @@ public class AudioPipeline {
 
     public boolean isSpeaking() {
         return state == AudioState.SPEAKING;
+    }
+
+    private void publishPlaybackSignal(float[] samples) {
+        if (samples.length == 0) {
+            return;
+        }
+        double sumSquares = 0.0;
+        double peak = 0.0;
+
+        for (float sample : samples) {
+            double value = sample;
+            sumSquares += Math.pow(value, 2);
+            peak = Math.max(peak, Math.abs(value));
+            double rms = Math.sqrt(sumSquares / samples.length);
+            voiceSignalListener.onSignal(new VoiceSignalSnapshot(samples, rms, peak, 0.0));
+        }
     }
 }

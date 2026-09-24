@@ -18,18 +18,24 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 public class AresCoreView extends StackPane {
+    private static final double RMS_VISUAL_FLOOR = 0.008;
+    private static final double RMS_VISUAL_CEILING = 0.12;
+    private static final double PEAK_VISUAL_FLOOR = 0.02;
+    private static final double PEAK_VISUAL_CEILING = 0.50;
     private static final double CORE_RADIUS = 88.0;
     private final Canvas canvas = new Canvas(620, 620);
-    private final Label coreTitle = new Label("ARES");
     private final Label state = new Label("● IDLE");
-    private final VBox identity = new VBox(4.0, coreTitle, state);
     private final Supplier<VoiceSignalSnapshot> voiceSignalSupplier;
+    private VoiceSignalSnapshot visualSignal = VoiceSignalSnapshot.silence();
     private AssistantVisualState visualState = AssistantVisualState.IDLE;
     private double innerRotation;
     private double middleRotation;
     private double outerRotation;
     private double sweepRotation;
     private double time;
+    private double smoothedRms;
+    private double smoothedPeak;
+    private double smoothedVad;
     private final AnimationTimer animationTimer = new AnimationTimer() {
         private long previous;
 
@@ -42,6 +48,9 @@ public class AresCoreView extends StackPane {
             double delta = (now - previous) / 1_000_000_000.0;
             previous = now;
             time += delta;
+            visualSignal = visualState == AssistantVisualState.LISTENING || visualState == AssistantVisualState.SPEAKING ?
+                    voiceSignalSupplier.get() : VoiceSignalSnapshot.silence();
+            updateReactiveSignal(visualSignal, delta);
             CoreVisualProfile profile = profile();
             innerRotation = normalize(innerRotation + delta * profile.innerSpeed());
             middleRotation = normalize(middleRotation + delta * profile.middleSpeed());
@@ -60,8 +69,10 @@ public class AresCoreView extends StackPane {
 
         setAlignment(Pos.CENTER);
         getStyleClass().add("ares-core");
+        Label coreTitle = new Label("ARES");
         coreTitle.getStyleClass().add("ares-core-title");
         state.getStyleClass().add("ares-core-state");
+        VBox identity = new VBox(4.0, coreTitle, state);
         identity.setAlignment(Pos.CENTER);
         identity.setTranslateY(48.0);
         getChildren().addAll(canvas, identity);
@@ -71,6 +82,15 @@ public class AresCoreView extends StackPane {
     public void update(CoreVisualSnapshot visualSnapshot) {
         visualState = visualSnapshot.assistantVisualState();
         state.setText("● " + visualState.name());
+    }
+
+    private void updateReactiveSignal(VoiceSignalSnapshot voiceSignal, double delta) {
+        double rmsTarget = normalizeVisual(voiceSignal.rms(), RMS_VISUAL_FLOOR, RMS_VISUAL_CEILING);
+        double peakTarget = normalizeVisual(voiceSignal.peak(), PEAK_VISUAL_FLOOR, PEAK_VISUAL_CEILING);
+        double vadTarget = visualState == AssistantVisualState.LISTENING ? Math.clamp(voiceSignal.vadProbability(), 0.0, 1.0) : 0.0;
+        smoothedRms = smooth(smoothedRms, rmsTarget, delta, 0.045, 0.180);
+        smoothedPeak = smooth(smoothedPeak, peakTarget, delta, 0.020, 0.120);
+        smoothedVad = smooth(smoothedVad, vadTarget, delta, 0.060, 0.220);
     }
 
     private void draw() {
@@ -172,11 +192,19 @@ public class AresCoreView extends StackPane {
     }
 
     private void drawCoreHalo(GraphicsContext graphicsContext, double cx, double cy, CoreVisualProfile profile) {
+        double voiceBoost;
         double pulse = (Math.sin(time * 2.2) + 1.0) / 2.0;
-        double intensity = profile.corePulse() * (0.55 + pulse * 0.45);
+        if (visualState == AssistantVisualState.LISTENING) {
+            voiceBoost = 1.0 + smoothedVad * 0.65 + smoothedRms * 0.45;
+        }
+        else {
+            voiceBoost = 1.0 + smoothedRms * 0.75;
+        }
+        double intensity = profile.corePulse() * (0.55 + pulse * 0.45) * voiceBoost;
+
         for (int i = 4; i >= 1; i--) {
              double radius = 88.0 + i * 13.0;
-             double alpha = intensity * Math.pow(1.0 - i / 5.0, 2.0);
+             double alpha = Math.clamp(intensity * Math.pow(1.0 - i / 5.0, 2.0), 0.0, 1.0);
              graphicsContext.setFill(Color.rgb(34, 207, 245, alpha));
              graphicsContext.fillOval(cx - radius, cy - radius, radius * 2.0, radius * 2.0);
         }
@@ -216,8 +244,8 @@ public class AresCoreView extends StackPane {
         graphicsContext.setLineWidth(1.0);
         graphicsContext.strokeLine(cx - 115.0, waveformY, cx + 115.0, waveformY);
 
-        if (visualState == AssistantVisualState.LISTENING) {
-            drawLiveWaveform(graphicsContext, cx, waveformY, profile, voiceSignalSupplier.get());
+        if (visualState == AssistantVisualState.LISTENING || visualState == AssistantVisualState.SPEAKING) {
+            drawLiveWaveform(graphicsContext, cx, waveformY, profile, visualSignal);
             return;
         }
 
@@ -249,8 +277,9 @@ public class AresCoreView extends StackPane {
         final int points = 72;
         final double width = 222.0;
         final double startX = cx - width / 2.0;
-        double amplitude = profile.waveformAmplitude() * 2.5;
+        double amplitude = profile.waveformAmplitude() * (2.0 + smoothedRms);
 
+        graphicsContext.setLineWidth(1.0 + smoothedRms * 0.55);
         graphicsContext.beginPath();
 
         for (int i = 0; i <= points; i++) {
@@ -267,13 +296,16 @@ public class AresCoreView extends StackPane {
             }
         }
         graphicsContext.stroke();
+        graphicsContext.setLineWidth(1.0 + smoothedRms * 0.55);
     }
 
     private void drawCorePulse(GraphicsContext graphicsContext, double cx, double cy) {
         double pulse = (Math.sin(time * 2.2) + 1.0) / 2.0;
-        double radius = 2.0 + pulse * 1.5;
+        double voiceImpulse = visualState == AssistantVisualState.LISTENING ? smoothedPeak : 0.0;
+        double radius = 2.0 + pulse * 1.5 + voiceImpulse * 3.0;
+        double opacity = Math.clamp(0.45 + pulse * 0.35 + voiceImpulse * 0.15, 0.0, 1.0);
 
-        graphicsContext.setFill(Color.rgb(120, 236, 255, 0.45 + pulse * 0.35));
+        graphicsContext.setFill(Color.rgb(120, 236, 255, opacity));
         graphicsContext.fillOval(cx - radius, (cy + 8.0) - radius, radius * 2.0, radius * 2.0);
     }
 
@@ -298,6 +330,16 @@ public class AresCoreView extends StackPane {
         angle %= 360.0;
 
         return angle < 0.0 ? angle + 360.0 : angle;
+    }
+
+    private static double normalizeVisual(double value, double floor, double ceiling) {
+        return Math.clamp((value - floor) / (ceiling - floor), 0.0, 1.0);
+    }
+
+    private static double smooth(double current, double target, double delta, double attackSeconds, double releaseSeconds) {
+        double timeConstant = target > current ? attackSeconds : releaseSeconds;
+        double alpha = 1.0 - Math.exp(-delta / timeConstant);
+        return current + (target - current) * alpha;
     }
 
     public void dispose() {

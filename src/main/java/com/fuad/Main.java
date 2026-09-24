@@ -200,7 +200,7 @@ public class Main {
                     .orElseThrow();
 
             AudioPipeline audioPipeline = new AudioPipeline(
-                    tts, playbackService, deviceOutFocusrite, audioController, assistantVisualStateStore);
+                    tts, playbackService, deviceOutFocusrite, audioController, assistantVisualStateStore, voiceSignalStore);
             AssistantOutputCoordinator outputCoordinator = new AssistantOutputCoordinator(audioController,
                     presentationPolicy, audioPipeline, visualOutput);
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, outputCoordinator);
