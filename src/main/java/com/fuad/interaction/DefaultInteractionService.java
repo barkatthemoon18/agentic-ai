@@ -94,7 +94,7 @@ public final class DefaultInteractionService implements InteractionService {
     }
 
     private void markVisible(Session<?> session) {
-        synchronized (session) {
+        synchronized (session.lock) {
             if (active.get() != session || session.phase != InteractionPhase.PRESENTING) {
                 return;
             }
@@ -123,7 +123,7 @@ public final class DefaultInteractionService implements InteractionService {
     private <T> boolean complete(Session<T> session, InteractionOutcome outcome,
                                  T value, InputModality modality) {
         ScheduledFuture<?> timeout;
-        synchronized (session) {
+        synchronized (session.lock) {
             if (active.get() != session || session.phase == InteractionPhase.COMPLETED) {
                 return false;
             }
@@ -220,6 +220,7 @@ public final class DefaultInteractionService implements InteractionService {
     private static final class Session<T> {
         private final UUID id;
         private final InteractionRequest<T> request;
+        private final Object lock = new Object();
         private final CompletableFuture<InteractionResult<T>> result = new CompletableFuture<>();
         private InteractionPhase phase = InteractionPhase.PRESENTING;
         private ScheduledFuture<?> timeout;
