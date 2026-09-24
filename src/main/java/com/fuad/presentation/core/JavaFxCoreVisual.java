@@ -1,5 +1,6 @@
 package com.fuad.presentation.core;
 
+import com.fuad.pipeline.VoiceInputController;
 import com.fuad.pipeline.VoiceSignalSnapshot;
 import com.fuad.presentation.JavaFxRuntime;
 import com.fuad.presentation.interaction.InteractionDisplayResolver;
@@ -19,17 +20,20 @@ public class JavaFxCoreVisual implements CoreVisual {
     private final JavaFxRuntime javaFxRuntime;
     private final InteractionDisplayResolver interactionDisplayResolver;
     private final Supplier<VoiceSignalSnapshot> voiceSignalSupplier;
+    private final VoiceInputController voiceInputController;
     private Stage stage;
     private CoreDashboardView dashboardView;
 
     public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver) {
-        this(javaFxRuntime, interactionDisplayResolver, VoiceSignalSnapshot::silence);
+        this(javaFxRuntime, interactionDisplayResolver, VoiceSignalSnapshot::silence, null);
     }
 
-    public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver, Supplier<VoiceSignalSnapshot> voiceSignalSupplier) {
+    public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver, Supplier<VoiceSignalSnapshot> voiceSignalSupplier,
+                            VoiceInputController voiceInputController) {
         this.javaFxRuntime = Objects.requireNonNull(javaFxRuntime);
         this.interactionDisplayResolver =  Objects.requireNonNull(interactionDisplayResolver);
         this.voiceSignalSupplier = Objects.requireNonNull(voiceSignalSupplier);
+        this.voiceInputController = Objects.requireNonNull(voiceInputController);
 
         javaFxRuntime.runAndWait(this::createStage);
     }
@@ -53,7 +57,7 @@ public class JavaFxCoreVisual implements CoreVisual {
         ResolvedInteractionDisplay interactionDisplay = interactionDisplayResolver.resolve().orElseThrow(() ->
                 new IllegalStateException("Core display unavailable"));
         Rectangle2D bounds = interactionDisplay.screen().getVisualBounds();
-        dashboardView = new CoreDashboardView(voiceSignalSupplier);
+        dashboardView = new CoreDashboardView(voiceSignalSupplier, voiceInputController);
         Scene scene = new Scene(dashboardView, bounds.getWidth(), bounds.getHeight());
         scene.setFill(Color.rgb(4, 13, 22));
         URL css = JavaFxCoreVisual.class.getResource("/ui/core-visual.css");

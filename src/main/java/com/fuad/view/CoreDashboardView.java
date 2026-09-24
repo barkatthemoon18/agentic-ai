@@ -1,5 +1,6 @@
 package com.fuad.view;
 
+import com.fuad.pipeline.VoiceInputController;
 import com.fuad.pipeline.VoiceSignalSnapshot;
 import com.fuad.presentation.core.AssistantVisualState;
 import com.fuad.presentation.core.AssistantVisualStateCoordinator;
@@ -14,6 +15,7 @@ import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.*;
 import javafx.util.Duration;
 
@@ -34,6 +36,7 @@ public final class CoreDashboardView extends StackPane {
     private final TelemetryPanel telemetryPanel = new TelemetryPanel();
     private final AresCoreView coreView;
     private final AresWorkspaceView aresWorkspaceView;
+    private final VoiceInputController voiceInputController;
     private final RuntimePanel runtimePanel = new RuntimePanel();
     private final Label assistantStateLabel = new Label("● IDLE");
     private final Label runtimeSummaryLabel = new Label("MOCK TELEMETRY");
@@ -44,12 +47,13 @@ public final class CoreDashboardView extends StackPane {
     private CoreVisualSnapshot latestSnapshot;
 
     public CoreDashboardView() {
-        this (VoiceSignalSnapshot::silence);
+        this (VoiceSignalSnapshot::silence, null);
     }
 
-    public CoreDashboardView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier) {
-        coreView = new AresCoreView(Objects.requireNonNull(voiceSignalSupplier));
+    public CoreDashboardView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController) {
+        this.voiceInputController = Objects.requireNonNull(voiceInputController);
 
+        coreView = new AresCoreView(Objects.requireNonNull(voiceSignalSupplier));
         stateCoordinator = new AssistantVisualStateCoordinator(this::handleEffectiveVisualState);
         aresWorkspaceView = new AresWorkspaceView(this::handleResearchLifecycle);
 
@@ -151,14 +155,23 @@ public final class CoreDashboardView extends StackPane {
     private Region createFooter() {
         Label systemStatus = new Label("● ARES // READY");
         Label modality = new Label("● VOICE + TOUCH");
+        ToggleButton muteButton = new ToggleButton("MUTE");
 
         systemStatus.getStyleClass().add("core-footer-primary");
         runtimeSummaryLabel.getStyleClass().add("core-footer-secondary");
         modality.getStyleClass().add("core-footer-status");
+        muteButton.getStyleClass().add("core-footer-mute");
+        muteButton.setSelected(voiceInputController.isMuted());
+
+        updateVoiceInputControls(muteButton, modality);
+        muteButton.selectedProperty().addListener((observable, oldValue, newValue) -> {
+            voiceInputController.setMuted(newValue);
+            updateVoiceInputControls(muteButton, modality);
+        });
 
         HBox left = new HBox(systemStatus);
         HBox center = new HBox(runtimeSummaryLabel);
-        HBox right = new HBox(modality);
+        HBox right = new HBox(10.0, muteButton, modality);
         left.setAlignment(Pos.CENTER_LEFT);
         center.setAlignment(Pos.CENTER);
         right.setAlignment(Pos.CENTER_RIGHT);
@@ -188,6 +201,13 @@ public final class CoreDashboardView extends StackPane {
 
         footer.getStyleClass().add("core-footer");
         return footer;
+    }
+
+    private void updateVoiceInputControls(ToggleButton muteButton, Label modality) {
+        boolean muted = muteButton.isSelected();
+
+        muteButton.setText(muted ? "MUTE // ON" : "MUTE");
+        modality.setText(muted ? "● TOUCH ONLY" : "● VOICE + TOUCH");
     }
 
     private void updateClock() {

@@ -22,27 +22,41 @@ public class VoicePipeline {
     private final SpeechSegmentListener segmentListener;
     private final AudioPipeline audioPipeline;
     private final VoiceSignalListener signalListener;
+    private final VoiceInputController voiceInputController;
     private VoiceState state = VoiceState.IDLE;
     private boolean audioWasBlocked = false;
+    private boolean muteApplied;
     private int speechFrames = 0;
     private int silenceFrames = 0;
 
     public VoicePipeline(VadEngine vadEngine, SpeechBuffer speechBuffer,  SpeechSegmentListener segmentListener,
                          AudioPipeline audioPipeline, AssistantActivityListener activityListener) {
-        this(vadEngine, speechBuffer, segmentListener, audioPipeline, activityListener, VoiceSignalListener.noop());
+        this(vadEngine, speechBuffer, segmentListener, audioPipeline, activityListener, VoiceSignalListener.noop(),
+                new VoiceInputController());
     }
 
     public VoicePipeline(VadEngine vadEngine, SpeechBuffer speechBuffer,  SpeechSegmentListener segmentListener,
-                         AudioPipeline audioPipeline, AssistantActivityListener activityListener, VoiceSignalListener signalListener) {
+                         AudioPipeline audioPipeline, AssistantActivityListener activityListener, VoiceSignalListener signalListener,
+                         VoiceInputController voiceInputController) {
         this.vadEngine = vadEngine;
         this.speechBuffer = speechBuffer;
         this.segmentListener = segmentListener;
         this.audioPipeline = audioPipeline;
         this.activityListener = activityListener;
         this.signalListener = signalListener;
+        this.voiceInputController = voiceInputController;
     }
 
     public void process(AudioFrame frame) {
+        if (voiceInputController.isMuted()) {
+            handleMutedInput();
+            return;
+        }
+        if (muteApplied) {
+            reset();
+            muteApplied = false;
+            System.out.println("VOICE INPUT -> READY");
+        }
         if (!audioPipeline.canListen()) {
             audioWasBlocked = true;
             return;
@@ -59,6 +73,20 @@ public class VoicePipeline {
             case IDLE -> processIdle(frame, result);
             case SPEAKING -> processSpeaking(frame, result);
         }
+    }
+
+    private void handleMutedInput() {
+        if (muteApplied) {
+            return;
+        }
+        boolean wasListening = state == VoiceState.SPEAKING;
+        reset();
+        muteApplied = true;
+        signalListener.onSignal(VoiceSignalSnapshot.silence());
+        if (wasListening && !audioPipeline.isProcessing() && !audioPipeline.isSpeaking()) {
+            activityListener.onStateChanged(AssistantActivityState.IDLE);
+        }
+        System.out.println("VOICE INPUT -> MUTED");
     }
 
     private void processIdle(AudioFrame frame, VadResult result) {

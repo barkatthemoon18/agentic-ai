@@ -145,6 +145,47 @@
     -fx-text-fill: #39d5ff;
 }
 
+.core-footer-mute {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+
+    -fx-text-fill: #78ecff;
+
+    -fx-background-color:
+            rgba(34, 207, 245, 0.05);
+
+    -fx-background-radius: 6px;
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.28);
+
+    -fx-border-radius: 6px;
+    -fx-border-width: 1px;
+
+    -fx-padding: 5px 9px;
+
+    -fx-cursor: hand;
+}
+
+.core-footer-mute:hover {
+    -fx-background-color:
+            rgba(34, 207, 245, 0.12);
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.56);
+}
+
+.core-footer-mute:selected {
+    -fx-text-fill: #d9b06c;
+
+    -fx-background-color:
+            rgba(217, 176, 108, 0.10);
+
+    -fx-border-color:
+            rgba(217, 176, 108, 0.68);
+}
+
 .core-panel {
     -fx-background-color: rgba(8, 28, 42, 0.72);
 

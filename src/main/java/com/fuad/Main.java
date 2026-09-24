@@ -54,10 +54,7 @@ import com.fuad.model.runtime.LmStudioStartupCoordinator;
 import com.fuad.interaction.DefaultInteractionService;
 import com.fuad.interaction.InteractionPresenter;
 import com.fuad.interaction.InteractionVoiceRouter;
-import com.fuad.pipeline.AssistantPipeline;
-import com.fuad.pipeline.AudioPipeline;
-import com.fuad.pipeline.VoicePipeline;
-import com.fuad.pipeline.VoiceSignalSnapshot;
+import com.fuad.pipeline.*;
 import com.fuad.presentation.*;
 import com.fuad.presentation.core.*;
 import com.fuad.presentation.interaction.DefaultInteractionDisplayResolver;
@@ -117,7 +114,8 @@ public class Main {
                     osCommandParser, applicationRegistry, applicationController, safetyGuard, catalogSessions);
             OutputPresentationPolicy presentationPolicy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
             VoiceSignalStore voiceSignalStore = new VoiceSignalStore();
-            PresentationComponents presentation = createPresentation(catalogSessions, voiceSignalStore::current);
+            VoiceInputController voiceInputController = new VoiceInputController();
+            PresentationComponents presentation = createPresentation(catalogSessions, voiceSignalStore::current, voiceInputController);
             VisualOutput visualOutput = presentation.visualOutput();
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, visualOutput);
             if (presentation.javaFxRuntime() != null) {
@@ -210,7 +208,7 @@ public class Main {
                     outputCoordinator, interactionService, interactionVoiceRouter);
             cleanup.register(ResourceCleanup.Resource.SPEECH_PROCESSOR, speechProcessor);
             VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline,
-                    assistantVisualStateStore, voiceSignalStore);
+                    assistantVisualStateStore, voiceSignalStore, voiceInputController);
 
             AtomicBoolean voiceRuntimeStarted = new AtomicBoolean(false);
             modelRuntime.subscribe(snapshot -> {
@@ -266,7 +264,9 @@ public class Main {
         }
     }
 
-    private static PresentationComponents createPresentation(CatalogSessionStore catalogSessions, Supplier<VoiceSignalSnapshot> voiceSignalSupplier) {
+    private static PresentationComponents createPresentation(CatalogSessionStore catalogSessions,
+                                                             Supplier<VoiceSignalSnapshot> voiceSignalSupplier,
+                                                             VoiceInputController voiceInputController) {
         JavaFxRuntime javaFxRuntime = null;
         JavaFxVisualOutput visualOutput = null;
         CoreVisual coreVisual = null;
@@ -279,7 +279,7 @@ public class Main {
             OverlayDisplayResolver overlayDisplayResolver =  new OverlayDisplayResolver(displayResolver, overlayWindowSupport);
             visualOutput = new JavaFxVisualOutput(catalogSessions, javaFxRuntime, overlayDisplayResolver);
             InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(javaFxRuntime, displayResolver);
-            coreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver, voiceSignalSupplier);
+            coreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver, voiceSignalSupplier, voiceInputController);
             return new PresentationComponents(visualOutput, interactionPresenter, coreVisual, javaFxRuntime);
         }
         catch (Exception e) {
