@@ -29,6 +29,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public class SpeechProcessingService implements SpeechSegmentListener, AutoCloseable {
     @NonNull
@@ -130,6 +131,40 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
         }
     }
 
+    public boolean submitDirectTurn(String userText, Supplier<AssistantTurn> turnSupplier) {
+        Objects.requireNonNull(userText, "userText must not be null");
+        Objects.requireNonNull(turnSupplier, "turnSupplier must not be null");
+
+        if (pendingTurn.get()) {
+            return false;
+        }
+        if (!audioPipeline.beginProcessing()) {
+            return false;
+        }
+        try {
+            executorService.execute(() -> processDirectTurn(userText, turnSupplier));
+            return true;
+        }
+        catch (RejectedExecutionException e) {
+            audioPipeline.finishProcessing();
+            System.err.println("Direct assistant turn rejected: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private void processDirectTurn(String userText, Supplier<AssistantTurn> turnSupplier) {
+        try {
+            AssistantTurn turn = turnSupplier.get();
+            advanceTurn(turn, userText);
+        }
+        catch (Exception e) {
+            presentProcessingFailure(e);
+        }
+        finally {
+            audioPipeline.finishProcessing();
+        }
+    }
+
     private void process(SpeechSegment speechSegment) {
         ActivationResult activationResult;
         ConversationControlDetector controlDetector = new ConversationControlDetector();
@@ -162,7 +197,6 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                 System.out.println("CONVERSATION -> FORCE CLOSE");
                 conversationSession.close();
                 assistantOutputCoordinator.present("Conversación terminada");
-                // audioPipeline.speak("Conversación terminada");
                 return;
             }
             if (conversationSession.hasExpired()) {

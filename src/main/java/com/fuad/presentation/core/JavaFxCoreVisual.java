@@ -7,6 +7,7 @@ import com.fuad.pipeline.AssistantExecutionLifecycleListener;
 import com.fuad.pipeline.VoiceInputController;
 import com.fuad.pipeline.VoiceSignalSnapshot;
 import com.fuad.presentation.JavaFxRuntime;
+import com.fuad.presentation.dev.DevActionHandler;
 import com.fuad.presentation.interaction.InteractionDisplayResolver;
 import com.fuad.presentation.interaction.ResolvedInteractionDisplay;
 import com.fuad.view.CoreDashboardView;
@@ -26,19 +27,27 @@ public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListene
     private final InteractionDisplayResolver interactionDisplayResolver;
     private final Supplier<VoiceSignalSnapshot> voiceSignalSupplier;
     private final VoiceInputController voiceInputController;
+    private final DevActionHandler devActionHandler;
     private Stage stage;
     private CoreDashboardView dashboardView;
 
     public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver) {
-        this(javaFxRuntime, interactionDisplayResolver, VoiceSignalSnapshot::silence, null);
+        this(javaFxRuntime, interactionDisplayResolver, VoiceSignalSnapshot::silence, null, DevActionHandler.unavailable());
     }
 
     public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver, Supplier<VoiceSignalSnapshot> voiceSignalSupplier,
                             VoiceInputController voiceInputController) {
+        this(javaFxRuntime, interactionDisplayResolver, voiceSignalSupplier, voiceInputController, DevActionHandler.unavailable());
+    }
+
+    public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver,
+                            Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController,
+                            DevActionHandler devActionHandler) {
         this.javaFxRuntime = Objects.requireNonNull(javaFxRuntime);
         this.interactionDisplayResolver =  Objects.requireNonNull(interactionDisplayResolver);
         this.voiceSignalSupplier = Objects.requireNonNull(voiceSignalSupplier);
         this.voiceInputController = Objects.requireNonNull(voiceInputController);
+        this.devActionHandler = Objects.requireNonNull(devActionHandler);
 
         javaFxRuntime.runAndWait(this::createStage);
     }
@@ -55,7 +64,14 @@ public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListene
 
     @Override
     public void close() {
-        javaFxRuntime.runAndWait(stage::close);
+        javaFxRuntime.runAndWait(() -> {
+            if (dashboardView != null) {
+                dashboardView.dispose();
+            }
+            if (stage != null) {
+                stage.close();
+            }
+        });
     }
 
     @Override
@@ -82,7 +98,7 @@ public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListene
         ResolvedInteractionDisplay interactionDisplay = interactionDisplayResolver.resolve().orElseThrow(() ->
                 new IllegalStateException("Core display unavailable"));
         Rectangle2D bounds = interactionDisplay.screen().getVisualBounds();
-        dashboardView = new CoreDashboardView(voiceSignalSupplier, voiceInputController);
+        dashboardView = new CoreDashboardView(voiceSignalSupplier, voiceInputController, devActionHandler);
         Scene scene = new Scene(dashboardView, bounds.getWidth(), bounds.getHeight());
         scene.setFill(Color.rgb(4, 13, 22));
         URL css = JavaFxCoreVisual.class.getResource("/ui/core-visual.css");

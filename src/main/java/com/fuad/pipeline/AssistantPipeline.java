@@ -9,6 +9,7 @@ import com.fuad.assistant.skills.Skill;
 import com.fuad.assistant.skills.SkillRoute;
 import com.fuad.assistant.skills.SkillExecution;
 import com.fuad.assistant.skills.SkillRouter;
+import com.fuad.enums.Capability;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -51,6 +52,18 @@ public class AssistantPipeline {
         Skill skill = skillRoute.getSkill();
         System.out.println("SKILL -> " + skill.getClass().getSimpleName());
         return execute(() -> skill.executeFollowUpTurn(activationResult.getCommand(), conversationSnapshot), skill, skillRoute);
+    }
+
+    public AssistantTurn processDirectTurn(Capability capability, Supplier<SkillExecution> execution) {
+        Objects.requireNonNull(capability, "capability cannot be null");
+        Objects.requireNonNull(execution, "execution cannot be null");
+
+        SkillRoute route = skillRouter.routeTo(capability);
+        Skill skill = route.getSkill();
+
+        System.out.println("SKILL -> " + skill.getClass().getSimpleName() + " [DIRECT]");
+
+        return execute(execution, skill, route);
     }
 
     private AssistantTurn execute(Supplier<SkillExecution> action, Skill skill, SkillRoute skillRoute) {

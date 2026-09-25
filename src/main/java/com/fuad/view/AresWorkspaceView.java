@@ -1,6 +1,7 @@
 package com.fuad.view;
 
 import com.fuad.presentation.core.WorkspaceType;
+import com.fuad.presentation.dev.DevActionHandler;
 import com.fuad.view.workspace.dev.DevWorkspaceView;
 import com.fuad.view.workspace.files.FilesWorkspaceView;
 import com.fuad.view.workspace.media.MediaWorkspaceView;
@@ -15,6 +16,7 @@ import javafx.scene.layout.*;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 public class AresWorkspaceView extends VBox {
@@ -26,14 +28,19 @@ public class AresWorkspaceView extends VBox {
     private final Map<WorkspaceType, Supplier<? extends Region>> factories = new EnumMap<>(WorkspaceType.class);
     private final Map<WorkspaceType, Region> instances = new  EnumMap<>(WorkspaceType.class);
     private final ResearchLifecycleListener researchLifecycleListener;
-    private WorkspaceType activeWorkspace = WorkspaceType.DEV;
+    private final DevActionHandler devActionHandler;
 
     public AresWorkspaceView() {
-        this(ResearchLifecycleListener.noop());
+        this(ResearchLifecycleListener.noop(), DevActionHandler.unavailable());
     }
 
     public AresWorkspaceView(ResearchLifecycleListener researchLifecycleListener) {
+        this(researchLifecycleListener, DevActionHandler.unavailable());
+    }
+
+    public AresWorkspaceView(ResearchLifecycleListener researchLifecycleListener, DevActionHandler devActionHandler) {
         this.researchLifecycleListener = researchLifecycleListener != null ? researchLifecycleListener : ResearchLifecycleListener.noop();
+        this.devActionHandler = Objects.requireNonNull(devActionHandler);
 
         setSpacing(12.0);
 
@@ -62,7 +69,6 @@ public class AresWorkspaceView extends VBox {
         Region workspace = instances.computeIfAbsent(workspaceType, ignored -> supplier.get());
         workspace.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         workspace.setMinHeight(0.0);
-        activeWorkspace = workspaceType;
         workspaceSubtitle.setText("WORKSPACE // " + workspaceType.getSubtitle().toUpperCase());
         navigationButtons.forEach((wsType, button) -> button.pseudoClassStateChanged(ACTIVE_CATEGORY,
                 wsType == workspaceType));
@@ -70,7 +76,7 @@ public class AresWorkspaceView extends VBox {
     }
 
     private void registerMockWorkspaces() {
-        factories.put(WorkspaceType.DEV, DevWorkspaceView::new);
+        factories.put(WorkspaceType.DEV, () -> new DevWorkspaceView(devActionHandler));
         factories.put(WorkspaceType.MEDIA, MediaWorkspaceView::new);
         factories.put(WorkspaceType.FILES, FilesWorkspaceView::new);
         factories.put(WorkspaceType.SYSTEM, SystemWorkspaceView::new);

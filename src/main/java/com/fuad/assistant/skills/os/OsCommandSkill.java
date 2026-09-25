@@ -15,11 +15,7 @@ import com.fuad.interaction.InteractionResult;
 
 import java.io.IOException;
 import java.text.Normalizer;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -89,19 +85,7 @@ public class OsCommandSkill implements Skill {
             return SkillExecution.completed(new AssistantResult(
                     "No pude interpretar el comando del sistema."));
         }
-        if (intent.getAction() == OsAction.UNSUPPORTED) {
-            return SkillExecution.completed(new AssistantResult(
-                    "Ese comando del sistema todavía no está soportado"));
-        }
-        try {
-            return requiresUniqueApplication(intent.getAction())
-                    ? executeInteractively(intent)
-                    : SkillExecution.completed(executeParsed(intent));
-        }
-        catch (Exception e) {
-            System.err.println("OS command failed: " + e.getMessage());
-            return SkillExecution.completed(new AssistantResult("No pude ejecutar esa acción"));
-        }
+        return executeIntent(intent);
     }
 
     @Override
@@ -150,6 +134,13 @@ public class OsCommandSkill implements Skill {
                             "La sesión del catálogo ya no está disponible.")));
         }
         return executeTurn(command);
+    }
+
+    public SkillExecution executionAction(OsAction action, String target) {
+        Objects.requireNonNull(action, "action cannot be null");
+        Objects.requireNonNull(target, "target cannot be null");
+
+        return executeIntent(new OsCommandIntent(action, target));
     }
 
     private SkillExecution executeInteractively(OsCommandIntent intent) throws IOException {
@@ -425,5 +416,19 @@ public class OsCommandSkill implements Skill {
     private String normalize(String value) {
         return Normalizer.normalize(value, Normalizer.Form.NFD).replaceAll("\\p{M}", "")
                 .toLowerCase(Locale.ROOT).replaceAll("[¿?¡!.,]", "").trim().replaceAll("\\s+", " ");
+    }
+
+    private SkillExecution executeIntent(OsCommandIntent intent) {
+        if (intent.getAction() == OsAction.UNSUPPORTED) {
+            return SkillExecution.completed(new AssistantResult("Ese comando del sistema no está soportado"));
+        }
+        try {
+            return requiresUniqueApplication(intent.getAction()) ? executeInteractively(intent) :
+                    SkillExecution.completed(executeParsed(intent));
+        }
+        catch (Exception e) {
+            System.err.println("OS command failed: " + e.getMessage());
+            return SkillExecution.completed(new AssistantResult("No pude ejecutar esa acción"));
+        }
     }
 }

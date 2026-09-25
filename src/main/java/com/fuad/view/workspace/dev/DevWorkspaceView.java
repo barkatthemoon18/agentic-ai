@@ -1,5 +1,8 @@
 package com.fuad.view.workspace.dev;
 
+import com.fuad.enums.OsAction;
+import com.fuad.presentation.dev.DevActionHandler;
+import com.fuad.presentation.dev.DevActionRequest;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -7,10 +10,12 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.*;
 
 import java.util.List;
+import java.util.Objects;
 
 public class DevWorkspaceView extends VBox {
     private static final double ACTION_WIDTH = 250.0;
     private static final double ACTION_HEIGHT = 112.0;
+    private final DevActionHandler actionHandler;
     private final GridPane actionGrid = new GridPane();
     private final Label targetValue = new Label("INTELLIJ IDEA");
     private final Label typeValue = new Label("APPLICATION");
@@ -20,6 +25,12 @@ public class DevWorkspaceView extends VBox {
     private final List<QuickAction> actions = createMockActions();
 
     public DevWorkspaceView() {
+        this(DevActionHandler.unavailable());
+    }
+
+    public DevWorkspaceView(DevActionHandler actionHandler) {
+        this.actionHandler = Objects.requireNonNull(actionHandler);
+
         setSpacing(12.0);
 
         actionGrid.setHgap(12.0);
@@ -61,8 +72,15 @@ public class DevWorkspaceView extends VBox {
             }
         });
         button.setOnAction(event -> {
-            lastValue.setText(action.name().toUpperCase());
-            System.out.println("Mock action: " + action.id());
+            if (action.kind() != QuickActionKind.APPLICATION) {
+                touchValue.setText("NOT WIRED");
+                return;
+            }
+            boolean accepted = actionHandler.submit(new DevActionRequest(OsAction.OPEN_APPLICATION, action.name()));
+            touchValue.setText(accepted ? "SUBMITTED" : "BUSY");
+            if (accepted) {
+                lastValue.setText(action.name().toUpperCase());
+            }
         });
         return button;
     }

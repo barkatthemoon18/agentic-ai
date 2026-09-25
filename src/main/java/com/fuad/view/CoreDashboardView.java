@@ -6,6 +6,7 @@ import com.fuad.presentation.core.AssistantVisualState;
 import com.fuad.presentation.core.AssistantVisualStateCoordinator;
 import com.fuad.presentation.core.CoreVisualSnapshot;
 import com.fuad.presentation.core.WorkspaceType;
+import com.fuad.presentation.dev.DevActionHandler;
 import com.fuad.view.workspace.web.ResearchTtsState;
 import com.fuad.view.workspace.web.ResearchWorkspaceSnapshot;
 import javafx.animation.Animation;
@@ -51,15 +52,19 @@ public final class CoreDashboardView extends StackPane {
     private UUID activeExecutionId;
 
     public CoreDashboardView() {
-        this (VoiceSignalSnapshot::silence, null);
+        this (VoiceSignalSnapshot::silence, null, DevActionHandler.unavailable());
     }
 
     public CoreDashboardView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController) {
+        this(voiceSignalSupplier, voiceInputController, DevActionHandler.unavailable());
+    }
+
+    public CoreDashboardView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController, DevActionHandler devActionHandler) {
         this.voiceInputController = Objects.requireNonNull(voiceInputController);
 
         coreView = new AresCoreView(Objects.requireNonNull(voiceSignalSupplier));
         stateCoordinator = new AssistantVisualStateCoordinator(this::handleEffectiveVisualState);
-        aresWorkspaceView = new AresWorkspaceView(this::handleResearchLifecycle);
+        aresWorkspaceView = new AresWorkspaceView(this::handleResearchLifecycle, devActionHandler);
 
         HudBackground hudBackground = new HudBackground();
 

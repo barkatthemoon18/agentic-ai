@@ -58,6 +58,8 @@ import com.fuad.interaction.InteractionVoiceRouter;
 import com.fuad.pipeline.*;
 import com.fuad.presentation.*;
 import com.fuad.presentation.core.*;
+import com.fuad.presentation.dev.DeferredDevActionHandler;
+import com.fuad.presentation.dev.DevActionHandler;
 import com.fuad.presentation.interaction.DefaultInteractionDisplayResolver;
 import com.fuad.presentation.interaction.JavaFxInteractionPresenter;
 import com.fuad.presentation.interaction.UnavailableInteractionPresenter;
@@ -116,7 +118,8 @@ public class Main {
             OutputPresentationPolicy presentationPolicy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
             VoiceSignalStore voiceSignalStore = new VoiceSignalStore();
             VoiceInputController voiceInputController = new VoiceInputController();
-            PresentationComponents presentation = createPresentation(catalogSessions, voiceSignalStore::current, voiceInputController);
+            DeferredDevActionHandler devActionHandler = new DeferredDevActionHandler();
+            PresentationComponents presentation = createPresentation(catalogSessions, voiceSignalStore::current, voiceInputController, devActionHandler);
             VisualOutput visualOutput = presentation.visualOutput();
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, visualOutput);
             if (presentation.javaFxRuntime() != null) {
@@ -207,6 +210,10 @@ public class Main {
             SpeechProcessingService speechProcessor = new SpeechProcessingService(stt, assistantPipeline, activationDetector,
                     new ConversationSession(), audioPipeline, speechSegmentValidator, utteranceClassifier,
                     outputCoordinator, interactionService, interactionVoiceRouter);
+            devActionHandler.bind(request ->
+                speechProcessor.submitDirectTurn("TOUCH // " + request.action() + " // " + request.target(),
+                        () -> assistantPipeline.processDirectTurn(Capability.OS_COMMAND, () ->
+                                osCommandSkill.executionAction(request.action(), request.target()))));
             cleanup.register(ResourceCleanup.Resource.SPEECH_PROCESSOR, speechProcessor);
             VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline,
                     assistantVisualStateStore, voiceSignalStore, voiceInputController);
@@ -267,7 +274,8 @@ public class Main {
 
     private static PresentationComponents createPresentation(CatalogSessionStore catalogSessions,
                                                              Supplier<VoiceSignalSnapshot> voiceSignalSupplier,
-                                                             VoiceInputController voiceInputController) {
+                                                             VoiceInputController voiceInputController,
+                                                             DevActionHandler devActionHandler) {
         JavaFxRuntime javaFxRuntime = null;
         JavaFxVisualOutput visualOutput = null;
         CoreVisual coreVisual = null;
@@ -280,7 +288,8 @@ public class Main {
             OverlayDisplayResolver overlayDisplayResolver =  new OverlayDisplayResolver(displayResolver, overlayWindowSupport);
             visualOutput = new JavaFxVisualOutput(catalogSessions, javaFxRuntime, overlayDisplayResolver);
             InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(javaFxRuntime, displayResolver);
-            JavaFxCoreVisual javaFxCoreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver, voiceSignalSupplier, voiceInputController);
+            JavaFxCoreVisual javaFxCoreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver, voiceSignalSupplier,
+                    voiceInputController, devActionHandler);
             coreVisual = javaFxCoreVisual;
             return new PresentationComponents(visualOutput, interactionPresenter, coreVisual, javaFxCoreVisual,
                     javaFxCoreVisual, javaFxRuntime);
