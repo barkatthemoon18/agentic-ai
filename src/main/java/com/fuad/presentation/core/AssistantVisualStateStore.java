@@ -9,35 +9,37 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public final class AssistantVisualStateStore implements AssistantActivityListener {
-    private final AtomicReference<AssistantVisualState> state = new AtomicReference<>(AssistantVisualState.IDLE);
+    private final Object lock = new Object();
     private final CopyOnWriteArrayList<Consumer<AssistantVisualState>> listeners = new CopyOnWriteArrayList<>();
+    private AssistantActivityState activityState = AssistantActivityState.IDLE;
+    private AssistantVisualState effectiveState = AssistantVisualState.IDLE;
+    private boolean degraded;
 
     @Override
     public void onStateChanged(AssistantActivityState state) {
-        AssistantVisualState visualState = null;
+        AssistantVisualState changed = null;
 
-        switch (state) {
-            case IDLE -> visualState = AssistantVisualState.IDLE;
-            case LISTENING -> visualState = AssistantVisualState.LISTENING;
-            case PROCESSING -> visualState = AssistantVisualState.PROCESSING;
-            case SPEAKING -> visualState = AssistantVisualState.SPEAKING;
+        Objects.requireNonNull(state);
+        synchronized (lock) {
+            activityState = state;
+            changed = recomputeLocked();
         }
-        set(visualState);
+        publish(changed);
+    }
+
+    public void setDegraded(boolean degraded) {
+        AssistantVisualState changed;
+
+        synchronized (lock) {
+            this.degraded = degraded;
+            changed = recomputeLocked();
+        }
+        publish(changed);
     }
 
     public AssistantVisualState current() {
-        return state.get();
-    }
-
-    public void set(AssistantVisualState next) {
-        Objects.requireNonNull(next);
-        AssistantVisualState previous = state.getAndSet(next);
-
-        if (previous == next) {
-            return;
-        }
-        for (Consumer<AssistantVisualState> listener : listeners) {
-            listener.accept(next);
+        synchronized (lock) {
+            return effectiveState;
         }
     }
 
@@ -46,5 +48,36 @@ public final class AssistantVisualStateStore implements AssistantActivityListene
 
         listeners.add(listener);
         return () -> listeners.remove(listener);
+    }
+
+    private AssistantVisualState recomputeLocked() {
+        AssistantVisualState next = resolveVisualState();
+
+        if (next == effectiveState) {
+            return null;
+        }
+        effectiveState = next;
+        return next;
+    }
+
+    private AssistantVisualState resolveVisualState() {
+        if (activityState == AssistantActivityState.IDLE && degraded) {
+            return AssistantVisualState.DEGRADED;
+        }
+        return switch (activityState) {
+            case IDLE -> AssistantVisualState.IDLE;
+            case LISTENING -> AssistantVisualState.LISTENING;
+            case PROCESSING -> AssistantVisualState.PROCESSING;
+            case SPEAKING -> AssistantVisualState.SPEAKING;
+        };
+    }
+
+    private void publish(AssistantVisualState state) {
+        if (state == null) {
+            return;
+        }
+        for (Consumer<AssistantVisualState> listener : listeners) {
+            listener.accept(state);
+        }
     }
 }

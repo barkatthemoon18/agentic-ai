@@ -129,8 +129,8 @@ public class Main {
                     new InteractionVoiceRouter(interactionService);
             cleanup.register(ResourceCleanup.Resource.INTERACTION, interactionService);
             LmStudioStartupCoordinator modelRuntime = new LmStudioStartupCoordinator();
-            RuntimeStatusCoordinator runtimeStatusCoordinator = new RuntimeStatusCoordinator();
             AssistantVisualStateStore assistantVisualStateStore = new AssistantVisualStateStore();
+            RuntimeStatusCoordinator runtimeStatusCoordinator = new RuntimeStatusCoordinator(assistantVisualStateStore::setDegraded);
             Object voiceRuntimeLock = new Object();
             AtomicBoolean applicationClosing = new AtomicBoolean(false);
             CoreVisual coreVisual = presentation.coreVisual();
