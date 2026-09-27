@@ -135,6 +135,8 @@ public class ApplicationCatalog {
                         app.getDisplayName(), normalizedTarget))
                 .sorted(ApplicationCatalogIdentity.STABLE_ORDER)
                 .toList();
+        System.out.println("APP RESOLVE NATURAL -> target='" + normalizedTarget + "' | matches=" +
+                matches.stream().map(ApplicationDefinition::getDisplayName).toList());
         return resolution(matches);
     }
 

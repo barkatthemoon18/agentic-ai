@@ -52,6 +52,7 @@ public class OsCommandSkill implements Skill {
         OsCommandIntent intent;
         try {
             intent = parser.parse(command);
+            System.out.println("OS INTENT -> action=" + intent.getAction() + " | target='" + intent.getTarget() + "'");
         }
         catch (RuntimeException e) {
             System.err.println("OS command parsing failed: " + e.getMessage());
@@ -79,6 +80,7 @@ public class OsCommandSkill implements Skill {
         OsCommandIntent intent;
         try {
             intent = parser.parse(command);
+            System.out.println("OS INTENT -> action=" + intent.getAction() + " | target='" + intent.getTarget() + "'");
         }
         catch (RuntimeException e) {
             System.err.println("OS command parsing failed: " + e.getMessage());

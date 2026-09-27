@@ -18,7 +18,7 @@ EXPECTED_SAMPLE_RATE = 16000 # 16 Khz
 
 def log(message: str):
     # stdout reserved only for binary IPC-comm
-    print(message, file = sys.stderr, flush = True)
+    print(message, file=sys.stderr, flush=True)
 
 def read_exact(stream, size: int) -> bytes:
     data = bytearray()
@@ -44,29 +44,31 @@ def transcribe(model: WhisperModel, request_id: int, sample_rate: int, samples: 
     if sample_rate != EXPECTED_SAMPLE_RATE:
         raise ValueError(f"Unsupported sample rate {sample_rate}. " f"Expected {EXPECTED_SAMPLE_RATE}.")
     duration_seconds = len(samples) / sample_rate
-    segments, info = model.transcribe(samples, task = "transcribe", beam_size = 5, no_speech_threshold = 0.6,
-                                      language = "es", vad_filter = False)
+    prompt_contexto = ("Comandos de voz en español. Términos técnicos y programas: Studio, One, IntelliJ, WebStorm, Topaz, "
+                       "Explorer, Adobe, Lightroom, Photoshop, Tidal, Spotify, Firefox.")
+    segments, info = model.transcribe(samples, task="transcribe", beam_size=2, no_speech_threshold=0.6,
+                                      language="es", vad_filter=False, initial_prompt=prompt_contexto, condition_on_previous_text=False)
     # faster-whisper -> iterable/generator
     # Force inference()
     segments = list(segments)
     text = "".join(segment.text for segment in segments).strip()
-    send_response(request_id = request_id, status = STATUS_OK, text = text, language = info.language or "",
-                  duration_seconds = duration_seconds)
+    send_response(request_id=request_id, status=STATUS_OK, text=text, language=info.language or "",
+                  duration_seconds=duration_seconds)
 
 def handle_transcribe(model: WhisperModel, request_id: int):
     stdin = sys.stdin.buffer
     metadata = read_exact(stdin, 16)
-    start_timestamp_nanos, sample_rate, sample_count = struct.unpack(">qii", metadata)
+    _start_timestamp_nanos, sample_rate, sample_count = struct.unpack(">qii", metadata)
     if (sample_count <= 0):
         raise ValueError("Invalid sample count")
     payload_size = sample_count * 4
     payload = read_exact(stdin, payload_size)
-    samples = np.frombuffer(payload, dtype = ">f4").astype(np.float32, copy = False)
+    samples = np.frombuffer(payload, dtype=">f4").astype(np.float32, copy=False)
     transcribe(model, request_id, sample_rate, samples)
 
 def main():
     log("Loading Faster Whisper Model...")
-    model = WhisperModel("small", device = "cpu", compute_type = "float32")
+    model = WhisperModel("large-v3-turbo", device="cpu", compute_type="int8_float32", cpu_threads=12)
     log("Faster Whisper ready")
     stdin = sys.stdin.buffer
     while True:
@@ -82,18 +84,18 @@ def main():
                     handle_transcribe(model, request_id)
                 except Exception as e:
                     log(f"Transcription error: {e}")
-                    send_response(request_id = request_id, status = STATUS_ERROR, text = str(e))
+                    send_response(request_id=request_id, status=STATUS_ERROR, text=str(e))
             elif opcode == OP_PING:
-                send_response(request_id = request_id, status = STATUS_OK, text = "Working...")
+                send_response(request_id=request_id, status=STATUS_OK, text="Working...")
             elif opcode == OP_SHUTDOWN:
-                send_response(request_id = request_id, status = STATUS_OK, text = "Shutdown in progress...")
+                send_response(request_id=request_id, status=STATUS_OK, text="Shutdown in progress...")
                 break
             else:
-                send_response(request_id = request_id, status = STATUS_ERROR, text = f"Unknown opcode: {opcode}")
+                send_response(request_id=request_id, status=STATUS_ERROR, text=f"Unknown opcode: {opcode}")
         except EOFError:
             break
         except Exception:
-            traceback.print_exc(file = sys.stderr)
+            traceback.print_exc(file=sys.stderr)
             break
 
 if __name__ == "__main__":
