@@ -58,8 +58,7 @@ import com.fuad.interaction.InteractionVoiceRouter;
 import com.fuad.pipeline.*;
 import com.fuad.presentation.*;
 import com.fuad.presentation.core.*;
-import com.fuad.presentation.dev.DeferredDevActionHandler;
-import com.fuad.presentation.dev.DevActionHandler;
+import com.fuad.presentation.tools.*;
 import com.fuad.presentation.interaction.DefaultInteractionDisplayResolver;
 import com.fuad.presentation.interaction.JavaFxInteractionPresenter;
 import com.fuad.presentation.interaction.UnavailableInteractionPresenter;
@@ -118,8 +117,10 @@ public class Main {
             OutputPresentationPolicy presentationPolicy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
             VoiceSignalStore voiceSignalStore = new VoiceSignalStore();
             VoiceInputController voiceInputController = new VoiceInputController();
-            DeferredDevActionHandler devActionHandler = new DeferredDevActionHandler();
-            PresentationComponents presentation = createPresentation(catalogSessions, voiceSignalStore::current, voiceInputController, devActionHandler);
+            ToolsWorkspaceConfig toolsConfig = new ToolsWorkspaceConfigLoader(Path.of("config", "ares-tools-applications.json")).load();
+            DeferredToolsActionHandler toolsActionHandler = new DeferredToolsActionHandler();
+            DeferredMoreToolsHandler moreToolsHandler = new DeferredMoreToolsHandler();
+            PresentationComponents presentation = createPresentation(catalogSessions, voiceSignalStore::current, voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig);
             VisualOutput visualOutput = presentation.visualOutput();
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, visualOutput);
             if (presentation.javaFxRuntime() != null) {
@@ -128,6 +129,7 @@ public class Main {
             }
             DefaultInteractionService interactionService = new DefaultInteractionService(
                     presentation.interactionPresenter(), presentation.interactionLifecycleListener());
+            MoreToolsBrowser moreToolsBrowser = new MoreToolsBrowser(interactionService, toolsActionHandler, toolsConfig);
             InteractionVoiceRouter interactionVoiceRouter =
                     new InteractionVoiceRouter(interactionService);
             cleanup.register(ResourceCleanup.Resource.INTERACTION, interactionService);
@@ -210,10 +212,11 @@ public class Main {
             SpeechProcessingService speechProcessor = new SpeechProcessingService(stt, assistantPipeline, activationDetector,
                     new ConversationSession(), audioPipeline, speechSegmentValidator, utteranceClassifier,
                     outputCoordinator, interactionService, interactionVoiceRouter);
-            devActionHandler.bind(request ->
+            toolsActionHandler.bind(request ->
                 speechProcessor.submitDirectTurn("TOUCH // " + request.action() + " // " + request.target(),
                         () -> assistantPipeline.processDirectTurn(Capability.OS_COMMAND, () ->
                                 osCommandSkill.executionAction(request.action(), request.target()))));
+            moreToolsHandler.bind(moreToolsBrowser::open);
             cleanup.register(ResourceCleanup.Resource.SPEECH_PROCESSOR, speechProcessor);
             VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline,
                     assistantVisualStateStore, voiceSignalStore, voiceInputController);
@@ -275,7 +278,9 @@ public class Main {
     private static PresentationComponents createPresentation(CatalogSessionStore catalogSessions,
                                                              Supplier<VoiceSignalSnapshot> voiceSignalSupplier,
                                                              VoiceInputController voiceInputController,
-                                                             DevActionHandler devActionHandler) {
+                                                             ToolsActionHandler toolsActionHandler,
+                                                             DeferredMoreToolsHandler moreToolsHandler,
+                                                             ToolsWorkspaceConfig toolsConfig) {
         JavaFxRuntime javaFxRuntime = null;
         JavaFxVisualOutput visualOutput = null;
         CoreVisual coreVisual = null;
@@ -289,7 +294,7 @@ public class Main {
             visualOutput = new JavaFxVisualOutput(catalogSessions, javaFxRuntime, overlayDisplayResolver);
             InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(javaFxRuntime, displayResolver);
             JavaFxCoreVisual javaFxCoreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver, voiceSignalSupplier,
-                    voiceInputController, devActionHandler);
+                    voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig);
             coreVisual = javaFxCoreVisual;
             return new PresentationComponents(visualOutput, interactionPresenter, coreVisual, javaFxCoreVisual,
                     javaFxCoreVisual, javaFxRuntime);

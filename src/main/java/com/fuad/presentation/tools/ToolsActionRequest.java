@@ -1,14 +1,14 @@
-package com.fuad.presentation.dev;
+package com.fuad.presentation.tools;
 
 import com.fuad.enums.OsAction;
 
 import java.util.Objects;
 
-public record DevActionRequest(
+public record ToolsActionRequest(
         OsAction action,
         String target) {
 
-    public DevActionRequest {
+    public ToolsActionRequest {
         Objects.requireNonNull(action);
         Objects.requireNonNull(target);
     }

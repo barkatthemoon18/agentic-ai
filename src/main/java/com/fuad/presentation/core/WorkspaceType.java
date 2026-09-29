@@ -4,7 +4,7 @@ import lombok.Getter;
 
 @Getter
 public enum WorkspaceType {
-    DEV("DEV", "Development"),
+    TOOLS("TOOLS", "Tools"),
     MEDIA("MEDIA", "Media"),
     FILES("FILES", "Files"),
     SYSTEM("SYSTEM", "System"),

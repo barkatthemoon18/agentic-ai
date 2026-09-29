@@ -6,7 +6,9 @@ import com.fuad.presentation.core.AssistantVisualState;
 import com.fuad.presentation.core.AssistantVisualStateCoordinator;
 import com.fuad.presentation.core.CoreVisualSnapshot;
 import com.fuad.presentation.core.WorkspaceType;
-import com.fuad.presentation.dev.DevActionHandler;
+import com.fuad.presentation.tools.MoreToolsHandler;
+import com.fuad.presentation.tools.ToolsActionHandler;
+import com.fuad.presentation.tools.ToolsWorkspaceConfig;
 import com.fuad.view.workspace.web.ResearchTtsState;
 import com.fuad.view.workspace.web.ResearchWorkspaceSnapshot;
 import javafx.animation.Animation;
@@ -52,19 +54,22 @@ public final class CoreDashboardView extends StackPane {
     private UUID activeExecutionId;
 
     public CoreDashboardView() {
-        this (VoiceSignalSnapshot::silence, null, DevActionHandler.unavailable());
+        this (VoiceSignalSnapshot::silence, null, ToolsActionHandler.unavailable(),
+                MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty());
     }
 
     public CoreDashboardView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController) {
-        this(voiceSignalSupplier, voiceInputController, DevActionHandler.unavailable());
+        this(voiceSignalSupplier, voiceInputController, ToolsActionHandler.unavailable(), MoreToolsHandler.unavailable(),
+                ToolsWorkspaceConfig.empty());
     }
 
-    public CoreDashboardView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController, DevActionHandler devActionHandler) {
+    public CoreDashboardView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController,
+                             ToolsActionHandler toolsActionHandler, MoreToolsHandler moreToolsHandler, ToolsWorkspaceConfig toolsConfig) {
         this.voiceInputController = Objects.requireNonNull(voiceInputController);
 
         coreView = new AresCoreView(Objects.requireNonNull(voiceSignalSupplier));
         stateCoordinator = new AssistantVisualStateCoordinator(this::handleEffectiveVisualState);
-        aresWorkspaceView = new AresWorkspaceView(this::handleResearchLifecycle, devActionHandler);
+        aresWorkspaceView = new AresWorkspaceView(this::handleResearchLifecycle, toolsActionHandler, moreToolsHandler, toolsConfig);
 
         HudBackground hudBackground = new HudBackground();
 

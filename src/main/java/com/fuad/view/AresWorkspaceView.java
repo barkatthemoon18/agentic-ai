@@ -1,8 +1,10 @@
 package com.fuad.view;
 
 import com.fuad.presentation.core.WorkspaceType;
-import com.fuad.presentation.dev.DevActionHandler;
-import com.fuad.view.workspace.dev.DevWorkspaceView;
+import com.fuad.presentation.tools.MoreToolsHandler;
+import com.fuad.presentation.tools.ToolsActionHandler;
+import com.fuad.presentation.tools.ToolsWorkspaceConfig;
+import com.fuad.view.workspace.tools.ToolsWorkspaceView;
 import com.fuad.view.workspace.files.FilesWorkspaceView;
 import com.fuad.view.workspace.media.MediaWorkspaceView;
 import com.fuad.view.workspace.system.SystemWorkspaceView;
@@ -28,19 +30,26 @@ public class AresWorkspaceView extends VBox {
     private final Map<WorkspaceType, Supplier<? extends Region>> factories = new EnumMap<>(WorkspaceType.class);
     private final Map<WorkspaceType, Region> instances = new  EnumMap<>(WorkspaceType.class);
     private final ResearchLifecycleListener researchLifecycleListener;
-    private final DevActionHandler devActionHandler;
+    private final ToolsActionHandler toolsActionHandler;
+    private final MoreToolsHandler moreToolsHandler;
+    private final ToolsWorkspaceConfig toolsConfig;
 
     public AresWorkspaceView() {
-        this(ResearchLifecycleListener.noop(), DevActionHandler.unavailable());
+        this(ResearchLifecycleListener.noop(), ToolsActionHandler.unavailable(),
+                MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty());
     }
 
     public AresWorkspaceView(ResearchLifecycleListener researchLifecycleListener) {
-        this(researchLifecycleListener, DevActionHandler.unavailable());
+        this(researchLifecycleListener, ToolsActionHandler.unavailable(), MoreToolsHandler.unavailable(),
+                ToolsWorkspaceConfig.empty());
     }
 
-    public AresWorkspaceView(ResearchLifecycleListener researchLifecycleListener, DevActionHandler devActionHandler) {
+    public AresWorkspaceView(ResearchLifecycleListener researchLifecycleListener, ToolsActionHandler toolsActionHandler,
+                             MoreToolsHandler moreToolsHandler, ToolsWorkspaceConfig toolsConfig) {
         this.researchLifecycleListener = researchLifecycleListener != null ? researchLifecycleListener : ResearchLifecycleListener.noop();
-        this.devActionHandler = Objects.requireNonNull(devActionHandler);
+        this.toolsActionHandler = Objects.requireNonNull(toolsActionHandler);
+        this.moreToolsHandler = Objects.requireNonNull(moreToolsHandler);
+        this.toolsConfig = Objects.requireNonNull(toolsConfig);
 
         setSpacing(12.0);
 
@@ -57,7 +66,7 @@ public class AresWorkspaceView extends VBox {
         registerMockWorkspaces();
         createNavigation();
         getChildren().addAll(title, workspaceSubtitle, navigation, contentHost);
-        showWorkspace(WorkspaceType.DEV);
+        showWorkspace(WorkspaceType.TOOLS);
     }
 
     public void showWorkspace(WorkspaceType workspaceType) {
@@ -76,7 +85,7 @@ public class AresWorkspaceView extends VBox {
     }
 
     private void registerMockWorkspaces() {
-        factories.put(WorkspaceType.DEV, () -> new DevWorkspaceView(devActionHandler));
+        factories.put(WorkspaceType.TOOLS, () -> new ToolsWorkspaceView(toolsConfig, toolsActionHandler, moreToolsHandler));
         factories.put(WorkspaceType.MEDIA, MediaWorkspaceView::new);
         factories.put(WorkspaceType.FILES, FilesWorkspaceView::new);
         factories.put(WorkspaceType.SYSTEM, SystemWorkspaceView::new);

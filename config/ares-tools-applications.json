@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "workspace": "TOOLS",
+  "pageSize": 6,
+  "featured": [
+    "intellij-idea",
+    "visual-studio-code",
+    "powershell",
+    "tidal",
+    "studio-one"
+  ],
+  "applications": [
+    {
+      "id": "adobe-acrobat",
+      "displayName": "Adobe Acrobat",
+      "resolverTarget": "Adobe Acrobat"
+    },
+    {
+      "id": "lightroom-classic",
+      "displayName": "Lightroom Classic",
+      "resolverTarget": "Adobe Lightroom Classic"
+    },
+    {
+      "id": "photoshop",
+      "displayName": "Photoshop",
+      "resolverTarget": "Adobe Photoshop 2026"
+    },
+    {
+      "id": "android-studio",
+      "displayName": "Android Studio",
+      "resolverTarget": "Android Studio"
+    },
+    {
+      "id": "burp-suite",
+      "displayName": "Burp Suite",
+      "resolverTarget": "Burp Suite Community Edition"
+    },
+    {
+      "id": "cubase",
+      "displayName": "Cubase",
+      "resolverTarget": "Cubase 15"
+    },
+    {
+      "id": "davinci-resolve",
+      "displayName": "DaVinci Resolve",
+      "resolverTarget": "DaVinci Resolve"
+    },
+    {
+      "id": "discord",
+      "displayName": "Discord",
+      "resolverTarget": "Discord"
+    },
+    {
+      "id": "epic-games",
+      "displayName": "Epic Games",
+      "resolverTarget": "Epic Games Launcher"
+    },
+    {
+      "id": "excel",
+      "displayName": "Excel",
+      "resolverTarget": "Excel"
+    },
+    {
+      "id": "firefox",
+      "displayName": "Firefox",
+      "resolverTarget": "Firefox"
+    },
+    {
+      "id": "focusrite-control",
+      "displayName": "Focusrite Control",
+      "resolverTarget": "Focusrite Control 2"
+    },
+    {
+      "id": "google-chrome",
+      "displayName": "Google Chrome",
+      "resolverTarget": "Google Chrome"
+    },
+    {
+      "id": "intellij-idea",
+      "displayName": "IntelliJ IDEA",
+      "resolverTarget": "IntelliJ IDEA"
+    },
+    {
+      "id": "outlook",
+      "displayName": "Outlook",
+      "resolverTarget": "Outlook (classic)"
+    },
+    {
+      "id": "postman",
+      "displayName": "Postman",
+      "resolverTarget": "Postman"
+    },
+    {
+      "id": "powerpoint",
+      "displayName": "PowerPoint",
+      "resolverTarget": "PowerPoint"
+    },
+    {
+      "id": "powershell",
+      "displayName": "PowerShell",
+      "resolverTarget": "Windows PowerShell"
+    },
+    {
+      "id": "python",
+      "displayName": "Python",
+      "resolverTarget": "Python 3.12"
+    },
+    {
+      "id": "steam",
+      "displayName": "Steam",
+      "resolverTarget": "Steam"
+    },
+    {
+      "id": "studio-one",
+      "displayName": "Studio One",
+      "resolverTarget": "Studio One 7"
+    },
+    {
+      "id": "telegram",
+      "displayName": "Telegram",
+      "resolverTarget": "Telegram"
+    },
+    {
+      "id": "tidal",
+      "displayName": "TIDAL",
+      "resolverTarget": "TIDAL"
+    },
+    {
+      "id": "topaz-photo-ai",
+      "displayName": "Topaz Photo AI",
+      "resolverTarget": "Topaz Photo AI"
+    },
+    {
+      "id": "topaz-video-ai",
+      "displayName": "Topaz Video AI",
+      "resolverTarget": "Topaz Video AI"
+    },
+    {
+      "id": "visual-studio-code",
+      "displayName": "Visual Studio Code",
+      "resolverTarget": "Visual Studio Code"
+    },
+    {
+      "id": "vlc",
+      "displayName": "VLC",
+      "resolverTarget": "VLC media player"
+    },
+    {
+      "id": "webstorm",
+      "displayName": "WebStorm",
+      "resolverTarget": "WebStorm"
+    },
+    {
+      "id": "winrar",
+      "displayName": "WinRAR",
+      "resolverTarget": "WinRAR"
+    },
+    {
+      "id": "word",
+      "displayName": "Word",
+      "resolverTarget": "Word"
+    }
+  ]
+}

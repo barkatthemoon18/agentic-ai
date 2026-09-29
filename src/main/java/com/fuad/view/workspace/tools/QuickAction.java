@@ -1,4 +1,4 @@
-package com.fuad.view.workspace.dev;
+package com.fuad.view.workspace.tools;
 
 public record QuickAction(
         String id,
