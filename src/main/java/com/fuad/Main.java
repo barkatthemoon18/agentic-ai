@@ -51,6 +51,8 @@ import com.fuad.audio.AudioPlaybackService;
 import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
 import com.fuad.interaction.InteractionLifecycleListener;
+import com.fuad.media.MediaSessionProvider;
+import com.fuad.media.windows.WindowsMediaSessionProvider;
 import com.fuad.model.runtime.LmStudioStartupCoordinator;
 import com.fuad.interaction.DefaultInteractionService;
 import com.fuad.interaction.InteractionPresenter;
@@ -58,6 +60,9 @@ import com.fuad.interaction.InteractionVoiceRouter;
 import com.fuad.pipeline.*;
 import com.fuad.presentation.*;
 import com.fuad.presentation.core.*;
+import com.fuad.presentation.media.MediaActionHandler;
+import com.fuad.presentation.media.MediaWorkspaceController;
+import com.fuad.presentation.media.MediaWorkspaceSnapshot;
 import com.fuad.presentation.tools.*;
 import com.fuad.presentation.interaction.DefaultInteractionDisplayResolver;
 import com.fuad.presentation.interaction.JavaFxInteractionPresenter;
@@ -120,9 +125,21 @@ public class Main {
             ToolsWorkspaceConfig toolsConfig = new ToolsWorkspaceConfigLoader(Path.of("config", "ares-tools-applications.json")).load();
             DeferredToolsActionHandler toolsActionHandler = new DeferredToolsActionHandler();
             DeferredMoreToolsHandler moreToolsHandler = new DeferredMoreToolsHandler();
-            PresentationComponents presentation = createPresentation(catalogSessions, voiceSignalStore::current, voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig);
+            MediaSessionProvider mediaSessionProvider;
+            try {
+                mediaSessionProvider = new WindowsMediaSessionProvider();
+                System.out.println("MEDIA -> Windowws media provider ready");
+            }
+            catch (RuntimeException | LinkageError e) {
+                System.err.println("MEDIA -> Windows media provider unavailable: " + e.getMessage());
+                mediaSessionProvider = MediaSessionProvider.unavailable();
+            }
+            MediaWorkspaceController mediaWorkspaceController = new MediaWorkspaceController(mediaSessionProvider);
+            mediaWorkspaceController.start();
+            PresentationComponents presentation = createPresentation(catalogSessions, voiceSignalStore::current, voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig, mediaWorkspaceController::current, mediaWorkspaceController);
             VisualOutput visualOutput = presentation.visualOutput();
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, visualOutput);
+            cleanup.register(ResourceCleanup.Resource.MEDIA, mediaWorkspaceController);
             if (presentation.javaFxRuntime() != null) {
                 cleanup.register(ResourceCleanup.Resource.JAVAFX_RUNTIME,
                         presentation.javaFxRuntime());
@@ -280,7 +297,9 @@ public class Main {
                                                              VoiceInputController voiceInputController,
                                                              ToolsActionHandler toolsActionHandler,
                                                              DeferredMoreToolsHandler moreToolsHandler,
-                                                             ToolsWorkspaceConfig toolsConfig) {
+                                                             ToolsWorkspaceConfig toolsConfig,
+                                                             Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier,
+                                                             MediaActionHandler mediaActionHandler) {
         JavaFxRuntime javaFxRuntime = null;
         JavaFxVisualOutput visualOutput = null;
         CoreVisual coreVisual = null;
@@ -294,7 +313,7 @@ public class Main {
             visualOutput = new JavaFxVisualOutput(catalogSessions, javaFxRuntime, overlayDisplayResolver);
             InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(javaFxRuntime, displayResolver);
             JavaFxCoreVisual javaFxCoreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver, voiceSignalSupplier,
-                    voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig);
+                    voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig, mediaSnapshotSupplier, mediaActionHandler);
             coreVisual = javaFxCoreVisual;
             return new PresentationComponents(visualOutput, interactionPresenter, coreVisual, javaFxCoreVisual,
                     javaFxCoreVisual, javaFxRuntime);

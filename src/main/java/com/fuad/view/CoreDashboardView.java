@@ -6,6 +6,8 @@ import com.fuad.presentation.core.AssistantVisualState;
 import com.fuad.presentation.core.AssistantVisualStateCoordinator;
 import com.fuad.presentation.core.CoreVisualSnapshot;
 import com.fuad.presentation.core.WorkspaceType;
+import com.fuad.presentation.media.MediaActionHandler;
+import com.fuad.presentation.media.MediaWorkspaceSnapshot;
 import com.fuad.presentation.tools.MoreToolsHandler;
 import com.fuad.presentation.tools.ToolsActionHandler;
 import com.fuad.presentation.tools.ToolsWorkspaceConfig;
@@ -49,27 +51,35 @@ public final class CoreDashboardView extends StackPane {
     private final Label clockLabel = new Label();
     private final Timeline clock;
     private final AssistantVisualStateCoordinator stateCoordinator;
+    private final Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier;
+    private final MediaActionHandler mediaActionHandler;
     private CoreVisualSnapshot latestSnapshot;
     private UUID activeInteractionSessionId;
     private UUID activeExecutionId;
 
     public CoreDashboardView() {
         this (VoiceSignalSnapshot::silence, null, ToolsActionHandler.unavailable(),
-                MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty());
+                MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable,
+                MediaActionHandler.unavailable());
     }
 
     public CoreDashboardView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController) {
         this(voiceSignalSupplier, voiceInputController, ToolsActionHandler.unavailable(), MoreToolsHandler.unavailable(),
-                ToolsWorkspaceConfig.empty());
+                ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable());
     }
 
     public CoreDashboardView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController,
-                             ToolsActionHandler toolsActionHandler, MoreToolsHandler moreToolsHandler, ToolsWorkspaceConfig toolsConfig) {
+                             ToolsActionHandler toolsActionHandler, MoreToolsHandler moreToolsHandler, ToolsWorkspaceConfig toolsConfig,
+                             Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier, MediaActionHandler mediaActionHandler) {
         this.voiceInputController = Objects.requireNonNull(voiceInputController);
+        this.mediaSnapshotSupplier = Objects.requireNonNull(mediaSnapshotSupplier);
+        this.mediaActionHandler = Objects.requireNonNull(mediaActionHandler);
 
         coreView = new AresCoreView(Objects.requireNonNull(voiceSignalSupplier));
         stateCoordinator = new AssistantVisualStateCoordinator(this::handleEffectiveVisualState);
-        aresWorkspaceView = new AresWorkspaceView(this::handleResearchLifecycle, toolsActionHandler, moreToolsHandler, toolsConfig);
+        aresWorkspaceView = new AresWorkspaceView(this::handleResearchLifecycle, toolsActionHandler, moreToolsHandler,
+                toolsConfig, mediaSnapshotSupplier, mediaActionHandler);
+
 
         HudBackground hudBackground = new HudBackground();
 
@@ -153,6 +163,7 @@ public final class CoreDashboardView extends StackPane {
     public void dispose() {
         clock.stop();
         coreView.dispose();
+        aresWorkspaceView.dispose();
     }
 
     private Region createHeader() {

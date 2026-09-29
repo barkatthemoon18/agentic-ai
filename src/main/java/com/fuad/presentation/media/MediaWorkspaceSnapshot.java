@@ -29,6 +29,19 @@ public record MediaWorkspaceSnapshot(
         return playbackState == MediaPlaybackState.PLAYING;
     }
 
+    public String sourceDisplayName() {
+        String normalized;
+        String[] parts;
+
+        if (sourceApplication == null || sourceApplication.isBlank()) {
+            return "MEDIA";
+        }
+        normalized = sourceApplication.replaceAll("(?i)\\.exe$", "");
+        parts = normalized.split("\\.");
+
+        return parts.length == 0 ? normalized : parts[parts.length - 1];
+    }
+
     public static MediaWorkspaceSnapshot unavailable() {
         return new MediaWorkspaceSnapshot(false, "", Optional.empty(), 0.0,
                 MediaPlaybackState.STOPPED, 0.0, "", "");

@@ -23,7 +23,7 @@ class VoicePipelineTest {
     void shouldEmitSegmentAfterTwoSpeechAndTwentySilenceFrames() {
         StubVad vad = new StubVad();
         List<SpeechSegment> emitted = new ArrayList<>();
-        VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), emitted::add, listeningAudioPipeline());
+        VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), emitted::add, listeningAudioPipeline(), AssistantActivityListener.noop());
 
         for (int i = 0; i < 3; i++) process(pipeline, vad, false, i);
         process(pipeline, vad, true, 3);
@@ -42,7 +42,7 @@ class VoicePipelineTest {
     void shouldKeepOnlyTenPreRollFrames() {
         StubVad vad = new StubVad();
         List<SpeechSegment> emitted = new ArrayList<>();
-        VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), emitted::add, listeningAudioPipeline());
+        VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), emitted::add, listeningAudioPipeline(), AssistantActivityListener.noop());
 
         for (int i = 0; i < 15; i++) process(pipeline, vad, false, i);
         process(pipeline, vad, true, 15);
@@ -59,7 +59,7 @@ class VoicePipelineTest {
     void shouldIgnoreFramesWhileAudioIsBlockedAndResetBeforeResuming() {
         StubVad vad = new StubVad();
         AudioPipeline audio = listeningAudioPipeline();
-        VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), segment -> fail("must not emit"), audio);
+        VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), segment -> fail("must not emit"), audio, AssistantActivityListener.noop());
         assertTrue(audio.beginProcessing());
 
         pipeline.process(frame(1));

@@ -1,6 +1,8 @@
 package com.fuad.view;
 
 import com.fuad.presentation.core.WorkspaceType;
+import com.fuad.presentation.media.MediaActionHandler;
+import com.fuad.presentation.media.MediaWorkspaceSnapshot;
 import com.fuad.presentation.tools.MoreToolsHandler;
 import com.fuad.presentation.tools.ToolsActionHandler;
 import com.fuad.presentation.tools.ToolsWorkspaceConfig;
@@ -33,23 +35,29 @@ public class AresWorkspaceView extends VBox {
     private final ToolsActionHandler toolsActionHandler;
     private final MoreToolsHandler moreToolsHandler;
     private final ToolsWorkspaceConfig toolsConfig;
+    private final Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier;
+    private final MediaActionHandler mediaActionHandler;
 
     public AresWorkspaceView() {
         this(ResearchLifecycleListener.noop(), ToolsActionHandler.unavailable(),
-                MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty());
+                MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable,
+                MediaActionHandler.unavailable());
     }
 
     public AresWorkspaceView(ResearchLifecycleListener researchLifecycleListener) {
         this(researchLifecycleListener, ToolsActionHandler.unavailable(), MoreToolsHandler.unavailable(),
-                ToolsWorkspaceConfig.empty());
+                ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable());
     }
 
     public AresWorkspaceView(ResearchLifecycleListener researchLifecycleListener, ToolsActionHandler toolsActionHandler,
-                             MoreToolsHandler moreToolsHandler, ToolsWorkspaceConfig toolsConfig) {
+                             MoreToolsHandler moreToolsHandler, ToolsWorkspaceConfig toolsConfig,
+                             Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier, MediaActionHandler mediaActionHandler) {
         this.researchLifecycleListener = researchLifecycleListener != null ? researchLifecycleListener : ResearchLifecycleListener.noop();
         this.toolsActionHandler = Objects.requireNonNull(toolsActionHandler);
         this.moreToolsHandler = Objects.requireNonNull(moreToolsHandler);
         this.toolsConfig = Objects.requireNonNull(toolsConfig);
+        this.mediaSnapshotSupplier = Objects.requireNonNull(mediaSnapshotSupplier);
+        this.mediaActionHandler = Objects.requireNonNull(mediaActionHandler);
 
         setSpacing(12.0);
 
@@ -84,9 +92,17 @@ public class AresWorkspaceView extends VBox {
         contentHost.getChildren().setAll(workspace);
     }
 
+    public void dispose() {
+        instances.values().forEach(instance -> {
+            if (instance instanceof MediaWorkspaceView media) {
+                media.dispose();
+            }
+        });
+    }
+
     private void registerMockWorkspaces() {
         factories.put(WorkspaceType.TOOLS, () -> new ToolsWorkspaceView(toolsConfig, toolsActionHandler, moreToolsHandler));
-        factories.put(WorkspaceType.MEDIA, MediaWorkspaceView::new);
+        factories.put(WorkspaceType.MEDIA, () -> new MediaWorkspaceView(mediaSnapshotSupplier, mediaActionHandler));
         factories.put(WorkspaceType.FILES, FilesWorkspaceView::new);
         factories.put(WorkspaceType.SYSTEM, SystemWorkspaceView::new);
         factories.put(WorkspaceType.WEB, () -> new ResearchWorkspaceView(researchLifecycleListener));

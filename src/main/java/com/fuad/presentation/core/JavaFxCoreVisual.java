@@ -7,6 +7,8 @@ import com.fuad.pipeline.AssistantExecutionLifecycleListener;
 import com.fuad.pipeline.VoiceInputController;
 import com.fuad.pipeline.VoiceSignalSnapshot;
 import com.fuad.presentation.JavaFxRuntime;
+import com.fuad.presentation.media.MediaActionHandler;
+import com.fuad.presentation.media.MediaWorkspaceSnapshot;
 import com.fuad.presentation.tools.MoreToolsHandler;
 import com.fuad.presentation.tools.ToolsActionHandler;
 import com.fuad.presentation.interaction.InteractionDisplayResolver;
@@ -32,23 +34,27 @@ public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListene
     private final ToolsActionHandler toolsActionHandler;
     private final MoreToolsHandler moreToolsHandler;
     private final ToolsWorkspaceConfig toolsConfig;
+    private final Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier;
+    private final MediaActionHandler mediaActionHandler;
     private Stage stage;
     private CoreDashboardView dashboardView;
 
     public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver) {
         this(javaFxRuntime, interactionDisplayResolver, VoiceSignalSnapshot::silence, null, ToolsActionHandler.unavailable(),
-                MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty());
+                MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable());
     }
 
     public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver, Supplier<VoiceSignalSnapshot> voiceSignalSupplier,
                             VoiceInputController voiceInputController) {
         this(javaFxRuntime, interactionDisplayResolver, voiceSignalSupplier, voiceInputController,
-                ToolsActionHandler.unavailable(), MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty());
+                ToolsActionHandler.unavailable(), MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty(),
+                MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable());
     }
 
     public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver,
                             Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController,
-                            ToolsActionHandler toolsActionHandler, MoreToolsHandler moreToolsHandler, ToolsWorkspaceConfig toolsConfig) {
+                            ToolsActionHandler toolsActionHandler, MoreToolsHandler moreToolsHandler, ToolsWorkspaceConfig toolsConfig,
+                            Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier, MediaActionHandler mediaActionHandler) {
         this.javaFxRuntime = Objects.requireNonNull(javaFxRuntime);
         this.interactionDisplayResolver =  Objects.requireNonNull(interactionDisplayResolver);
         this.voiceSignalSupplier = Objects.requireNonNull(voiceSignalSupplier);
@@ -56,6 +62,8 @@ public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListene
         this.toolsActionHandler = Objects.requireNonNull(toolsActionHandler);
         this.moreToolsHandler = Objects.requireNonNull(moreToolsHandler);
         this.toolsConfig = Objects.requireNonNull(toolsConfig);
+        this.mediaSnapshotSupplier = Objects.requireNonNull(mediaSnapshotSupplier);
+        this.mediaActionHandler = Objects.requireNonNull(mediaActionHandler);
 
         javaFxRuntime.runAndWait(this::createStage);
     }
@@ -106,7 +114,7 @@ public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListene
         ResolvedInteractionDisplay interactionDisplay = interactionDisplayResolver.resolve().orElseThrow(() ->
                 new IllegalStateException("Core display unavailable"));
         Rectangle2D bounds = interactionDisplay.screen().getVisualBounds();
-        dashboardView = new CoreDashboardView(voiceSignalSupplier, voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig);
+        dashboardView = new CoreDashboardView(voiceSignalSupplier, voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig, mediaSnapshotSupplier, mediaActionHandler);
         Scene scene = new Scene(dashboardView, bounds.getWidth(), bounds.getHeight());
         scene.setFill(Color.rgb(4, 13, 22));
         URL css = JavaFxCoreVisual.class.getResource("/ui/core-visual.css");

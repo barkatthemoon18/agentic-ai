@@ -21,6 +21,8 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 public class MediaWorkspaceView extends VBox {
+    private static final double PROGRESS_WIDTH = 320.0;
+    private static final double PROGRESS_HEIGHT = 5.0;
     private static final Duration REFRESH_INTERVAL = Duration.millis(500);
     private final Label title = new Label();
     private final Label artist = new Label();
@@ -66,7 +68,7 @@ public class MediaWorkspaceView extends VBox {
         queue.getStyleClass().add("media-queue");
 
         getChildren().addAll(identity, playerPanel, queue);
-        update(mediaWorkspaceSnapshotSupplier.get());
+        update(this.mediaWorkspaceSnapshotSupplier.get());
 
         refreshTimeline = new Timeline(new KeyFrame(REFRESH_INTERVAL, event -> update(mediaWorkspaceSnapshotSupplier.get())));
         refreshTimeline.setCycleCount(Animation.INDEFINITE);
@@ -75,6 +77,7 @@ public class MediaWorkspaceView extends VBox {
 
     public void update(MediaWorkspaceSnapshot snapshot) {
         double progress;
+        double progressWidth;
 
         if (!snapshot.available() || snapshot.currentTrack().isEmpty()) {
             renderUnavailable();
@@ -82,7 +85,7 @@ public class MediaWorkspaceView extends VBox {
         }
         MediaTrack track = snapshot.currentTrack().orElseThrow();
 
-        provider.setText(snapshot.available() ? snapshot.sourceApplication().toUpperCase() + " // ACTIVE" : "NO ACTIVE SESSION");
+        provider.setText(snapshot.sourceDisplayName().toUpperCase() + " // ACTIVE");
         title.setText(track.title());
         artist.setText(track.artist());
         album.setText(track.album());
@@ -94,7 +97,10 @@ public class MediaWorkspaceView extends VBox {
         playPauseButton.setGraphic(new HudIconView(snapshot.playing() ? HudIcon.PAUSE : HudIcon.PLAY, 16.0));
 
         progress = track.durationSeconds() > 0.0 ? snapshot.positionSeconds() / track.durationSeconds() : 0.0;
-        progressFill.setPrefWidth(320.0 * Math.clamp(progress, 0.0, 1.0));
+        progressWidth = PROGRESS_WIDTH * Math.clamp(progress, 0.0, 1.0);
+        progressFill.setMinWidth(progressWidth);
+        progressFill.setPrefWidth(progressWidth);
+        progressFill.setMaxWidth(progressWidth);
         volumeFill.setMinWidth(250.0 * Math.clamp(snapshot.volume(), 0.0, 1.0));
         volumeFill.setPrefWidth(250.0 * Math.clamp(snapshot.volume(), 0.0, 1.0));
         volumeFill.setMaxWidth(250.0 * Math.clamp(snapshot.volume(), 0.0, 1.0));
@@ -115,7 +121,7 @@ public class MediaWorkspaceView extends VBox {
     }
 
     private void renderUnavailable() {
-        title.setText("NO ACTIVE MEDIA");
+        title.setText("NO ACTIVE SESSION");
         artist.setText("--");
         album.setText("--");
 
@@ -126,7 +132,9 @@ public class MediaWorkspaceView extends VBox {
         output.setText("--");
         quality.setText("--");
 
+        progressFill.setMinWidth(0.0);
         progressFill.setPrefWidth(0.0);
+        progressFill.setMaxWidth(0.0);
 
         volumeFill.setMinWidth(0.0);
         volumeFill.setPrefWidth(0.0);
@@ -167,19 +175,21 @@ public class MediaWorkspaceView extends VBox {
         Region track = new Region();
 
         track.getStyleClass().add("media-progress-track");
-        track.setMaxWidth(Double.MAX_VALUE);
-        track.setMinHeight(5.0);
-        track.setPrefWidth(5.0);
-        track.setMaxHeight(5.0);
+        track.setMinSize(PROGRESS_WIDTH, PROGRESS_HEIGHT);
+        track.setPrefSize(PROGRESS_WIDTH, PROGRESS_HEIGHT);
+        track.setMaxSize(PROGRESS_WIDTH, PROGRESS_HEIGHT);
 
         progressFill.getStyleClass().add("media-progress-fill");
+        progressFill.setMinHeight(PROGRESS_HEIGHT);
+        progressFill.setPrefHeight(PROGRESS_HEIGHT);
+        progressFill.setMaxHeight(PROGRESS_HEIGHT);
 
         StackPane bar = new StackPane(track, progressFill);
-        bar.setMinHeight(5.0);
-        bar.setPrefHeight(5.0);
-        bar.setMaxHeight(5.0);
+        bar.setMinSize(PROGRESS_WIDTH, PROGRESS_HEIGHT);
+        bar.setPrefSize(PROGRESS_WIDTH, PROGRESS_HEIGHT);
+        bar.setMaxSize(PROGRESS_WIDTH, PROGRESS_HEIGHT);
         bar.setAlignment(Pos.CENTER_LEFT);
-        bar.setPrefWidth(320.0);
+
         elapsed.getStyleClass().add("media-time");
         duration.getStyleClass().add("media-time");
 

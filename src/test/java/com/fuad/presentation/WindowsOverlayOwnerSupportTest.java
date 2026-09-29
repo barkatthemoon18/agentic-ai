@@ -8,6 +8,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import javafx.geometry.Rectangle2D;
+
 class WindowsOverlayOwnerSupportTest {
     @Test
     void shouldPreserveExistingStylesAndAddNoActivate() {
@@ -143,6 +145,11 @@ class WindowsOverlayOwnerSupportTest {
         @Override
         public int lastError() {
             return lastError;
+        }
+
+        @Override
+        public Rectangle2D windowBounds(long handle) {
+            return null;
         }
     }
 }

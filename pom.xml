@@ -19,9 +19,15 @@
         <javafx.version>21.0.10</javafx.version>
         <jna.version>5.19.1</jna.version>
         <oshi.version>7.6.1</oshi.version>
+        <mediainterface.version>3.0.0</mediainterface.version>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>org.endlesssource.mediainterface</groupId>
+            <artifactId>windows</artifactId>
+            <version>${mediainterface.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.github.oshi</groupId>
             <artifactId>oshi-core</artifactId>

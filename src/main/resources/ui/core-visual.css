@@ -547,6 +547,13 @@
     -fx-background-radius: 3px;
 }
 
+.media-provider {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: rgba(120, 236, 255, 0.72);
+}
+
 .media-progress-fill {
     -fx-background-color: #78ecff;
     -fx-background-radius: 3px;
