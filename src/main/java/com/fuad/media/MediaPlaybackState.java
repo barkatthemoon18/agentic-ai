@@ -1,7 +1,7 @@
-package com.fuad.view.workspace.media;
+package com.fuad.media;
 
 public enum MediaPlaybackState {
     PLAYING,
-    PAUSE,
+    PAUSED,
     STOPPED
 }

@@ -1,8 +1,7 @@
 package com.fuad.presentation.media;
 
-import com.fuad.view.workspace.media.MediaSessionProvider;
-import com.fuad.view.workspace.media.MediaSessionSnapshot;
-import com.fuad.view.workspace.media.MediaWorkspaceSnapshot;
+import com.fuad.media.MediaSessionProvider;
+import com.fuad.media.MediaSessionSnapshot;
 
 import java.util.Objects;
 import java.util.concurrent.Executors;
@@ -67,7 +66,7 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
             current.set(toWorkspaceSnapshot(session));
         }
         catch (Exception e) {
-            current.set(MediaSessionSnapshot.unavailable());
+            current.set(MediaWorkspaceSnapshot.unavailable());
             System.err.println("Unable to refresh media session: " + e.getMessage());
         }
     }

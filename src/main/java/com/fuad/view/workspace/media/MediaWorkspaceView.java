@@ -1,20 +1,27 @@
 package com.fuad.view.workspace.media;
 
+import com.fuad.media.MediaTrack;
 import com.fuad.presentation.media.MediaAction;
 import com.fuad.presentation.media.MediaActionHandler;
+import com.fuad.presentation.media.MediaWorkspaceSnapshot;
 import com.fuad.view.icon.HudIcon;
 import com.fuad.view.icon.HudIconView;
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.*;
+import javafx.util.Duration;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 public class MediaWorkspaceView extends VBox {
+    private static final Duration REFRESH_INTERVAL = Duration.millis(500);
     private final Label title = new Label();
     private final Label artist = new Label();
     private final Label album = new Label();
@@ -23,14 +30,16 @@ public class MediaWorkspaceView extends VBox {
     private final Label volumeValue = new Label();
     private final Label output = new Label();
     private final Label quality = new Label();
+    private final Label provider = new Label();
     private final Button playPauseButton = transportButton(HudIcon.PLAY);
     private final Region progressFill = new Region();
     private final Region volumeFill = new Region();
     private final Supplier<MediaWorkspaceSnapshot> mediaWorkspaceSnapshotSupplier;
     private final MediaActionHandler mediaActionHandler;
+    private final Timeline refreshTimeline;
 
     public MediaWorkspaceView() {
-        this(null, MediaActionHandler.unavailable());
+        this(MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable());
     }
 
     public MediaWorkspaceView(Supplier<MediaWorkspaceSnapshot> mediaWorkspaceSnapshotSupplier, MediaActionHandler mediaActionHandler) {
@@ -40,7 +49,6 @@ public class MediaWorkspaceView extends VBox {
         setSpacing(14.0);
 
         Label sectionTitle = new Label("MEDIA // PLAYER");
-        Label provider = new Label("TIDAL PLAYER // MOCK");
         sectionTitle.getStyleClass().add("workspace-view-title");
         provider.getStyleClass().add("media-provider");
 
@@ -57,8 +65,12 @@ public class MediaWorkspaceView extends VBox {
         queue.setPadding(new Insets(14.0));
         queue.getStyleClass().add("media-queue");
 
-        getChildren().addAll(identity, nowPlaying, transport, audio, queue);
+        getChildren().addAll(identity, playerPanel, queue);
         update(mediaWorkspaceSnapshotSupplier.get());
+
+        refreshTimeline = new Timeline(new KeyFrame(REFRESH_INTERVAL, event -> update(mediaWorkspaceSnapshotSupplier.get())));
+        refreshTimeline.setCycleCount(Animation.INDEFINITE);
+        refreshTimeline.play();
     }
 
     public void update(MediaWorkspaceSnapshot snapshot) {
@@ -70,6 +82,7 @@ public class MediaWorkspaceView extends VBox {
         }
         MediaTrack track = snapshot.currentTrack().orElseThrow();
 
+        provider.setText(snapshot.available() ? snapshot.sourceApplication().toUpperCase() + " // ACTIVE" : "NO ACTIVE SESSION");
         title.setText(track.title());
         artist.setText(track.artist());
         album.setText(track.album());
@@ -80,21 +93,15 @@ public class MediaWorkspaceView extends VBox {
         quality.setText(displayValue(snapshot.quality()));
         playPauseButton.setGraphic(new HudIconView(snapshot.playing() ? HudIcon.PAUSE : HudIcon.PLAY, 16.0));
 
-        progress = snapshot.positionSeconds() / track.durationSeconds();
+        progress = track.durationSeconds() > 0.0 ? snapshot.positionSeconds() / track.durationSeconds() : 0.0;
         progressFill.setPrefWidth(320.0 * Math.clamp(progress, 0.0, 1.0));
         volumeFill.setMinWidth(250.0 * Math.clamp(snapshot.volume(), 0.0, 1.0));
         volumeFill.setPrefWidth(250.0 * Math.clamp(snapshot.volume(), 0.0, 1.0));
         volumeFill.setMaxWidth(250.0 * Math.clamp(snapshot.volume(), 0.0, 1.0));
     }
 
-    private static void addProperty(GridPane gridPane, int row, String name, Label value) {
-        Label key = new Label(name);
-
-        key.getStyleClass().add("media-property-key");
-        value.getStyleClass().add("media-property-value");
-
-        gridPane.add(key, 0, row);
-        gridPane.add(value, 1, row);
+    public void dispose() {
+        refreshTimeline.stop();
     }
 
     private static String displayValue(String value) {
@@ -268,31 +275,6 @@ public class MediaWorkspaceView extends VBox {
 
         VBox list = new VBox(6.0);
 
-        List<MediaTrack> mockQueue = List.of(
-                new MediaTrack(
-                        "Giorgio by Moroder",
-                        "Daft Punk",
-                        "Random Access Memories",
-                        544
-                ),
-                new MediaTrack(
-                        "Within",
-                        "Daft Punk",
-                        "Random Access Memories",
-                        228
-                ),
-                new MediaTrack(
-                        "Touch",
-                        "Daft Punk",
-                        "Random Access Memories",
-                        498
-                ));
-        for (int i = 0; i < mockQueue.size(); i++) {
-            MediaTrack track = mockQueue.get(i);
-            Label row = new Label("%02d  %-28s  %s".formatted(i + 1, track.title(), formatTime(track.durationSeconds())));
-            row.getStyleClass().add("media-queue-row");
-            list.getChildren().add(row);
-        }
         return new VBox(8.0, heading, list);
     }
 }

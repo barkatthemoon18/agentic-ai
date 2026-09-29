@@ -1,4 +1,4 @@
-package com.fuad.view.workspace.media;
+package com.fuad.media;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -12,6 +12,7 @@ public record MediaSessionSnapshot(
 
     public MediaSessionSnapshot {
         sourceApplication = sourceApplication == null ? "" : sourceApplication.trim();
+        currentTrack = currentTrack == null ? Optional.empty() : currentTrack;
         playbackState = Objects.requireNonNull(playbackState, "playbackState must not be null");
         positionSeconds = Math.max(0.0, positionSeconds);
     }

@@ -1,4 +1,7 @@
-package com.fuad.view.workspace.media;
+package com.fuad.presentation.media;
+
+import com.fuad.media.MediaPlaybackState;
+import com.fuad.media.MediaTrack;
 
 import java.util.Optional;
 
@@ -14,6 +17,7 @@ public record MediaWorkspaceSnapshot(
 
     public MediaWorkspaceSnapshot {
         sourceApplication = sourceApplication == null ? "" : sourceApplication.trim();
+        currentTrack = currentTrack == null ? Optional.empty() : currentTrack;
         playbackState = playbackState == null ? MediaPlaybackState.STOPPED : playbackState;
         positionSeconds = Math.max(0.0, positionSeconds);
         volume = Math.clamp(volume, 0.0, 1.0);

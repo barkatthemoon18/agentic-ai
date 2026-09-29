@@ -1,4 +1,4 @@
-package com.fuad.view.workspace.media;
+package com.fuad.media;
 
 public interface MediaSessionProvider extends AutoCloseable {
     MediaSessionSnapshot current();

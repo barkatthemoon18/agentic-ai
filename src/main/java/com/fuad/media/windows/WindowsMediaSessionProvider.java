@@ -1,9 +1,9 @@
-package com.fuad.view.workspace.media.windows;
+package com.fuad.media.windows;
 
-import com.fuad.view.workspace.media.MediaSessionProvider;
-import com.fuad.view.workspace.media.MediaSessionSnapshot;
+import com.fuad.media.MediaSessionProvider;
+import com.fuad.media.MediaSessionSnapshot;
 
-public class WindowsMediaSessionprovider implements MediaSessionProvider {
+public class WindowsMediaSessionProvider implements MediaSessionProvider {
     @Override
     public MediaSessionSnapshot current() {
         return MediaSessionSnapshot.unavailable();

@@ -1,4 +1,4 @@
-package com.fuad.view.workspace.media;
+package com.fuad.media;
 
 public record MediaTrack(
         String title,
