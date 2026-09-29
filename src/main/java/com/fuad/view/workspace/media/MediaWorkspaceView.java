@@ -1,5 +1,7 @@
 package com.fuad.view.workspace.media;
 
+import com.fuad.presentation.media.MediaAction;
+import com.fuad.presentation.media.MediaActionHandler;
 import com.fuad.view.icon.HudIcon;
 import com.fuad.view.icon.HudIconView;
 import javafx.geometry.Insets;
@@ -9,6 +11,8 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.*;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 public class MediaWorkspaceView extends VBox {
     private final Label title = new Label();
@@ -22,8 +26,17 @@ public class MediaWorkspaceView extends VBox {
     private final Button playPauseButton = transportButton(HudIcon.PLAY);
     private final Region progressFill = new Region();
     private final Region volumeFill = new Region();
+    private final Supplier<MediaWorkspaceSnapshot> mediaWorkspaceSnapshotSupplier;
+    private final MediaActionHandler mediaActionHandler;
 
     public MediaWorkspaceView() {
+        this(null, MediaActionHandler.unavailable());
+    }
+
+    public MediaWorkspaceView(Supplier<MediaWorkspaceSnapshot> mediaWorkspaceSnapshotSupplier, MediaActionHandler mediaActionHandler) {
+        this.mediaWorkspaceSnapshotSupplier = Objects.requireNonNull(mediaWorkspaceSnapshotSupplier);
+        this.mediaActionHandler = Objects.requireNonNull(mediaActionHandler);
+
         setSpacing(14.0);
 
         Label sectionTitle = new Label("MEDIA // PLAYER");
@@ -45,12 +58,17 @@ public class MediaWorkspaceView extends VBox {
         queue.getStyleClass().add("media-queue");
 
         getChildren().addAll(identity, nowPlaying, transport, audio, queue);
-        update(mockSnapshot());
+        update(mediaWorkspaceSnapshotSupplier.get());
     }
 
-    public void update(MediaPlayerSnapshot snapshot) {
+    public void update(MediaWorkspaceSnapshot snapshot) {
         double progress;
-        MediaTrack track = snapshot.currentTrack();
+
+        if (!snapshot.available() || snapshot.currentTrack().isEmpty()) {
+            renderUnavailable();
+            return;
+        }
+        MediaTrack track = snapshot.currentTrack().orElseThrow();
 
         title.setText(track.title());
         artist.setText(track.artist());
@@ -58,8 +76,8 @@ public class MediaWorkspaceView extends VBox {
         elapsed.setText(formatTime(snapshot.positionSeconds()));
         duration.setText(formatTime(track.durationSeconds()));
         volumeValue.setText("%.0f %%".formatted(snapshot.volume() * 100.0));
-        output.setText(snapshot.outputDevice());
-        quality.setText(snapshot.quality());
+        output.setText(displayValue(snapshot.outputDevice()));
+        quality.setText(displayValue(snapshot.quality()));
         playPauseButton.setGraphic(new HudIconView(snapshot.playing() ? HudIcon.PAUSE : HudIcon.PLAY, 16.0));
 
         progress = snapshot.positionSeconds() / track.durationSeconds();
@@ -79,19 +97,35 @@ public class MediaWorkspaceView extends VBox {
         gridPane.add(value, 1, row);
     }
 
+    private static String displayValue(String value) {
+        return value == null || value.isBlank() ? "--" : value;
+    }
+
     private static String formatTime(double seconds) {
         long total = Math.max(0, Math.round(seconds));
 
         return "%02d:%02d".formatted(total / 60, total % 60);
     }
 
-    private static MediaPlayerSnapshot mockSnapshot() {
-        return new MediaPlayerSnapshot(new MediaTrack("Instant Crush", "Daft Punk", "Random Access Memories", 337),
-                134,
-                true,
-                0.62,
-                "FOCUSRITE USB",
-                "MAX / LOSSLESS");
+    private void renderUnavailable() {
+        title.setText("NO ACTIVE MEDIA");
+        artist.setText("--");
+        album.setText("--");
+
+        elapsed.setText("00:00");
+        duration.setText("00:00");
+
+        volumeValue.setText("--");
+        output.setText("--");
+        quality.setText("--");
+
+        progressFill.setPrefWidth(0.0);
+
+        volumeFill.setMinWidth(0.0);
+        volumeFill.setPrefWidth(0.0);
+        volumeFill.setMaxWidth(0.0);
+
+        playPauseButton.setGraphic(new HudIconView(HudIcon.PLAY, 16.0));
     }
 
     private HBox createNowPlaying(){
@@ -155,6 +189,11 @@ public class MediaWorkspaceView extends VBox {
         playPauseButton.getStyleClass().add("media-transport-primary");
         HBox controls = new HBox(12.0, previous, playPauseButton, next);
         controls.setAlignment(Pos.CENTER);
+
+        /* Actions */
+        previous.setOnAction(event -> mediaActionHandler.submit(MediaAction.PREVIOUS));
+        next.setOnAction(event -> mediaActionHandler.submit(MediaAction.NEXT));
+        playPauseButton.setOnAction(event -> mediaActionHandler.submit(MediaAction.PLAY_PAUSE));
 
         return controls;
     }
