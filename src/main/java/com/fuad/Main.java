@@ -48,6 +48,8 @@ import com.fuad.audio.AudioCaptureService;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioDeviceManager;
 import com.fuad.audio.AudioPlaybackService;
+import com.fuad.audio.output.AudioOutputProvider;
+import com.fuad.audio.output.windows.WindowsAudioOutputProvider;
 import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
 import com.fuad.interaction.InteractionLifecycleListener;
@@ -126,6 +128,7 @@ public class Main {
             DeferredToolsActionHandler toolsActionHandler = new DeferredToolsActionHandler();
             DeferredMoreToolsHandler moreToolsHandler = new DeferredMoreToolsHandler();
             MediaSessionProvider mediaSessionProvider;
+            AudioOutputProvider audioOutputProvider = new WindowsAudioOutputProvider();
             try {
                 mediaSessionProvider = new WindowsMediaSessionProvider();
                 System.out.println("MEDIA -> Windowws media provider ready");
@@ -134,7 +137,7 @@ public class Main {
                 System.err.println("MEDIA -> Windows media provider unavailable: " + e.getMessage());
                 mediaSessionProvider = MediaSessionProvider.unavailable();
             }
-            MediaWorkspaceController mediaWorkspaceController = new MediaWorkspaceController(mediaSessionProvider);
+            MediaWorkspaceController mediaWorkspaceController = new MediaWorkspaceController(mediaSessionProvider, audioOutputProvider);
             mediaWorkspaceController.start();
             PresentationComponents presentation = createPresentation(catalogSessions, voiceSignalStore::current, voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig, mediaWorkspaceController::current, mediaWorkspaceController);
             VisualOutput visualOutput = presentation.visualOutput();

@@ -1,5 +1,7 @@
 package com.fuad.presentation.media;
 
+import com.fuad.audio.output.AudioOutputProvider;
+import com.fuad.audio.output.AudioOutputSnapshot;
 import com.fuad.media.MediaSessionProvider;
 import com.fuad.media.MediaSessionSnapshot;
 
@@ -18,9 +20,15 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
         return thread;
     });
     private final MediaSessionProvider provider;
+    private final AudioOutputProvider audioOutputProvider;
 
     public MediaWorkspaceController(MediaSessionProvider provider) {
+        this(provider, AudioOutputProvider.unavailable());
+    }
+
+    public MediaWorkspaceController(MediaSessionProvider provider, AudioOutputProvider audioOutputProvider) {
         this.provider = Objects.requireNonNull(provider);
+        this.audioOutputProvider = Objects.requireNonNull(audioOutputProvider);
     }
 
     public void start() {
@@ -49,6 +57,12 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
         catch (Exception e) {
             System.err.println("Unable to close media provider: " + e.getMessage());
         }
+        try {
+            audioOutputProvider.close();
+        }
+        catch (Exception e) {
+            System.err.println("Unable to close audio output provider: " + e.getMessage());
+        }
     }
 
     private void execute(MediaAction action) {
@@ -62,8 +76,9 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
 
     private void refreshSafely() {
         try {
-            MediaSessionSnapshot session = provider.current();
-            current.set(toWorkspaceSnapshot(session));
+            MediaSessionSnapshot session = currentMediaSession();
+            AudioOutputSnapshot audio = currentAudioOutput();
+            current.set(toWorkspaceSnapshot(session, audio));
         }
         catch (Exception e) {
             current.set(MediaWorkspaceSnapshot.unavailable());
@@ -71,8 +86,28 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
         }
     }
 
-    private MediaWorkspaceSnapshot toWorkspaceSnapshot(MediaSessionSnapshot session) {
+    private MediaSessionSnapshot currentMediaSession() {
+        try {
+            return provider.current();
+        }
+        catch (RuntimeException e) {
+            System.err.println("Unable to refresh media session: " + e.getMessage());
+            return MediaSessionSnapshot.unavailable();
+        }
+    }
+
+    private AudioOutputSnapshot currentAudioOutput() {
+        try {
+            return audioOutputProvider.current();
+        }
+        catch (RuntimeException e) {
+            System.err.println("Unable to refresh audio output: " + e.getMessage());
+        }
+        return AudioOutputSnapshot.unavailable();
+    }
+
+    private MediaWorkspaceSnapshot toWorkspaceSnapshot(MediaSessionSnapshot session, AudioOutputSnapshot audio) {
         return new MediaWorkspaceSnapshot(session.available(), session.sourceApplication(), session.currentTrack(),
-                session.positionSeconds(), session.playbackState(), 0.0, "", "");
+                session.positionSeconds(), session.playbackState(), audio.volume(), audio.deviceName(), "");
     }
 }

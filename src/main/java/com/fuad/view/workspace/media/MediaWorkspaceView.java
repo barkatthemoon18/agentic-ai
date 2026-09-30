@@ -13,9 +13,13 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.util.Duration;
 
+import java.io.ByteArrayInputStream;
+import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -36,9 +40,13 @@ public class MediaWorkspaceView extends VBox {
     private final Button playPauseButton = transportButton(HudIcon.PLAY);
     private final Region progressFill = new Region();
     private final Region volumeFill = new Region();
+    private final StackPane cover = new StackPane();
+    private final Label coverPlaceholder = new Label("MEDIA");
+    private final ImageView coverImage = new ImageView();
     private final Supplier<MediaWorkspaceSnapshot> mediaWorkspaceSnapshotSupplier;
     private final MediaActionHandler mediaActionHandler;
     private final Timeline refreshTimeline;
+    private int currentArtworkHash;
 
     public MediaWorkspaceView() {
         this(MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable());
@@ -85,13 +93,27 @@ public class MediaWorkspaceView extends VBox {
         }
         MediaTrack track = snapshot.currentTrack().orElseThrow();
 
+        renderArtwork(track);
         provider.setText(snapshot.sourceDisplayName().toUpperCase() + " // ACTIVE");
         title.setText(track.title());
         artist.setText(track.artist());
         album.setText(track.album());
         elapsed.setText(formatTime(snapshot.positionSeconds()));
         duration.setText(formatTime(track.durationSeconds()));
-        volumeValue.setText("%.0f %%".formatted(snapshot.volume() * 100.0));
+        if (snapshot.volume().isPresent()) {
+            double volume = snapshot.volume().getAsDouble();
+            volumeValue.setText(".0f %%".formatted(volume * 100.0));
+            double volumeWidth = 250.0 * volume;
+            volumeFill.setMinWidth(volumeWidth);
+            volumeFill.setPrefWidth(volumeWidth);
+            volumeFill.setMaxWidth(volumeWidth);
+        }
+        else {
+            volumeValue.setText("--");
+            volumeFill.setMinWidth(0.0);
+            volumeFill.setPrefWidth(0.0);
+            volumeFill.setMaxWidth(0.0);
+        }
         output.setText(displayValue(snapshot.outputDevice()));
         quality.setText(displayValue(snapshot.quality()));
         playPauseButton.setGraphic(new HudIconView(snapshot.playing() ? HudIcon.PAUSE : HudIcon.PLAY, 16.0));
@@ -101,9 +123,18 @@ public class MediaWorkspaceView extends VBox {
         progressFill.setMinWidth(progressWidth);
         progressFill.setPrefWidth(progressWidth);
         progressFill.setMaxWidth(progressWidth);
-        volumeFill.setMinWidth(250.0 * Math.clamp(snapshot.volume(), 0.0, 1.0));
-        volumeFill.setPrefWidth(250.0 * Math.clamp(snapshot.volume(), 0.0, 1.0));
-        volumeFill.setMaxWidth(250.0 * Math.clamp(snapshot.volume(), 0.0, 1.0));
+        if (snapshot.volume().isPresent()) {
+            double volume = snapshot.volume().getAsDouble();
+            double volumeWidth = 250.0 * volume;
+            volumeFill.setMinWidth(volumeWidth);
+            volumeFill.setPrefWidth(volumeWidth);
+            volumeFill.setMaxWidth(volumeWidth);
+        }
+        else {
+            volumeFill.setMinWidth(0.0);
+            volumeFill.setPrefWidth(0.0);
+            volumeFill.setMaxWidth(0.0);
+        }
     }
 
     public void dispose() {
@@ -118,6 +149,43 @@ public class MediaWorkspaceView extends VBox {
         long total = Math.max(0, Math.round(seconds));
 
         return "%02d:%02d".formatted(total / 60, total % 60);
+    }
+
+    private void renderArtwork(MediaTrack track) {
+        int artworkHash;
+        String artwork;
+
+        artwork = track.artwork().filter(value -> !value.isBlank()).orElse(null);
+        if (artwork == null) {
+            clearArtwork();
+            return;
+        }
+        artworkHash = artwork.hashCode();
+        if (artworkHash == currentArtworkHash && coverImage.getImage() != null) {
+            return;
+        }
+        try {
+            byte[] bytes = Base64.getDecoder().decode(artwork);
+            Image image = new Image(new ByteArrayInputStream(bytes));
+            if (image.isError()) {
+                clearArtwork();
+                return;
+            }
+            coverImage.setImage(image);
+            cover.getChildren().setAll(coverImage);
+            currentArtworkHash = artworkHash;
+        }
+        catch (IllegalArgumentException e) {
+            clearArtwork();
+        }
+    }
+
+    private void clearArtwork() {
+        coverImage.setImage(null);
+        currentArtworkHash = 0;
+
+        coverPlaceholder.setText("MEDIA");
+        cover.getChildren().setAll(coverPlaceholder);
     }
 
     private void renderUnavailable() {
@@ -141,19 +209,26 @@ public class MediaWorkspaceView extends VBox {
         volumeFill.setMaxWidth(0.0);
 
         playPauseButton.setGraphic(new HudIconView(HudIcon.PLAY, 16.0));
+
+        clearArtwork();
+        provider.setText("NO ACTIVE SESSION");
     }
 
     private HBox createNowPlaying(){
-        StackPane cover = new StackPane();
-
         cover.setPrefSize(176.0, 176.0);
         cover.setMinSize(176.0, 176.0);
         cover.setMaxSize(176.0, 176.0);
         cover.getStyleClass().add("media-cover");
 
-        Label coverText = new Label("TIDAL");
-        coverText.getStyleClass().add("media-cover-placeholder");
-        cover.getChildren().add(coverText);
+        coverPlaceholder.getStyleClass().add("media-cover-placeholder");
+
+        coverImage.setFitWidth(176.0);
+        coverImage.setFitHeight(176.0);
+        coverImage.setPreserveRatio(true);
+        coverImage.setSmooth(true);
+
+        cover.getChildren().setAll(coverPlaceholder);
+
         Label nowPlaying = new Label("NOW PLAYING");
         nowPlaying.getStyleClass().add("media-caption");
 
