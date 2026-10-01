@@ -26,7 +26,7 @@ public class UtteranceShapeDetector {
             "^(?:ayer|anoche|manana|despues|luego)\\b.*(?:\\bvoy a\\b|"
                     + "\\b(?:abri|cerre|use|busque|pregunte|abrire|cerrare|usare)\\b).*$");
     private static final Pattern DIRECT_REQUEST = Pattern.compile(
-            "^¿?(?:abre|ayudame|busca|cierra|dime|enfoca|trae|cambia|ve|muestra|muestrame|explicame|investiga|recomiendame|reinicia|"
+            "^¿?(?:abre|abrir|ayudame|busca|cierra|cerrar|dime|enfoca|trae|cambia|ve|muestra|muestrame|explicame|investiga|recomiendame|reinicia|"
                     + "resume|vuelve a)\\b.*$");
     private static final Pattern CATALOG_FOLLOW_UP = Pattern.compile(
             "^(?:siguiente(?: pagina)?|pagina siguiente|anterior|pagina anterior|atras|continua|"
@@ -61,8 +61,7 @@ public class UtteranceShapeDetector {
 
         // Attribution changes the addressee: an embedded command or question is
         // not a request to Ares, even when its inner clause looks imperative.
-        if (REPORTED_SPEECH.matcher(text).matches()
-                || FIRST_PERSON_TEMPORAL_EVENT.matcher(text).matches()) {
+        if (REPORTED_SPEECH.matcher(text).matches() || FIRST_PERSON_TEMPORAL_EVENT.matcher(text).matches()) {
             return Optional.of(UtteranceDecision.OTHER);
         }
 

@@ -1,0 +1,45 @@
+package com.fuad.presentation.core;
+
+
+public record CoreVisualSnapshot(
+        AssistantVisualState assistantVisualState,
+        SystemSnapshot systemSnapshot,
+        GpuSnapshot gpuSnapshot,
+        NetworkSnapshot networkSnapshot,
+        RuntimeSnapshot runtimeSnapshot) {
+
+    public CoreVisualSnapshot withAssistantVisualState(AssistantVisualState state) {
+        return new CoreVisualSnapshot(state, systemSnapshot, gpuSnapshot, networkSnapshot, runtimeSnapshot);
+    }
+
+    public record SystemSnapshot(
+            double cpuUsage,
+            double ramUsedGb,
+            double ramTotalGb) {
+        /* Empty intentionally */
+    }
+
+    public record GpuSnapshot(
+            double usage,
+            double vramUsedGb,
+            double vramTotalGb,
+            double temperature) {
+        /* Empty intentionally */
+    }
+
+    public record NetworkSnapshot(
+            String localIp,
+            double downloadMbps,
+            double uploadMbps) {
+        /* Empty intentionally */
+    }
+
+    public record RuntimeSnapshot(
+        RuntimeVisualState phiState,
+        RuntimeVisualState qwenState,
+        RuntimeVisualState sttState,
+        RuntimeVisualState ttsState) {
+        /* Empty intentionally */
+    }
+}
+

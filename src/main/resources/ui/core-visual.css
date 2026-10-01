@@ -1,0 +1,1455 @@
+.ares-core-root {
+    -fx-background-color:
+            linear-gradient(
+                    to bottom right,
+                    #04101b,
+                    #071c29
+            );
+}
+
+.core-hud-title {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-text-fill: #78ecff;
+}
+
+.core-human-text {
+    -fx-font-family: "Inter";
+    -fx-font-size: 15px;
+    -fx-text-fill: #eaf8fc;
+}
+
+.core-section-title {
+    -fx-font-family: "Inter SemiBold";
+    -fx-font-size: 18px;
+    -fx-text-fill: #eaf8fc;
+}
+
+.core-metric-value {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.core-header-title {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.core-header-subtitle {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill: rgba(120, 236, 255, 0.46);
+}
+
+.core-header-status {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #7699a7;
+}
+
+.core-header-status:interacting {
+    -fx-text-fill: #b7d6df;
+}
+
+.core-header-status:idle {
+    -fx-text-fill: #78ecff;
+}
+
+.core-header-status:listening {
+    -fx-text-fill: #39d5ff;
+}
+
+.core-header-status:processing {
+    -fx-text-fill: #78ecff;
+}
+
+.core-header-status:executing {
+    -fx-text-fill: #b7d6df;
+}
+
+.core-header-status:speaking {
+    -fx-text-fill: #39d5ff;
+}
+
+.core-header-status:degraded {
+    -fx-text-fill: #d9b06c;
+}
+
+.core-header-date {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-text-fill: rgba(183, 214, 223, 0.62);
+}
+
+.core-header-clock-separator {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-text-fill: rgba(120, 236, 255, 0.34);
+}
+
+.core-header-clock {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 11px;
+    -fx-text-fill: rgba(234, 248, 252, 0.84);
+}
+
+.core-header-separator {
+    -fx-background-color:
+            linear-gradient(
+                    to right,
+                    rgba(120, 236, 255, 0.42),
+                    rgba(34, 207, 245, 0.04)
+            );
+}
+
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
+
+.core-footer {
+    -fx-border-color:
+            rgba(120, 236, 255, 0.16)
+            transparent
+            transparent
+            transparent;
+
+    -fx-border-width: 1px 0 0 0;
+
+    -fx-padding: 10px 4px 0 4px;
+}
+
+.core-footer-primary {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.core-footer-secondary {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-text-fill: #7699a7;
+}
+
+.core-footer-status {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #39d5ff;
+}
+
+.core-footer-mute {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+
+    -fx-text-fill: #78ecff;
+
+    -fx-background-color:
+            rgba(34, 207, 245, 0.05);
+
+    -fx-background-radius: 6px;
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.28);
+
+    -fx-border-radius: 6px;
+    -fx-border-width: 1px;
+
+    -fx-padding: 5px 9px;
+
+    -fx-cursor: hand;
+}
+
+.core-footer-mute:hover {
+    -fx-background-color:
+            rgba(34, 207, 245, 0.12);
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.56);
+}
+
+.core-footer-mute:selected {
+    -fx-text-fill: #d9b06c;
+
+    -fx-background-color:
+            rgba(217, 176, 108, 0.10);
+
+    -fx-border-color:
+            rgba(217, 176, 108, 0.68);
+}
+
+.core-panel {
+    -fx-background-color: rgba(8, 28, 42, 0.72);
+
+    -fx-background-radius: 14px;
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.20);
+
+    -fx-border-radius: 14px;
+    -fx-border-width: 1px;
+}
+
+.core-metric-title,
+.core-runtime-name {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-text-fill: #7699a7;
+}
+
+.core-metric-track {
+    -fx-fill: rgba(34, 207, 245, 0.10);
+}
+
+.core-metric-fill {
+    -fx-fill: rgba(120, 236, 255, 0.72);
+}
+
+.core-network-value,
+.core-runtime-state {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 11px;
+    -fx-text-fill: #b7d6df;
+}
+
+.ares-core-state {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: rgba(183, 214, 223, 0.66);
+}
+
+.ares-core-title {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+/* Action cards */
+
+.core-action {
+    -fx-background-color:
+            rgba(12, 37, 51, 0.70);
+
+    -fx-background-radius: 11px;
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.22);
+
+    -fx-border-radius: 11px;
+
+    -fx-border-width: 1px;
+
+    -fx-cursor: hand;
+}
+
+.core-action:hover {
+    -fx-background-color:
+            rgba(34, 207, 245, 0.13);
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.68);
+
+    -fx-effect: dropshadow(
+            gaussian,
+            rgba(34, 207, 245, 0.20),
+            12,
+            0.05,
+            0,
+            0
+    );
+}
+
+.core-action:pressed {
+    -fx-background-color:
+            rgba(34, 207, 245, 0.23);
+
+    -fx-border-color:
+            #78ecff;
+}
+
+.core-action-icon {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 19px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.core-action-accent {
+    -fx-background-color: rgba(120, 236, 255, 0.40);
+    -fx-background-radius: 2px;
+}
+
+.core-action:hover .core-action-accent {
+    -fx-background-color: #78ecff;
+}
+
+.core-action-name {
+    -fx-font-family: "Inter SemiBold";
+    -fx-font-size: 13px;
+    -fx-text-fill: #eaf8fc;
+}
+
+.core-action-detail {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill:
+            rgba(118, 153, 167, 0.74);
+}
+
+
+/* Context */
+
+.deck-context {
+    -fx-background-color:
+            rgba(5, 21, 32, 0.46);
+
+    -fx-background-radius: 10px;
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.14);
+
+    -fx-border-radius: 10px;
+}
+
+.deck-context-title {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.deck-context-key {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill: #7699a7;
+}
+
+.deck-context-value {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill: #b7d6df;
+}
+
+.deck-context-target {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.workspace-subtitle {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-text-fill: rgba(120, 236, 255, 0.54);
+}
+
+.workspace-tabs {
+    -fx-alignment: center-left;
+}
+
+.workspace-tab {
+    -fx-min-height: 40px;
+
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+
+    -fx-text-fill: #7699a7;
+
+    -fx-background-color:
+            rgba(34, 207, 245, 0.025);
+
+    -fx-background-radius: 6px;
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.12);
+
+    -fx-border-radius: 6px;
+
+    -fx-padding: 8px 10px;
+
+    -fx-cursor: hand;
+}
+
+.workspace-tab:hover {
+    -fx-text-fill: #b7d6df;
+
+    -fx-background-color:
+            rgba(34, 207, 245, 0.08);
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.30);
+}
+
+.workspace-tab:active {
+    -fx-text-fill: #78ecff;
+
+    -fx-background-color:
+            rgba(34, 207, 245, 0.16);
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.60);
+}
+
+.workspace-content {
+    -fx-background-color: transparent;
+}
+
+.workspace-view-title {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.workspace-placeholder {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 11px;
+    -fx-text-fill: #7699a7;
+}
+
+.media-player-panel {
+    -fx-background-color:
+            rgba(8, 28, 42, 0.58);
+
+    -fx-background-radius: 12px;
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.16);
+
+    -fx-border-radius: 12px;
+}
+
+.media-cover {
+    -fx-background-color:
+            linear-gradient(
+                    to bottom right,
+                    rgba(34, 207, 245, 0.22),
+                    rgba(6, 29, 43, 0.96)
+            );
+
+    -fx-background-radius: 12px;
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.48);
+
+    -fx-border-width: 1px;
+    -fx-border-radius: 12px;
+}
+
+.media-cover-placeholder {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.media-caption {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: rgba(120, 236, 255, 0.82);
+}
+
+.media-track-title {
+    -fx-font-family: "Inter SemiBold";
+    -fx-font-size: 20px;
+    -fx-text-fill: #eaf8fc;
+}
+
+.media-track-artist {
+    -fx-font-family: "Inter Medium";
+    -fx-font-size: 14px;
+    -fx-text-fill: #b7d6df;
+}
+
+.media-track-album {
+    -fx-font-family: "Inter";
+    -fx-font-size: 11px;
+    -fx-text-fill: rgba(183, 214, 223, 0.62);
+}
+
+.media-time {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill: rgba(183, 214, 223, 0.72);
+}
+
+.media-transport {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+
+    -fx-background-color:
+            rgba(34, 207, 245, 0.06);
+
+    -fx-background-radius: 8px;
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.30);
+
+    -fx-border-radius: 8px;
+
+    -fx-border-width: 1px;
+
+    -fx-min-width: 72px;
+    -fx-pref-width: 72px;
+
+    -fx-min-height: 42px;
+    -fx-pref-height: 42px;
+
+    -fx-cursor: hand;
+}
+
+.media-transport:hover,
+.media-transport:focused {
+    -fx-background-color:
+            rgba(34, 207, 245, 0.16);
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.72);
+}
+
+.media-transport:pressed {
+    -fx-background-color:
+            rgba(34, 207, 245, 0.26);
+
+    -fx-border-color:
+            #78ecff;
+}
+
+.media-transport-primary {
+    -fx-background-color:
+            rgba(34, 207, 245, 0.16);
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.72);
+}
+
+.media-progress-track {
+    -fx-background-color:
+            rgba(34, 207, 245, 0.14);
+
+    -fx-background-radius: 3px;
+}
+
+.media-provider {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: rgba(120, 236, 255, 0.72);
+}
+
+.media-progress-fill {
+    -fx-background-color: #78ecff;
+    -fx-background-radius: 3px;
+}
+
+.media-property-key {
+    -fx-font-size: 9px;
+    -fx-text-fill: #7699a7;
+}
+
+.media-property-value {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #b7d6df;
+}
+
+.media-queue {
+    -fx-background-color:
+            rgba(5, 21, 32, 0.42);
+
+    -fx-background-radius: 10px;
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.12);
+
+    -fx-border-radius: 10px;
+}
+
+.media-queue-row {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-text-fill:
+            rgba(183, 214, 223, 0.76);
+}
+
+.media-volume-track {
+    -fx-background-color: rgba(34, 207, 245, 0.14);
+    -fx-background-radius: 3px;
+}
+
+.media-volume-fill {
+    -fx-background-color: rgba(120, 236, 255, 0.82);
+    -fx-background-radius: 3px;
+}
+
+/* =========================================================
+   FILES WORKSPACE
+   ========================================================= */
+
+.files-provider,
+.files-path,
+.files-section-title,
+.files-column-header,
+.files-entry-icon,
+.files-entry-meta,
+.files-context-title,
+.files-context-key,
+.files-context-value {
+    -fx-font-family: "JetBrains Mono";
+}
+
+.files-provider {
+    -fx-font-size: 9px;
+    -fx-text-fill: rgba(120, 236, 255, 0.48);
+}
+
+
+/* =========================================================
+   NAVIGATION
+   ========================================================= */
+
+.files-nav-button {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+
+    -fx-background-color: rgba(34, 207, 245, 0.05);
+    -fx-background-insets: 0;
+    -fx-background-radius: 6px;
+
+    -fx-border-color: rgba(120, 236, 255, 0.20);
+    -fx-border-width: 1px;
+    -fx-border-radius: 6px;
+
+    -fx-padding: 7px 10px;
+
+    -fx-cursor: hand;
+}
+
+.files-nav-button:hover,
+.files-nav-button:focused {
+    -fx-background-color: rgba(34, 207, 245, 0.14);
+    -fx-border-color: rgba(120, 236, 255, 0.58);
+}
+
+.files-nav-button:pressed {
+    -fx-background-color: rgba(34, 207, 245, 0.24);
+    -fx-border-color: #78ecff;
+}
+
+.files-path {
+    -fx-font-size: 9px;
+    -fx-text-fill: #b7d6df;
+    -fx-padding: 0 8px;
+}
+
+
+/* =========================================================
+   SEARCH
+   ========================================================= */
+
+.files-search {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+
+    -fx-text-fill: #eaf8fc;
+    -fx-prompt-text-fill: #7699a7;
+
+    -fx-background-color: rgba(5, 21, 32, 0.82);
+    -fx-background-insets: 0;
+    -fx-background-radius: 7px;
+
+    -fx-border-color: rgba(120, 236, 255, 0.20);
+    -fx-border-width: 1px;
+    -fx-border-radius: 7px;
+
+    -fx-padding: 8px 10px;
+}
+
+.files-search:focused {
+    -fx-background-color: rgba(8, 28, 42, 0.96);
+    -fx-border-color: rgba(120, 236, 255, 0.68);
+}
+
+
+/* =========================================================
+   MAIN PANELS
+   ========================================================= */
+
+.files-locations,
+.files-content,
+.files-context {
+    -fx-background-color: rgba(5, 21, 32, 0.42);
+    -fx-background-insets: 0;
+    -fx-background-radius: 10px;
+
+    -fx-border-color: rgba(120, 236, 255, 0.12);
+    -fx-border-width: 1px;
+    -fx-border-radius: 10px;
+}
+
+.files-section-title {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+
+/* =========================================================
+   LOCATIONS
+   ========================================================= */
+
+.files-location {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+
+    -fx-alignment: center-left;
+    -fx-text-fill: #b7d6df;
+
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 6px;
+
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-radius: 6px;
+
+    -fx-padding: 9px 8px;
+
+    -fx-cursor: hand;
+}
+
+.files-location:hover,
+.files-location:focused {
+    -fx-text-fill: #78ecff;
+    -fx-background-color: rgba(34, 207, 245, 0.09);
+}
+
+.files-location:pressed {
+    -fx-background-color: rgba(34, 207, 245, 0.16);
+}
+
+.files-location:active {
+    -fx-text-fill: #78ecff;
+
+    -fx-background-color:
+            rgba(34, 207, 245, 0.14);
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.42)
+            transparent
+            rgba(120, 236, 255, 0.42)
+            rgba(120, 236, 255, 0.72);
+
+    -fx-border-width: 0 0 0 2px;
+}
+
+
+/* =========================================================
+   FILE TABLE HEADER
+   ========================================================= */
+
+.files-column-header {
+    -fx-font-size: 8px;
+    -fx-text-fill: #7699a7;
+}
+
+
+/* =========================================================
+   FILE ROWS
+   ========================================================= */
+
+.files-entry {
+    -fx-background-color: rgba(34, 207, 245, 0.025);
+    -fx-background-insets: 0;
+    -fx-background-radius: 7px;
+
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+    -fx-border-radius: 7px;
+
+    -fx-padding: 6px 10px;
+
+    -fx-cursor: hand;
+}
+
+.files-entry:hover,
+.files-entry:focused {
+    -fx-background-color: rgba(34, 207, 245, 0.09);
+    -fx-border-color: rgba(120, 236, 255, 0.22);
+}
+
+.files-entry:selected {
+    -fx-background-color: rgba(34, 207, 245, 0.16);
+    -fx-border-color: rgba(120, 236, 255, 0.58);
+}
+
+.files-entry:pressed {
+    -fx-background-color: rgba(34, 207, 245, 0.22);
+}
+
+.files-entry-icon {
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+
+    -fx-min-width: 30px;
+}
+
+.files-entry-name {
+    -fx-font-family: "Inter Medium";
+    -fx-font-size: 11px;
+    -fx-text-fill: #eaf8fc;
+}
+
+.files-entry-meta {
+    -fx-font-size: 8px;
+    -fx-text-fill: #7699a7;
+}
+
+
+/* =========================================================
+   SCROLL PANE
+   ========================================================= */
+
+.files-scroll {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.files-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.files-scroll > .corner {
+    -fx-background-color: transparent;
+}
+
+.files-scroll .scroll-bar:vertical {
+    -fx-pref-width: 6px;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.files-scroll .scroll-bar:vertical .track {
+    -fx-background-color: rgba(34, 207, 245, 0.06);
+    -fx-background-insets: 0;
+    -fx-background-radius: 4px;
+}
+
+.files-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(120, 236, 255, 0.42);
+    -fx-background-insets: 0;
+    -fx-background-radius: 4px;
+}
+
+.files-scroll .scroll-bar:vertical .increment-button,
+.files-scroll .scroll-bar:vertical .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-pref-height: 0;
+    -fx-opacity: 0;
+}
+
+.files-scroll .scroll-bar:vertical .increment-arrow,
+.files-scroll .scroll-bar:vertical .decrement-arrow {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-shape: "";
+}
+
+/* =========================================================
+   SELECTION CONTEXT
+   ========================================================= */
+
+.files-context-title {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.files-context-key {
+    -fx-font-size: 8px;
+    -fx-text-fill: #7699a7;
+}
+
+.files-context-value {
+    -fx-font-size: 9px;
+    -fx-text-fill: #b7d6df;
+}
+
+/* =========================================================
+   BREADCRUMB
+   ========================================================= */
+
+.files-breadcrumb {
+    -fx-padding: 0 8px;
+}
+
+.files-breadcrumb-part {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+
+    -fx-text-fill: #b7d6df;
+
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4px;
+
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+
+    -fx-padding: 3px 4px;
+
+    -fx-cursor: hand;
+}
+
+.files-breadcrumb-part:hover,
+.files-breadcrumb-part:focused {
+    -fx-text-fill: #78ecff;
+
+    -fx-background-color:
+            rgba(34, 207, 245, 0.08);
+}
+
+.files-breadcrumb-part:pressed {
+    -fx-background-color:
+            rgba(34, 207, 245, 0.16);
+}
+
+/* =========================================================
+   SYSTEM WORKSPACE
+   ========================================================= */
+
+.system-provider {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill: rgba(120, 236, 255, 0.48);
+}
+
+.system-card {
+    -fx-background-color: rgba(5, 21, 32, 0.48);
+    -fx-background-insets: 0;
+    -fx-background-radius: 10px;
+
+    -fx-border-color: rgba(120, 236, 255, 0.14);
+    -fx-border-width: 1px;
+    -fx-border-radius: 10px;
+}
+
+.system-card:hover {
+    -fx-border-color: rgba(120, 236, 255, 0.26);
+}
+
+.system-section-title {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.system-property-key {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-text-fill: #7699a7;
+}
+
+.system-property-value {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #b7d6df;
+}
+
+.system-status {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #39d5ff;
+}
+
+.system-level-track {
+    -fx-background-color: rgba(34, 207, 245, 0.10);
+    -fx-background-radius: 3px;
+}
+
+.system-level-fill {
+    -fx-background-color: rgba(120, 236, 255, 0.82);
+    -fx-background-radius: 3px;
+}
+
+.system-network-rate {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #b7d6df;
+}
+
+.system-display-row {
+    -fx-background-color: rgba(34, 207, 245, 0.035);
+    -fx-background-radius: 6px;
+    -fx-padding: 8px 9px;
+}
+
+.system-display-id {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+    -fx-min-width: 22px;
+}
+
+.system-display-mode {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill: #b7d6df;
+}
+
+.system-display-role {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-text-fill: #7699a7;
+}
+
+.system-display-role-active {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+
+    -fx-background-color:
+            rgba(34, 207, 245, 0.10);
+
+    -fx-background-radius: 4px;
+
+    -fx-padding: 3px 6px;
+}
+
+.system-subsection-title {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-font-weight: bold;
+    -fx-text-fill: rgba(120, 236, 255, 0.48);
+
+    -fx-padding: 4px 0 0 0;
+}
+
+.system-status-secondary {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: rgba(183, 214, 223, 0.86);
+}
+
+/* =========================================================
+   RESEARCH WORKSPACE
+   ========================================================= */
+
+.research-provider {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill: rgba(120, 236, 255, 0.48);
+}
+
+
+/* STATUS */
+
+.research-status-bar {
+    -fx-padding: 7px 2px;
+}
+
+.research-status,
+.research-meta {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-font-weight: bold;
+}
+
+.research-status {
+    -fx-text-fill: #7699a7;
+}
+
+.research-status:complete {
+    -fx-text-fill: #39d5ff;
+}
+
+.research-status:researching {
+    -fx-text-fill: #78ecff;
+}
+
+.research-status:partial {
+    -fx-text-fill: #b7d6df;
+}
+
+.research-status:failed {
+    -fx-text-fill: #d99090;
+}
+
+.research-meta {
+    -fx-text-fill: #7699a7;
+}
+
+
+/* QUERY */
+
+.research-query-panel,
+.research-card,
+.research-source-context {
+    -fx-background-color: rgba(5, 21, 32, 0.46);
+    -fx-background-insets: 0;
+    -fx-background-radius: 10px;
+
+    -fx-border-color: rgba(120, 236, 255, 0.14);
+    -fx-border-width: 1px;
+    -fx-border-radius: 10px;
+}
+
+.research-caption,
+.research-section-title,
+.research-subsection-title,
+.research-context-title {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.research-caption,
+.research-section-title,
+.research-context-title {
+    -fx-font-size: 10px;
+}
+
+.research-subsection-title {
+    -fx-font-size: 8px;
+    -fx-text-fill: rgba(120, 236, 255, 0.58);
+}
+
+.research-query {
+    -fx-font-family: "Inter Medium";
+    -fx-font-size: 13px;
+    -fx-text-fill: #eaf8fc;
+}
+
+
+/* SUMMARY */
+
+.research-summary {
+    -fx-font-family: "Inter";
+    -fx-font-size: 11px;
+    -fx-text-fill: #b7d6df;
+    -fx-line-spacing: 2px;
+}
+
+
+/* FINDINGS */
+
+.research-finding-row {
+    -fx-background-color: rgba(34, 207, 245, 0.025);
+    -fx-background-radius: 6px;
+    -fx-padding: 6px 7px;
+}
+
+.research-finding-index {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+    -fx-min-width: 22px;
+}
+
+.research-finding-text {
+    -fx-font-family: "Inter";
+    -fx-font-size: 10px;
+    -fx-text-fill: #b7d6df;
+}
+
+
+/* VISUAL EVIDENCE */
+
+.research-visual-card {
+    -fx-background-color: rgba(34, 207, 245, 0.025);
+    -fx-background-radius: 7px;
+    -fx-padding: 7px;
+}
+
+.research-visual-image {
+    -fx-background-color:
+            linear-gradient(
+                    to bottom right,
+                    rgba(34, 207, 245, 0.12),
+                    rgba(5, 21, 32, 0.72)
+            );
+
+    -fx-background-radius: 6px;
+
+    -fx-border-color: rgba(120, 236, 255, 0.18);
+    -fx-border-radius: 6px;
+}
+
+.research-visual-placeholder {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: rgba(120, 236, 255, 0.72);
+}
+
+.research-visual-caption {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-text-fill: #7699a7;
+}
+
+
+/* SOURCES */
+
+.research-source {
+    -fx-background-color: rgba(34, 207, 245, 0.025);
+    -fx-background-insets: 0;
+    -fx-background-radius: 7px;
+
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+    -fx-border-radius: 7px;
+
+    -fx-padding: 7px 9px;
+
+    -fx-cursor: hand;
+}
+
+.research-source:hover,
+.research-source:focused {
+    -fx-background-color: rgba(34, 207, 245, 0.08);
+    -fx-border-color: rgba(120, 236, 255, 0.24);
+}
+
+.research-source:selected {
+    -fx-background-color:
+            rgba(34, 207, 245, 0.12);
+
+    -fx-border-color:
+            rgba(120, 236, 255, 0.52);
+}
+
+.research-source-id {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+    -fx-min-width: 22px;
+}
+
+.research-source-domain {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 7px;
+    -fx-text-fill: #7699a7;
+}
+
+.research-source-title {
+    -fx-font-family: "Inter Medium";
+    -fx-font-size: 10px;
+    -fx-text-fill: #eaf8fc;
+}
+
+
+/* SOURCE CONTEXT */
+
+.research-source-domain-active {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.research-source-context-title {
+    -fx-font-family: "Inter SemiBold";
+    -fx-font-size: 11px;
+    -fx-text-fill: #eaf8fc;
+}
+
+.research-source-excerpt {
+    -fx-font-family: "Inter";
+    -fx-font-size: 9px;
+    -fx-text-fill: rgba(183, 214, 223, 0.78);
+    -fx-line-spacing: 1px;
+}
+
+
+/* SCROLL */
+
+.research-scroll {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.research-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.research-scroll > .corner {
+    -fx-background-color: transparent;
+}
+
+.research-scroll .scroll-bar:vertical {
+    -fx-pref-width: 6px;
+    -fx-background-color: transparent;
+}
+
+.research-scroll .scroll-bar:vertical .track {
+    -fx-background-color: rgba(34, 207, 245, 0.06);
+    -fx-background-radius: 4px;
+}
+
+.research-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(120, 236, 255, 0.42);
+    -fx-background-radius: 4px;
+}
+
+.research-scroll .scroll-bar:vertical .increment-button,
+.research-scroll .scroll-bar:vertical .decrement-button {
+    -fx-pref-height: 0;
+    -fx-padding: 0;
+    -fx-opacity: 0;
+}
+
+/* =========================================================
+   TELEMETRY V2
+   ========================================================= */
+
+.telemetry-live {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-text-fill: rgba(120, 236, 255, 0.48);
+}
+
+.telemetry-section-title {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: rgba(120, 236, 255, 0.72);
+
+    -fx-padding: 5px 0 0 0;
+}
+
+.telemetry-network-rate {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #b7d6df;
+}
+
+.telemetry-network-ip {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill: rgba(183, 214, 223, 0.66);
+}
+
+/* =========================================================
+   RUNTIME V2
+   ========================================================= */
+
+.runtime-subtitle {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-text-fill: rgba(120, 236, 255, 0.48);
+}
+
+.runtime-section-title {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-font-weight: bold;
+    -fx-text-fill: rgba(120, 236, 255, 0.68);
+
+    -fx-padding: 2px 0 0 0;
+}
+
+.runtime-row {
+    -fx-background-color:
+            rgba(34, 207, 245, 0.025);
+
+    -fx-background-radius: 6px;
+
+    -fx-padding: 6px 8px;
+}
+
+.runtime-name {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #b7d6df;
+}
+
+.runtime-role {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 7px;
+    -fx-text-fill: rgba(118, 153, 167, 0.88);
+}
+
+.runtime-state {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 8px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #7699a7;
+}
+
+.runtime-state:ready,
+.runtime-state:active {
+    -fx-text-fill: #39d5ff;
+}
+
+.runtime-state:loading {
+    -fx-text-fill: #b7d6df;
+}
+
+.runtime-state:degraded {
+    -fx-text-fill: #d9b06c;
+}
+
+.runtime-state:offline {
+    -fx-text-fill: #8b6f76;
+}
+
+/* =========================================================
+   HUD ICONOGRAPHY
+   ========================================================= */
+
+.hud-icon {
+    -fx-opacity: 0.90;
+}
+
+.hud-icon-stroke {
+    -fx-fill: transparent;
+    -fx-stroke: #78ecff;
+    -fx-stroke-width: 1.6px;
+    -fx-stroke-line-cap: round;
+    -fx-stroke-line-join: round;
+}
+
+.hud-icon-fill {
+    -fx-fill: #78ecff;
+    -fx-stroke: transparent;
+}

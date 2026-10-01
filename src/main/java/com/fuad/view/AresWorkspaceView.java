@@ -1,0 +1,122 @@
+package com.fuad.view;
+
+import com.fuad.presentation.core.WorkspaceType;
+import com.fuad.presentation.media.MediaActionHandler;
+import com.fuad.presentation.media.MediaWorkspaceSnapshot;
+import com.fuad.presentation.tools.MoreToolsHandler;
+import com.fuad.presentation.tools.ToolsActionHandler;
+import com.fuad.presentation.tools.ToolsWorkspaceConfig;
+import com.fuad.view.workspace.tools.ToolsWorkspaceView;
+import com.fuad.view.workspace.files.FilesWorkspaceView;
+import com.fuad.view.workspace.media.MediaWorkspaceView;
+import com.fuad.view.workspace.system.SystemWorkspaceView;
+import com.fuad.view.workspace.web.ResearchLifecycleListener;
+import com.fuad.view.workspace.web.ResearchWorkspaceView;
+import javafx.css.PseudoClass;
+import javafx.geometry.Insets;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.layout.*;
+
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
+
+public class AresWorkspaceView extends VBox {
+    private static final PseudoClass ACTIVE_CATEGORY = PseudoClass.getPseudoClass("active");
+    private final Label workspaceSubtitle = new Label();
+    private final HBox navigation = new HBox(7.0);
+    private final StackPane contentHost = new StackPane();
+    private final Map<WorkspaceType, Button> navigationButtons = new EnumMap<>(WorkspaceType.class);
+    private final Map<WorkspaceType, Supplier<? extends Region>> factories = new EnumMap<>(WorkspaceType.class);
+    private final Map<WorkspaceType, Region> instances = new  EnumMap<>(WorkspaceType.class);
+    private final ResearchLifecycleListener researchLifecycleListener;
+    private final ToolsActionHandler toolsActionHandler;
+    private final MoreToolsHandler moreToolsHandler;
+    private final ToolsWorkspaceConfig toolsConfig;
+    private final Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier;
+    private final MediaActionHandler mediaActionHandler;
+
+    public AresWorkspaceView() {
+        this(ResearchLifecycleListener.noop(), ToolsActionHandler.unavailable(),
+                MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable,
+                MediaActionHandler.unavailable());
+    }
+
+    public AresWorkspaceView(ResearchLifecycleListener researchLifecycleListener) {
+        this(researchLifecycleListener, ToolsActionHandler.unavailable(), MoreToolsHandler.unavailable(),
+                ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable());
+    }
+
+    public AresWorkspaceView(ResearchLifecycleListener researchLifecycleListener, ToolsActionHandler toolsActionHandler,
+                             MoreToolsHandler moreToolsHandler, ToolsWorkspaceConfig toolsConfig,
+                             Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier, MediaActionHandler mediaActionHandler) {
+        this.researchLifecycleListener = researchLifecycleListener != null ? researchLifecycleListener : ResearchLifecycleListener.noop();
+        this.toolsActionHandler = Objects.requireNonNull(toolsActionHandler);
+        this.moreToolsHandler = Objects.requireNonNull(moreToolsHandler);
+        this.toolsConfig = Objects.requireNonNull(toolsConfig);
+        this.mediaSnapshotSupplier = Objects.requireNonNull(mediaSnapshotSupplier);
+        this.mediaActionHandler = Objects.requireNonNull(mediaActionHandler);
+
+        setSpacing(12.0);
+
+        setPadding(new Insets(18.0));
+        getStyleClass().addAll("core-panel", "ares-workspace");
+        Label title = new Label("ARES // WORKSPACE");
+        title.getStyleClass().add("core-hud-title");
+        workspaceSubtitle.getStyleClass().add("workspace-subtitle");
+        navigation.getStyleClass().add("workspace-tabs");
+        contentHost.getStyleClass().add("workspace-content");
+        contentHost.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        contentHost.setMinHeight(0.0);
+        VBox.setVgrow(contentHost, Priority.ALWAYS);
+        registerMockWorkspaces();
+        createNavigation();
+        getChildren().addAll(title, workspaceSubtitle, navigation, contentHost);
+        showWorkspace(WorkspaceType.TOOLS);
+    }
+
+    public void showWorkspace(WorkspaceType workspaceType) {
+        Supplier<? extends Region> supplier = factories.get(workspaceType);
+
+        if (supplier == null) {
+            return;
+        }
+        Region workspace = instances.computeIfAbsent(workspaceType, ignored -> supplier.get());
+        workspace.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        workspace.setMinHeight(0.0);
+        workspaceSubtitle.setText("WORKSPACE // " + workspaceType.getSubtitle().toUpperCase());
+        navigationButtons.forEach((wsType, button) -> button.pseudoClassStateChanged(ACTIVE_CATEGORY,
+                wsType == workspaceType));
+        contentHost.getChildren().setAll(workspace);
+    }
+
+    public void dispose() {
+        instances.values().forEach(instance -> {
+            if (instance instanceof MediaWorkspaceView media) {
+                media.dispose();
+            }
+        });
+    }
+
+    private void registerMockWorkspaces() {
+        factories.put(WorkspaceType.TOOLS, () -> new ToolsWorkspaceView(toolsConfig, toolsActionHandler, moreToolsHandler));
+        factories.put(WorkspaceType.MEDIA, () -> new MediaWorkspaceView(mediaSnapshotSupplier, mediaActionHandler));
+        factories.put(WorkspaceType.FILES, FilesWorkspaceView::new);
+        factories.put(WorkspaceType.SYSTEM, SystemWorkspaceView::new);
+        factories.put(WorkspaceType.WEB, () -> new ResearchWorkspaceView(researchLifecycleListener));
+    }
+
+    private void createNavigation() {
+        for (WorkspaceType workspaceType : WorkspaceType.values()) {
+            Button button = new Button(workspaceType.getLabel());
+            button.getStyleClass().add("workspace-tab");
+            button.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(button, Priority.ALWAYS);
+            button.setOnAction(event -> showWorkspace(workspaceType));
+            navigationButtons.put(workspaceType, button);
+            navigation.getChildren().add(button);
+        }
+    }
+}

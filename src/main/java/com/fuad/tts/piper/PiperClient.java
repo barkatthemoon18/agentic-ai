@@ -115,6 +115,10 @@ public class PiperClient implements AutoCloseable {
         }
     }
 
+    public boolean isAlive() {
+        return process != null && process.isAlive();
+    }
+
     private void writeAudioRequest(long requestId, int op, byte[] payload) throws IOException {
         outputStream.writeInt(MAGIC_REQUEST);
         outputStream.writeByte(VERSION);

@@ -75,6 +75,7 @@ public class LocalOsCommandParser implements OsCommandParser {
             return new OsCommandIntent(OsAction.LIST_RUNNING_APPLICATIONS, "");
         }
         Optional<String> firstOutput = inference.infer(request(query, false, null));
+        System.out.println("OS PARSER RAW ->" + firstOutput.orElse("<empty>"));
         try {
             return parseOutput(requiredOutput(firstOutput));
         }

@@ -1,6 +1,7 @@
 package com.fuad.pipeline;
 
 import com.fuad.audio.AudioFrame;
+import com.fuad.enums.AudioState;
 import com.fuad.enums.VoiceState;
 import com.fuad.speech.SpeechBuffer;
 import com.fuad.speech.SpeechSegment;
@@ -15,24 +16,47 @@ public class VoicePipeline {
     private static final int SILENCE_END_FRAMES = 20;
     private static final int PRE_ROLL_FRAMES = 10;
     private final Deque<AudioFrame> preRoll = new ArrayDeque<>();
+    private final AssistantActivityListener activityListener;
     private final VadEngine vadEngine;
     private final SpeechBuffer speechBuffer;
     private final SpeechSegmentListener segmentListener;
     private final AudioPipeline audioPipeline;
+    private final VoiceSignalListener signalListener;
+    private final VoiceInputController voiceInputController;
     private VoiceState state = VoiceState.IDLE;
     private boolean audioWasBlocked = false;
+    private boolean muteApplied;
     private int speechFrames = 0;
     private int silenceFrames = 0;
 
     public VoicePipeline(VadEngine vadEngine, SpeechBuffer speechBuffer,  SpeechSegmentListener segmentListener,
-                         AudioPipeline audioPipeline) {
+                         AudioPipeline audioPipeline, AssistantActivityListener activityListener) {
+        this(vadEngine, speechBuffer, segmentListener, audioPipeline, activityListener, VoiceSignalListener.noop(),
+                new VoiceInputController());
+    }
+
+    public VoicePipeline(VadEngine vadEngine, SpeechBuffer speechBuffer,  SpeechSegmentListener segmentListener,
+                         AudioPipeline audioPipeline, AssistantActivityListener activityListener, VoiceSignalListener signalListener,
+                         VoiceInputController voiceInputController) {
         this.vadEngine = vadEngine;
         this.speechBuffer = speechBuffer;
         this.segmentListener = segmentListener;
         this.audioPipeline = audioPipeline;
+        this.activityListener = activityListener;
+        this.signalListener = signalListener;
+        this.voiceInputController = voiceInputController;
     }
 
     public void process(AudioFrame frame) {
+        if (voiceInputController.isMuted()) {
+            handleMutedInput();
+            return;
+        }
+        if (muteApplied) {
+            reset();
+            muteApplied = false;
+            System.out.println("VOICE INPUT -> READY");
+        }
         if (!audioPipeline.canListen()) {
             audioWasBlocked = true;
             return;
@@ -44,10 +68,25 @@ public class VoicePipeline {
             System.out.println("AUDIO INPUT -> READY");
         }
         VadResult result = vadEngine.process(frame);
+        signalListener.onSignal(createSignalSnapshot(frame, result));
         switch (state) {
             case IDLE -> processIdle(frame, result);
             case SPEAKING -> processSpeaking(frame, result);
         }
+    }
+
+    private void handleMutedInput() {
+        if (muteApplied) {
+            return;
+        }
+        boolean wasListening = state == VoiceState.SPEAKING;
+        reset();
+        muteApplied = true;
+        signalListener.onSignal(VoiceSignalSnapshot.silence());
+        if (wasListening && !audioPipeline.isProcessing() && !audioPipeline.isSpeaking()) {
+            activityListener.onStateChanged(AssistantActivityState.IDLE);
+        }
+        System.out.println("VOICE INPUT -> MUTED");
     }
 
     private void processIdle(AudioFrame frame, VadResult result) {
@@ -66,6 +105,7 @@ public class VoicePipeline {
     private void startSpeech() {
         state = VoiceState.SPEAKING;
 
+        activityListener.onStateChanged(AssistantActivityState.LISTENING);
         silenceFrames = 0;
         speechFrames = 0;
         speechBuffer.clear();
@@ -97,6 +137,9 @@ public class VoicePipeline {
         speechFrames = 0;
         speechBuffer.clear();
         segmentListener.onSpeechSegment(segment);
+        if (!audioPipeline.isProcessing() && !audioPipeline.isSpeaking()) {
+            activityListener.onStateChanged(AssistantActivityState.IDLE);
+        }
     }
 
     private void updatePreRoll(AudioFrame frame) {
@@ -114,5 +157,26 @@ public class VoicePipeline {
         state = VoiceState.IDLE;
         speechFrames = 0;
         silenceFrames = 0;
+    }
+
+    private static VoiceSignalSnapshot createSignalSnapshot(AudioFrame frame, VadResult result) {
+        float[] samples = frame.getSamples();
+
+        if (samples.length == 0) {
+            return VoiceSignalSnapshot.silence();
+        }
+        double sumSquares = 0.0;
+        double peak = 0.0;
+
+        for (float sample : samples) {
+            double value = sample;
+
+            sumSquares += Math.pow(value, 2);
+            peak = Math.max(peak, Math.abs(value));
+        }
+
+        double rms = Math.sqrt(sumSquares / samples.length);
+
+        return new VoiceSignalSnapshot(samples, rms, peak, result.getProbability());
     }
 }

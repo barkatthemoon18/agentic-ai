@@ -1,6 +1,6 @@
 # Ares — Resumen técnico de arquitectura, lógica y decisiones
 
-> Estado contrastado al 13 de septiembre de 2026. La línea de Research se
+> Estado contrastado al 14 de septiembre de 2026. La línea de Research se
 > revisó desde `52beb51` hasta el merge `4109320` de `feature/current-research`
 > en `dev`; OS Skills se revisó desde `4109320` hasta `7805b4d` en
 > `feature/os-skills`.
@@ -10,6 +10,7 @@
 | `dev` / PR #2 `feature/current-research` | `52beb51..4109320` | Current Research con GPT/Qwen, General local/GPT, ramas conversacionales, escalamiento y evaluación |
 | `feature/os-skills` | `4109320..7805b4d` | Catálogo dinámico de Windows, identidad runtime segura, foco/estado/listados y presentación estructurada |
 | Supervisor de LM Studio | árbol de trabajo al 13 de septiembre | arranque del daemon y servidor, carga de Phi/Qwen, recuperación y estado JavaFX |
+| Superficie interactiva | árbol de trabajo al 14 de septiembre | suspensión de Skills, input táctil/voz, lifecycle de sesión y selección de monitor |
 
 ## 1. Objetivo de la iteración
 
@@ -25,7 +26,9 @@ Esta conversación consolidó varias piezas de Ares:
 - implementación inicial completa de `AUDIO_CONTROL`, limitada a la voz del asistente;
 - selección implementada entre Qwen local y GPT para `GENERAL` y `CURRENT_RESEARCH`;
 - arranque supervisado de LM Studio, con recuperación independiente del daemon,
-  servidor HTTP, Phi y Qwen.
+  servidor HTTP, Phi y Qwen;
+- superficie interactiva para suspender y reanudar acciones que necesitan input
+  humano, con un primer vertical slice para apertura ambigua de aplicaciones.
 
 Arquitectura general:
 
@@ -37,7 +40,9 @@ Mic
 → Activation
 → Capability Router
 → Skill
-→ AssistantResult
+→ SkillExecution
+  ├─ Completed / Async → AssistantResult
+  └─ AwaitingInteraction → InteractionService → toque o voz → continuación
 → ConversationPolicy
 → TTS
 → playback
@@ -2315,10 +2320,12 @@ Mic → VAD → STT → control/activación → clasificación de utterance
     → GuardedSemanticRouter → SkillRouter
         ├─ SYSTEM_TIME
         ├─ AUDIO_CONTROL
-        ├─ OS_COMMAND → catálogo + identidad Windows + payload visual
+        ├─ OS_COMMAND → catálogo + identidad Windows + payload visual/interactivo
         ├─ CURRENT_RESEARCH → Qwen local | GPT Web → QUICK | DEEP
         └─ GENERAL → Qwen local | GPT
-    → AssistantResult + estado/payload + política efectiva
+    → AssistantTurn
+        ├─ Completed / Async → AssistantResult + estado/payload + política efectiva
+        └─ AwaitingInteraction → InteractionService → continuación del Skill
     → AssistantOutputCoordinator → TTS y/o JavaFX
 ```
 
@@ -2339,11 +2346,16 @@ actual:
 10 de septiembre  285 pruebas sin fallos
 12 de septiembre  reportes Surefire locales: 403 pruebas, 0 fallos, 0 errores, 0 omitidas
 13 de septiembre  suite Maven: 415 pruebas, 0 fallos, 0 errores, 0 omitidas
+14 de septiembre  suite Maven: 437 pruebas, 0 fallos, 0 errores, 0 omitidas
 ```
 
 La validación del 13 de septiembre produjo 60 reportes bajo
 `target/surefire-reports`. Incluye las pruebas del supervisor de LM Studio y las
 regresiones de disponibilidad local, Research y limpieza de recursos.
+
+La validación del 14 de septiembre incorpora las regresiones de sesión
+interactiva, routing de voz, reanudación en el executor de Ares y resolución
+conservadora del monitor.
 
 Pendientes vigentes:
 
@@ -2522,4 +2534,165 @@ La suite cubre las garantías centrales del supervisor:
 - disponibilidad de Qwen, mensaje explícito de Research y orden de limpieza.
 
 La suite Maven completa del 13 de septiembre finalizó con 415 pruebas, 0 fallos,
+0 errores y 0 omitidas.
+
+---
+
+## 36. Superficie interactiva — 14 de septiembre de 2026
+
+La superficie interactiva permite que un Skill suspenda una acción cuando
+necesita input humano y la reanude con un resultado tipado. No convierte toda
+operación asíncrona en interacción: `SkillExecution` y `AssistantTurn` distinguen
+explícitamente tres estados:
+
+```text
+Completed
+→ resultado disponible
+
+Async
+→ trabajo asíncrono ordinario
+
+AwaitingInteraction<T>
+→ InteractionRequest<T> + continuación tipada
+```
+
+El único consumidor productivo actual es `OsCommandSkill`. Cuando
+`OPEN_APPLICATION` resuelve el target como `AMBIGUOUS`, construye un
+`ChoiceRequest` con los candidatos y suspende la ejecución. Una selección válida
+reanuda exactamente la intención capturada y abre la aplicación elegida; una
+cancelación, expiración o indisponibilidad no ejecuta la acción.
+
+```text
+"Ares, abre Studio"
+→ OS_COMMAND / OPEN_APPLICATION
+→ ApplicationRegistry = AMBIGUOUS
+→ AwaitingInteraction<String>
+→ opciones en la superficie
+→ selección por toque o voz
+→ continuación de OsCommandSkill en el executor de Ares
+→ abrir únicamente la aplicación seleccionada
+```
+
+Una coincidencia única se ejecuta directamente y un target desconocido responde
+sin abrir la superficie. `CLOSE_APPLICATION`, `FOCUS_APPLICATION` y
+`GET_APPLICATION_STATUS` todavía conservan su comportamiento anterior ante una
+ambigüedad.
+
+### 36.1. Identidad, exclusión y lifecycle
+
+`InteractionService` crea el UUID interno de cada sesión. El caller no construye
+ni conoce esa identidad; `requestId` queda separado como correlación externa
+opcional y se propaga al `InteractionResult`.
+
+Sólo puede existir una sesión activa. La instalación se hace mediante CAS; una
+segunda solicitud devuelve `BUSY` inmediatamente y no crea sesión. El caller
+recibe un `CompletionStage` mínimo y no el `CompletableFuture` mutable que posee
+la sesión.
+
+```text
+PRESENTING
+├─ visible() → VISIBLE
+├─ cancel → CANCELLED
+├─ presenter no disponible → UNAVAILABLE
+└─ cierre de Ares → CLOSED
+
+VISIBLE
+├─ submit → SUBMITTED
+├─ cancel → CANCELLED
+├─ timeout → EXPIRED
+├─ pérdida del monitor → UNAVAILABLE
+└─ cierre de Ares → CLOSED
+```
+
+`visible(sessionId)` sólo admite una transición `PRESENTING → VISIBLE`. El timeout
+predeterminado de 90 segundos se programa exclusivamente cuando JavaFX publica
+`WINDOW_SHOWN`, no al ejecutar `Platform.runLater`. Toda transición terminal
+cancela explícitamente la tarea de timeout. `dismiss(sessionId)` vuelve a comprobar
+la identidad en el JavaFX Application Thread para que un dismiss tardío nunca
+oculte una sesión posterior.
+
+### 36.2. Voz y reanudación
+
+Mientras haya una sesión activa, `InteractionVoiceRouter` consume cada
+transcripción antes del control conversacional, activación y routing normales.
+La orden universal de cancelación funciona incluso durante `PRESENTING` o cuando
+la solicitud no habilita respuestas de voz.
+
+Las opciones de voz se comparan mediante label normalizado, aliases y ordinales.
+Si una transcripción coincide con más de un ID después de normalizar, se consume
+como no resoluble y la sesión permanece activa. No se selecciona un candidato
+arbitrariamente.
+
+El thread que completa `InteractionService` sólo agenda la reanudación. La
+continuación de dominio del Skill se ejecuta después en el executor lógico de
+`SpeechProcessingService`; no puede ejecutarse en el thread de JavaFX, STT,
+scheduler o en otro productor del resultado.
+
+### 36.3. Tipos de interacción y foco
+
+El presenter soporta tres solicitudes:
+
+| Tipo | Resultado | Presentación |
+|---|---|---|
+| `ChoiceRequest` | ID de la opción | botones táctiles y resolución opcional por voz |
+| `ConfirmationRequest` | `boolean` | confirmar/rechazar por toque o voz |
+| `TextInputRequest` | texto validado | editor y teclado táctil QWERTY latino |
+
+La superficie vive en un `Stage` separado y `alwaysOnTop`. Visibilidad y foco son
+decisiones distintas: `PASSIVE` intenta aplicar `WS_EX_NOACTIVATE`, no llama a
+`requestFocus()` y restaura el foreground previo de Windows como operación
+best-effort. Esa restauración no forma parte del éxito de la interacción.
+`TextInputRequest` (`FREE_TEXT`) solicita foco después de mostrarse para habilitar la entrada física,
+además del teclado táctil.
+
+La salida visual normal y la superficie comparten un único `JavaFxRuntime`.
+`Platform.setImplicitExit(false)` mantiene vivo el toolkit cuando ambos stages
+están ocultos; sólo el propietario registrado por `Main` llama a
+`Platform.exit()` durante el cierre.
+
+### 36.4. Resolución del monitor
+
+`config/interaction-display.json` permite declarar una identidad persistente,
+una resolución de fallback y si el monitor principal puede participar en la
+selección normal. La precedencia vigente es:
+
+```text
+1. displayId configurado, único y permitido
+2. coincidencia única con la resolución fallback
+3. monitor secundario disponible
+   → orden determinista por nombre nativo e ID persistente
+4. monitor principal como último fallback si no existe un secundario
+```
+
+Si varias pantallas coinciden exactamente con la resolución fallback, el
+resultado permanece `UNAVAILABLE`: una coincidencia ambigua no autoriza escoger
+una pantalla arbitrariamente. Cuando no existe ninguna coincidencia de
+resolución, sí se activa el fallback por disponibilidad. Con la configuración
+actual y dos monitores 2560×1440, se selecciona automáticamente el secundario.
+La identidad nativa se vuelve a mapear a las coordenadas actuales de JavaFX; si
+el monitor desaparece durante una sesión, ésta termina como `UNAVAILABLE`.
+
+### 36.5. Casos preparados pero aún no conectados
+
+La infraestructura ya permite que otros Skills produzcan interacciones, pero los
+siguientes casos no están implementados como flujos productivos:
+
+- elegir entre aplicaciones ambiguas al cerrar, enfocar o consultar estado;
+- elegir un dispositivo de audio, modelo o resultado;
+- confirmar una acción destructiva, sensible o difícil de revertir;
+- pedir mediante texto libre una ruta, URL, nombre, filtro o argumento ausente;
+- corregir manualmente una transcripción que no pudo resolverse.
+
+Estos casos deben implementarse devolviendo `SkillExecution.AwaitingInteraction`,
+sin llamar directamente al presenter ni generar un ID de sesión desde el Skill.
+
+### 36.6. Validación automatizada
+
+La suite cubre creación interna de identidad, vista no mutable del resultado,
+CAS y `BUSY`, transición de visibilidad, timeout, cancelación terminal,
+cancelación universal por voz, aliases ambiguos, reanudación fuera del thread que
+completa la interacción, distinción entre `Async` y `AwaitingInteraction`,
+vertical slice de aplicación ambigua y selección del monitor.
+
+La suite Maven completa del 14 de septiembre finalizó con 437 pruebas, 0 fallos,
 0 errores y 0 omitidas.

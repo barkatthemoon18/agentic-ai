@@ -10,7 +10,6 @@ import com.fuad.model.runtime.ComponentState;
 import com.fuad.model.runtime.RuntimeComponent;
 import com.fuad.model.runtime.RuntimeState;
 import javafx.animation.*;
-import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
@@ -30,7 +29,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class JavaFxVisualOutput implements VisualOutput {
@@ -39,10 +37,11 @@ public class JavaFxVisualOutput implements VisualOutput {
     private static final double SCREEN_MARGIN = 24.0;
     private static final double HALO_PADDING = 24.0;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
-    private static final AtomicBoolean TOOLKIT_START_REQUESTED = new AtomicBoolean(false);
-    private static final CompletableFuture<Void> TOOLKIT_READY = new CompletableFuture<>();
     private final AtomicBoolean closed =  new AtomicBoolean(false);
+    private final JavaFxRuntime fxRuntime;
+    private final boolean ownsRuntime;
     private final WindowsOverlayOwnerSupport ownerSupport;
+    private final OverlayDisplayResolver displayResolver;
     private final String ownerWindowTitle = "Ares Overlay Owner " + UUID.randomUUID();
     private Stage ownerStage;
     private Stage stage;
@@ -66,20 +65,21 @@ public class JavaFxVisualOutput implements VisualOutput {
     private InfrastructureStatus pendingInfrastructureStatus;
     private DisplayMode displayMode = DisplayMode.NONE;
 
-    public JavaFxVisualOutput() {
-        this(new CatalogSessionStore());
+    public JavaFxVisualOutput(CatalogSessionStore catalogSessions,
+                              JavaFxRuntime fxRuntime, OverlayDisplayResolver displayResolver) {
+        this(catalogSessions, fxRuntime, WindowsOverlayOwnerSupport.platformDefault(), displayResolver, false);
     }
 
-    public JavaFxVisualOutput(CatalogSessionStore catalogSessions) {
-        this(catalogSessions, WindowsOverlayOwnerSupport.platformDefault());
-    }
-
-    JavaFxVisualOutput(CatalogSessionStore catalogSessions,
-                       WindowsOverlayOwnerSupport ownerSupport) {
-        this.catalogSessions = Objects.requireNonNull(catalogSessions, "catalogSessions must not be null");
+    JavaFxVisualOutput(CatalogSessionStore catalogSessions, JavaFxRuntime fxRuntime, WindowsOverlayOwnerSupport ownerSupport,
+            OverlayDisplayResolver displayResolver, boolean ownsRuntime) {
+        this.catalogSessions =
+                Objects.requireNonNull(catalogSessions, "catalogSessions must not be null");
+        this.fxRuntime = Objects.requireNonNull(fxRuntime, "fxRuntime must not be null");
         this.ownerSupport = Objects.requireNonNull(ownerSupport, "ownerSupport must not be null");
-        ensureToolkit();
-        runAndWait(this::createOverlay);
+        this.displayResolver = Objects.requireNonNull(displayResolver, "displayResolver must not be null");
+        this.ownsRuntime = ownsRuntime;
+
+        fxRuntime.runAndWait(this::createOverlay);
     }
 
     @Override
@@ -88,7 +88,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         if (closed.get()) {
             throw new IllegalStateException("Visual output is already closed");
         }
-        runLater(() -> showInternal(visualMessage));
+        fxRuntime.runLater(() -> showInternal(visualMessage));
     }
 
     @Override
@@ -97,7 +97,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         if (closed.get()) {
             return;
         }
-        runLater(() -> {
+        fxRuntime.runLater(() -> {
             pendingInfrastructureStatus = status;
             if (displayMode == DisplayMode.RESPONSE && stage != null && stage.isShowing()) {
                 return;
@@ -111,7 +111,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         if (closed.get()) {
             return;
         }
-        runLater(() -> {
+        fxRuntime.runLater(() -> {
             if (displayMode != DisplayMode.STATUS) {
                 hideInternal();
             }
@@ -124,7 +124,7 @@ public class JavaFxVisualOutput implements VisualOutput {
             return;
         }
         closeCatalogSubscription();
-        runLater(() -> {
+        fxRuntime.runAndWait(() -> {
             stopAnimations();
             pendingInfrastructureStatus = null;
             if (stage != null) {
@@ -134,32 +134,10 @@ public class JavaFxVisualOutput implements VisualOutput {
             if (ownerStage != null) {
                 ownerStage.close();
             }
-            Platform.exit();
         });
-    }
-
-    private static void ensureToolkit() {
-        if (TOOLKIT_START_REQUESTED.compareAndSet(false, true)) {
-            Runnable markAsReady = () -> {
-                Platform.setImplicitExit(false);
-                TOOLKIT_READY.complete(null);
-            };
-            try {
-                Platform.startup(markAsReady);
-            }
-            catch (IllegalStateException e) {
-                try {
-                    Platform.runLater(markAsReady);
-                }
-                catch (RuntimeException e2) {
-                    TOOLKIT_READY.completeExceptionally(e2);
-                }
-            }
-            catch (RuntimeException e) {
-                TOOLKIT_READY.completeExceptionally(e);
-            }
+        if (ownsRuntime) {
+            fxRuntime.close();
         }
-        TOOLKIT_READY.join();
     }
 
     private void createOverlay() {
@@ -326,7 +304,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         messageScroll.setVvalue(0.0);
         overlayRoot.setOpacity(0.0);
         overlayRoot.setTranslateX(20.0);
-        Rectangle2D screenBounds = resolveTargetScreen().getVisualBounds();
+        Rectangle2D screenBounds = displayResolver.resolve().getVisualBounds();
         sizeOverlay(screenBounds, catalog || openApplications);
         if (!stage.isShowing()) {
             stage.show();
@@ -410,7 +388,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         timeLabel.setText(LocalTime.now().format(TIME_FORMATTER));
         overlayRoot.setOpacity(0.0);
         overlayRoot.setTranslateX(20.0);
-        Rectangle2D screenBounds = resolveTargetScreen().getVisualBounds();
+        Rectangle2D screenBounds = displayResolver.resolve().getVisualBounds();
         double preferredHeight = status.snapshot().state() == RuntimeState.READY
                 ? MINIMUM_HEIGHT : 150.0 + RuntimeComponent.values().length * 48.0;
         Rectangle2D bounds = calculateOverlayBounds(screenBounds, preferredHeight);
@@ -573,7 +551,8 @@ public class JavaFxVisualOutput implements VisualOutput {
         });
         catalogPrevious.setOnAction(event -> catalogSessions.navigate(initial.sessionId(), CatalogNavigation.PREVIOUS));
         catalogNext.setOnAction(event -> catalogSessions.navigate(initial.sessionId(), CatalogNavigation.NEXT));
-        catalogSubscription = catalogSessions.observe(initial.sessionId(), payload -> runLater(() -> renderCatalog(payload)));
+        catalogSubscription = catalogSessions.observe(initial.sessionId(),
+                payload -> fxRuntime.runLater(() -> renderCatalog(payload)));
     }
 
     private void showOpenApplications(OpenApplicationsPayload payload) {
@@ -671,33 +650,6 @@ public class JavaFxVisualOutput implements VisualOutput {
         }
         double seconds = Math.ceil(charCount / 18.0) + 4.0;
         return Math.clamp(seconds, 6.0, 30.0);
-    }
-
-    private static void runAndWait(Runnable runnable) {
-        if (Platform.isFxApplicationThread()) {
-            runnable.run();
-            return;
-        }
-        CompletableFuture<Void> completableFuture = new CompletableFuture<>();
-        Platform.runLater(() -> {
-            try {
-                runnable.run();
-                completableFuture.complete(null);
-            }
-            catch (Exception e) {
-                completableFuture.completeExceptionally(e);
-            }
-        });
-        completableFuture.join();
-    }
-
-    private static void runLater(Runnable runnable) {
-        if (Platform.isFxApplicationThread()) {
-            runnable.run();
-        }
-        else {
-            Platform.runLater(runnable);
-        }
     }
 
     private enum DisplayMode {

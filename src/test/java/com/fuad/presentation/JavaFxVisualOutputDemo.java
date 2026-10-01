@@ -29,7 +29,7 @@ public final class JavaFxVisualOutputDemo {
             OutputPresentationPolicy policy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
             AudioPipeline audio = new AudioPipeline(new PiperTtsEngine(client),
                     new AudioPlaybackService(), output, controller);
-            try (JavaFxVisualOutput visual = new JavaFxVisualOutput()) {
+            try (JavaFxVisualOutput visual = new JavaFxVisualOutput(null, null, null, null, false)) {
                 AssistantOutputCoordinator coordinator = new AssistantOutputCoordinator(controller, policy, audio, visual);
                 runMenu(controller, policy, coordinator, visual);
             }

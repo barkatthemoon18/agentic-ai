@@ -48,13 +48,29 @@ import com.fuad.audio.AudioCaptureService;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioDeviceManager;
 import com.fuad.audio.AudioPlaybackService;
+import com.fuad.audio.output.AudioOutputProvider;
+import com.fuad.audio.output.windows.WindowsAudioOutputProvider;
 import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
+import com.fuad.interaction.InteractionLifecycleListener;
+import com.fuad.media.MediaSessionProvider;
+import com.fuad.media.enrichment.MediaEnrichmentProvider;
+import com.fuad.media.enrichment.tidal.TidalMediaEnrichmentProvider;
+import com.fuad.media.windows.WindowsMediaSessionProvider;
 import com.fuad.model.runtime.LmStudioStartupCoordinator;
-import com.fuad.pipeline.AssistantPipeline;
-import com.fuad.pipeline.AudioPipeline;
-import com.fuad.pipeline.VoicePipeline;
+import com.fuad.interaction.DefaultInteractionService;
+import com.fuad.interaction.InteractionPresenter;
+import com.fuad.interaction.InteractionVoiceRouter;
+import com.fuad.pipeline.*;
 import com.fuad.presentation.*;
+import com.fuad.presentation.core.*;
+import com.fuad.presentation.media.MediaActionHandler;
+import com.fuad.presentation.media.MediaWorkspaceController;
+import com.fuad.presentation.media.MediaWorkspaceSnapshot;
+import com.fuad.presentation.tools.*;
+import com.fuad.presentation.interaction.DefaultInteractionDisplayResolver;
+import com.fuad.presentation.interaction.JavaFxInteractionPresenter;
+import com.fuad.presentation.interaction.UnavailableInteractionPresenter;
 import com.fuad.speech.SpeechBuffer;
 import com.fuad.speech.SpeechProcessingService;
 import com.fuad.speech.validation.BasicSpeechSegmentValidator;
@@ -62,6 +78,8 @@ import com.fuad.speech.validation.SpeechSegmentValidator;
 import com.fuad.stt.SttEngine;
 import com.fuad.stt.fasterwhisper.FasterWhisperClient;
 import com.fuad.stt.fasterwhisper.FasterWhisperSttEngine;
+import com.fuad.telemetry.gpu.nvidia.NvidiaGpuTelemetryProvider;
+import com.fuad.telemetry.host.oshi.OshiHostTelemetryProvider;
 import com.fuad.tts.TtsEngine;
 import com.fuad.tts.piper.PiperClient;
 import com.fuad.tts.piper.PiperTtsEngine;
@@ -72,6 +90,7 @@ import com.openai.client.okhttp.OpenAIOkHttpClient;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public class Main {
     public static void main(String[] args) {
@@ -105,11 +124,52 @@ public class Main {
             OsCommandSkill osCommandSkill = new OsCommandSkill(
                     osCommandParser, applicationRegistry, applicationController, safetyGuard, catalogSessions);
             OutputPresentationPolicy presentationPolicy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
-            VisualOutput visualOutput = createVisualOutput(catalogSessions);
+            VoiceSignalStore voiceSignalStore = new VoiceSignalStore();
+            VoiceInputController voiceInputController = new VoiceInputController();
+            ToolsWorkspaceConfig toolsConfig = new ToolsWorkspaceConfigLoader(Path.of("config", "ares-tools-applications.json")).load();
+            DeferredToolsActionHandler toolsActionHandler = new DeferredToolsActionHandler();
+            DeferredMoreToolsHandler moreToolsHandler = new DeferredMoreToolsHandler();
+            MediaSessionProvider mediaSessionProvider;
+            AudioOutputProvider audioOutputProvider = new WindowsAudioOutputProvider();
+            MediaEnrichmentProvider mediaEnrichmentProvider = new TidalMediaEnrichmentProvider();
+            try {
+                mediaSessionProvider = new WindowsMediaSessionProvider();
+                System.out.println("MEDIA -> Windowws media provider ready");
+            }
+            catch (RuntimeException | LinkageError e) {
+                System.err.println("MEDIA -> Windows media provider unavailable: " + e.getMessage());
+                mediaSessionProvider = MediaSessionProvider.unavailable();
+            }
+            MediaWorkspaceController mediaWorkspaceController = new MediaWorkspaceController(mediaSessionProvider, audioOutputProvider, mediaEnrichmentProvider);
+            mediaWorkspaceController.start();
+            PresentationComponents presentation = createPresentation(catalogSessions, voiceSignalStore::current, voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig, mediaWorkspaceController::current, mediaWorkspaceController);
+            VisualOutput visualOutput = presentation.visualOutput();
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, visualOutput);
+            cleanup.register(ResourceCleanup.Resource.MEDIA, mediaWorkspaceController);
+            if (presentation.javaFxRuntime() != null) {
+                cleanup.register(ResourceCleanup.Resource.JAVAFX_RUNTIME,
+                        presentation.javaFxRuntime());
+            }
+            DefaultInteractionService interactionService = new DefaultInteractionService(
+                    presentation.interactionPresenter(), presentation.interactionLifecycleListener());
+            MoreToolsBrowser moreToolsBrowser = new MoreToolsBrowser(interactionService, toolsActionHandler, toolsConfig);
+            InteractionVoiceRouter interactionVoiceRouter =
+                    new InteractionVoiceRouter(interactionService);
+            cleanup.register(ResourceCleanup.Resource.INTERACTION, interactionService);
             LmStudioStartupCoordinator modelRuntime = new LmStudioStartupCoordinator();
+            AssistantVisualStateStore assistantVisualStateStore = new AssistantVisualStateStore();
+            RuntimeStatusCoordinator runtimeStatusCoordinator = new RuntimeStatusCoordinator(assistantVisualStateStore::setDegraded);
             Object voiceRuntimeLock = new Object();
             AtomicBoolean applicationClosing = new AtomicBoolean(false);
+            CoreVisual coreVisual = presentation.coreVisual();
+            if (coreVisual != null) {
+                RealCoreVisualSource coreVisualSource = new RealCoreVisualSource(new OshiHostTelemetryProvider(),
+                        new NvidiaGpuTelemetryProvider(), runtimeStatusCoordinator, assistantVisualStateStore);
+                cleanup.register(ResourceCleanup.Resource.CORE_VISUAL_SOURCE, coreVisualSource);
+                cleanup.register(ResourceCleanup.Resource.CORE_VISUAL, coreVisual);
+                coreVisual.show();
+                coreVisualSource.start(coreVisual::update);
+            }
             cleanup.register(ResourceCleanup.Resource.MODEL_RUNTIME, () -> {
                 synchronized (voiceRuntimeLock) {
                     applicationClosing.set(true);
@@ -145,7 +205,7 @@ public class Main {
                     Capability.OS_COMMAND, osCommandSkill,
                     Capability.CURRENT_RESEARCH, currentResearchSkill));
             SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);
-            AssistantPipeline assistantPipeline = new AssistantPipeline(skillRouter);
+            AssistantPipeline assistantPipeline = new AssistantPipeline(skillRouter, presentation.executionLifecycleListener);
             WakeWordMatcher wakeWordMatcher = new WakeWordMatcher(
                     AppConfig.wakeWords, AppConfig.WAKE_HIGH_THRESHOLD, AppConfig.WAKE_LOW_THRESHOLD);
             WakeClassifier wakeClassifier = new LocalWakeClassifier(localAiClient);
@@ -167,29 +227,51 @@ public class Main {
                     .orElseThrow();
 
             AudioPipeline audioPipeline = new AudioPipeline(
-                    tts, playbackService, deviceOutFocusrite, audioController);
+                    tts, playbackService, deviceOutFocusrite, audioController, assistantVisualStateStore, voiceSignalStore);
             AssistantOutputCoordinator outputCoordinator = new AssistantOutputCoordinator(audioController,
                     presentationPolicy, audioPipeline, visualOutput);
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, outputCoordinator);
 
             SpeechProcessingService speechProcessor = new SpeechProcessingService(stt, assistantPipeline, activationDetector,
-                    new ConversationSession(), audioPipeline, speechSegmentValidator, utteranceClassifier, outputCoordinator);
+                    new ConversationSession(), audioPipeline, speechSegmentValidator, utteranceClassifier,
+                    outputCoordinator, interactionService, interactionVoiceRouter);
+            toolsActionHandler.bind(request ->
+                speechProcessor.submitDirectTurn("TOUCH // " + request.action() + " // " + request.target(),
+                        () -> assistantPipeline.processDirectTurn(Capability.OS_COMMAND, () ->
+                                osCommandSkill.executionAction(request.action(), request.target()))));
+            moreToolsHandler.bind(moreToolsBrowser::open);
             cleanup.register(ResourceCleanup.Resource.SPEECH_PROCESSOR, speechProcessor);
-            VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline);
+            VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speechProcessor, audioPipeline,
+                    assistantVisualStateStore, voiceSignalStore, voiceInputController);
 
             AtomicBoolean voiceRuntimeStarted = new AtomicBoolean(false);
             modelRuntime.subscribe(snapshot -> {
-                visualOutput.showInfrastructureStatus(
-                        new InfrastructureStatus(snapshot, modelRuntime::retry));
+                runtimeStatusCoordinator.updateModels(snapshot);
+                visualOutput.showInfrastructureStatus(new InfrastructureStatus(snapshot, modelRuntime::retry));
                 if (snapshot.isPhiUsable()) {
                     synchronized (voiceRuntimeLock) {
-                        if (applicationClosing.get()
-                                || !voiceRuntimeStarted.compareAndSet(false, true)) {
+                        if (applicationClosing.get() || !voiceRuntimeStarted.compareAndSet(false, true)) {
                             return;
                         }
                         try {
-                            client.start();
-                            piperClient.start();
+                            runtimeStatusCoordinator.setStt(RuntimeVisualState.LOADING);
+                            try {
+                                client.start();
+                                runtimeStatusCoordinator.setStt(RuntimeVisualState.READY);
+                            }
+                            catch (Exception e) {
+                                runtimeStatusCoordinator.setStt(RuntimeVisualState.FAILED);
+                                throw e;
+                            }
+                            runtimeStatusCoordinator.setTts(RuntimeVisualState.LOADING);
+                            try {
+                                piperClient.start();
+                                runtimeStatusCoordinator.setTts(RuntimeVisualState.READY);
+                            }
+                            catch (Exception e) {
+                                runtimeStatusCoordinator.setTts(RuntimeVisualState.FAILED);
+                                throw e;
+                            }
                             captureService.start(deviceFocusrite, pipeline::process);
                             System.out.println("Voice runtime active: daemon, API server and phi-router are ready");
                         }
@@ -216,13 +298,54 @@ public class Main {
         }
     }
 
-    private static VisualOutput createVisualOutput(CatalogSessionStore catalogSessions) {
+    private static PresentationComponents createPresentation(CatalogSessionStore catalogSessions,
+                                                             Supplier<VoiceSignalSnapshot> voiceSignalSupplier,
+                                                             VoiceInputController voiceInputController,
+                                                             ToolsActionHandler toolsActionHandler,
+                                                             DeferredMoreToolsHandler moreToolsHandler,
+                                                             ToolsWorkspaceConfig toolsConfig,
+                                                             Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier,
+                                                             MediaActionHandler mediaActionHandler) {
+        JavaFxRuntime javaFxRuntime = null;
+        JavaFxVisualOutput visualOutput = null;
+        CoreVisual coreVisual = null;
+
         try {
-            return new JavaFxVisualOutput(catalogSessions);
+            javaFxRuntime = new JavaFxRuntime();
+            WindowsOverlayOwnerSupport overlayWindowSupport = WindowsOverlayOwnerSupport.platformDefault();
+            var displayResolver = DefaultInteractionDisplayResolver.platformDefault(Path.of("config",
+                    "interaction-display.json"));
+            OverlayDisplayResolver overlayDisplayResolver =  new OverlayDisplayResolver(displayResolver, overlayWindowSupport);
+            visualOutput = new JavaFxVisualOutput(catalogSessions, javaFxRuntime, overlayDisplayResolver);
+            InteractionPresenter interactionPresenter = new JavaFxInteractionPresenter(javaFxRuntime, displayResolver);
+            JavaFxCoreVisual javaFxCoreVisual = new JavaFxCoreVisual(javaFxRuntime, displayResolver, voiceSignalSupplier,
+                    voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig, mediaSnapshotSupplier, mediaActionHandler);
+            coreVisual = javaFxCoreVisual;
+            return new PresentationComponents(visualOutput, interactionPresenter, coreVisual, javaFxCoreVisual,
+                    javaFxCoreVisual, javaFxRuntime);
         }
         catch (Exception e) {
             System.err.println("Unable to initialize JavaFX visual output: " + e.getMessage());
+            if (coreVisual != null) {
+                coreVisual.close();
+            }
+            if (visualOutput != null) {
+                visualOutput.close();
+            }
+            if (javaFxRuntime != null) {
+                javaFxRuntime.close();
+            }
         }
-        return new ConsoleVisualOutput();
+        return new PresentationComponents(new ConsoleVisualOutput(),
+                new UnavailableInteractionPresenter("JavaFX is unavailable"), null, InteractionLifecycleListener.noop(),
+                AssistantExecutionLifecycleListener.noop(), null);
+    }
+
+    private record PresentationComponents(VisualOutput visualOutput,
+                                          InteractionPresenter interactionPresenter,
+                                          CoreVisual coreVisual,
+                                          InteractionLifecycleListener interactionLifecycleListener,
+                                          AssistantExecutionLifecycleListener executionLifecycleListener,
+                                          JavaFxRuntime javaFxRuntime) {
     }
 }

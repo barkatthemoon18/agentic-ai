@@ -1,5 +1,9 @@
 {
   "aliases": {},
+  "transcriptionAliases": {
+    "estudio": "studio",
+    "topas": "topaz"
+  },
   "removeAliases": [],
   "processNames": {},
   "trustedProcessNamesWhenPathUnavailable": {},

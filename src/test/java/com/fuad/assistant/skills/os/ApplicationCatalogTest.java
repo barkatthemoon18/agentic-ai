@@ -7,8 +7,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -199,6 +201,162 @@ class ApplicationCatalogTest {
         assertTrue(firefox.exactCommandLineArgumentSets().isEmpty());
     }
 
+    @Test
+    void transcriptionAliasesShouldResolveWholeTokenSequencesWithoutSubstringMatches() throws Exception {
+        Path config = temporaryDirectory.resolve("transcription.json");
+        Files.writeString(config, """
+                {
+                  "transcriptionAliases": {"estudio":"studio", "topas":"topaz"}
+                }
+                """);
+        ApplicationCatalog catalog = new ApplicationCatalog(() -> List.of(
+                app("android", "Android Studio"),
+                app("studio-one", "Studio One 7"),
+                app("visual", "Visual Studio Code"),
+                app("graph", "GraphStudioNext"),
+                app("photo", "Topaz Photo AI"),
+                app("video", "Topaz Video AI")), new ApplicationAliasConfigLoader(config));
+
+        assertTrue(catalog.refresh());
+
+        assertEquals(List.of("Android Studio", "Studio One 7", "Visual Studio Code"),
+                catalog.resolve("Estudio", false).candidates().stream()
+                        .map(ApplicationDefinition::getDisplayName).toList());
+        assertEquals("android", catalog.resolve("Android Estudio", false)
+                .found().orElseThrow().getId());
+        assertEquals(List.of("Topaz Photo AI", "Topaz Video AI"),
+                catalog.resolve("Topás", false).candidates().stream()
+                        .map(ApplicationDefinition::getDisplayName).toList());
+        assertEquals("photo", catalog.resolve("Topas Photo", false)
+                .found().orElseThrow().getId());
+        assertEquals(ApplicationResolution.Status.UNKNOWN,
+                catalog.resolve("Graph Studio", false).status());
+    }
+
+    @Test
+    void normalizedTranscriptionAliasCollisionShouldRejectRefreshAndPreservePreviousState() throws Exception {
+        Path config = temporaryDirectory.resolve("collision.json");
+        Files.writeString(config, """
+                {"transcriptionAliases":{"topas":"topaz"}}
+                """);
+        ApplicationCatalog catalog = new ApplicationCatalog(
+                () -> List.of(app("photo", "Topaz Photo AI")),
+                new ApplicationAliasConfigLoader(config));
+        assertTrue(catalog.refresh());
+
+        Files.writeString(config, """
+                {"transcriptionAliases":{"Topás":"topaz","topas":"otra-cosa"}}
+                """);
+
+        assertFalse(catalog.refresh());
+        assertEquals("photo", catalog.resolve("topas photo", false)
+                .found().orElseThrow().getId());
+    }
+
+    @Test
+    void sameAppIdShouldMergePresentationButRejectRuntimeIdentityConflicts() {
+        AtomicReference<List<ApplicationDefinition>> definitions = new AtomicReference<>(List.of(
+                definition("STUDIO", "Studio", Set.of("editor"), "C:\\Apps\\Studio.exe"),
+                definition("studio", "Studio IDE", Set.of("ide"), "c:/apps/studio.exe")));
+        ApplicationCatalog catalog = new ApplicationCatalog(definitions::get,
+                new ApplicationAliasConfigLoader(null));
+
+        assertTrue(catalog.refresh());
+        assertEquals(1, catalog.applications().size());
+        assertEquals("Studio", catalog.applications().getFirst().getDisplayName());
+        assertTrue(catalog.applications().getFirst().getAliases().containsAll(
+                Set.of("editor", "ide", "Studio IDE")));
+
+        definitions.set(List.of(
+                definition("studio", "Studio", Set.of(), "C:\\Apps\\Studio.exe"),
+                definition("STUDIO", "Studio", Set.of(), "C:\\Other\\Studio.exe")));
+
+        assertFalse(catalog.refresh());
+        assertEquals("C:\\Apps\\Studio.exe", catalog.applications().getFirst()
+                .getProcessIdentity().executablePaths().iterator().next());
+    }
+
+    @Test
+    void missingAppIdsShouldUseFullDefinitionFingerprintForDeduplicationAndOrdering() {
+        ApplicationDefinition first = definition(null, "Studio", Set.of(), "C:\\Zulu\\Studio.exe");
+        ApplicationDefinition second = definition(null, "Studio", Set.of(), "C:\\Alpha\\Studio.exe");
+        ApplicationCatalog forward = ApplicationCatalog.fixed(List.of(first, second, first));
+        ApplicationCatalog reverse = ApplicationCatalog.fixed(List.of(second, first, first));
+
+        assertEquals(2, forward.applications().size());
+        assertEquals(forward.applications().stream().map(ApplicationCatalogIdentity::stableKey).toList(),
+                reverse.applications().stream().map(ApplicationCatalogIdentity::stableKey).toList());
+        assertEquals(1, ApplicationCatalog.fixed(List.of(first, first)).applications().size());
+    }
+
+    @Test
+    void fingerprintsShouldEncodeCommandAndWindowStructuresWithoutDelimiterCollisions() {
+        ApplicationDefinition pathAfterCommand = new ApplicationDefinition(null, "Studio", Set.of(),
+                List.of("open"), new ApplicationProcessIdentity(Set.of("#"), Set.of(), Set.of()));
+        ApplicationDefinition commandImpersonatingBoundary = new ApplicationDefinition(null, "Studio", Set.of(),
+                List.of("open", "#", "1"), ApplicationProcessIdentity.empty());
+
+        assertNotEquals(ApplicationCatalogIdentity.runtimeIdentityFingerprint(pathAfterCommand),
+                ApplicationCatalogIdentity.runtimeIdentityFingerprint(commandImpersonatingBoundary));
+
+        ApplicationDefinition firstWindow = definitionWithIdentity(new ApplicationProcessIdentity(
+                Set.of(), Set.of(), Set.of(), Set.of(), List.of(), List.of(), "",
+                List.of(new ApplicationWindowSignature("a", "b\u0000c")), true));
+        ApplicationDefinition secondWindow = definitionWithIdentity(new ApplicationProcessIdentity(
+                Set.of(), Set.of(), Set.of(), Set.of(), List.of(), List.of(), "",
+                List.of(new ApplicationWindowSignature("a\u0000b", "c")), true));
+
+        assertNotEquals(ApplicationCatalogIdentity.runtimeIdentityFingerprint(firstWindow),
+                ApplicationCatalogIdentity.runtimeIdentityFingerprint(secondWindow));
+    }
+
+    @Test
+    void fingerprintsShouldFollowRuntimeNormalizationAndPreserveExactArguments() {
+        ApplicationDefinition first = new ApplicationDefinition(null, "Stúdio", Set.of("IDE", "Editor"),
+                List.of("C:\\Tools\\.\\Launcher.exe", "--profile"),
+                new ApplicationProcessIdentity(Set.of("\"C:\\Apps\\.\\Studio.exe\""),
+                        Set.of("C:\\Apps\\Root\\"), Set.of("STUDIO.EXE"), Set.of("HELPER.EXE"),
+                        List.of(Set.of("--profile", "work")), List.of(List.of("--exact", "value")),
+                        "HOST", List.of(new ApplicationWindowSignature("StudioWindow", "Studio.*")), true));
+        ApplicationDefinition equivalent = new ApplicationDefinition(null, "studio", Set.of("editor", "ide"),
+                List.of("c:/tools/launcher.exe", "--profile"),
+                new ApplicationProcessIdentity(Set.of("c:/apps/studio.exe"),
+                        Set.of("c:/apps/root"), Set.of("studio.exe"), Set.of("helper.exe"),
+                        List.of(Set.of("work", "--profile")), List.of(List.of("--exact", "value")),
+                        "host", List.of(new ApplicationWindowSignature("studiowindow", "Studio.*")), true));
+
+        assertEquals(ApplicationCatalogIdentity.runtimeIdentityFingerprint(first),
+                ApplicationCatalogIdentity.runtimeIdentityFingerprint(equivalent));
+        assertEquals(ApplicationCatalogIdentity.definitionFingerprint(first),
+                ApplicationCatalogIdentity.definitionFingerprint(equivalent));
+
+        ApplicationDefinition spacedArgument = new ApplicationDefinition(null, "Studio", Set.of(),
+                List.of("open"), new ApplicationProcessIdentity(Set.of(), Set.of("C:\\Apps"), Set.of(),
+                Set.of(), List.of(Set.of(" --profile")), List.of(), "", List.of(), false));
+        ApplicationDefinition exactArgument = new ApplicationDefinition(null, "Studio", Set.of(),
+                List.of("open"), new ApplicationProcessIdentity(Set.of(), Set.of("C:\\Apps"), Set.of(),
+                Set.of(), List.of(Set.of("--profile")), List.of(), "", List.of(), false));
+
+        assertNotEquals(ApplicationCatalogIdentity.runtimeIdentityFingerprint(spacedArgument),
+                ApplicationCatalogIdentity.runtimeIdentityFingerprint(exactArgument));
+    }
+
+    @Test
+    void hostRelationshipShouldStoreTheCatalogAppIdCasing() throws Exception {
+        Path config = temporaryDirectory.resolve("host-casing.json");
+        Files.writeString(config, """
+                {"hostRelationships":{"prime":"FIREFOX"}}
+                """);
+        ApplicationCatalog catalog = new ApplicationCatalog(() -> List.of(
+                shared("Firefox", List.of()), shared("prime", List.of(Set.of("prime")))),
+                new ApplicationAliasConfigLoader(config));
+
+        assertTrue(catalog.refresh());
+        ApplicationDefinition prime = catalog.applications().stream()
+                .filter(application -> "prime".equals(application.getId())).findFirst().orElseThrow();
+        assertEquals("Firefox", prime.getProcessIdentity().hostApplicationId());
+    }
+
     private ApplicationDefinition app(String id, String name) {
         return new ApplicationDefinition(id, name, Set.of(), List.of("open", id),
                 ApplicationProcessIdentity.empty());
@@ -208,5 +366,14 @@ class ApplicationCatalogTest {
         return new ApplicationDefinition(id, id, Set.of(), List.of("open"),
                 new ApplicationProcessIdentity(Set.of("C:\\Mozilla\\firefox.exe"), Set.of(),
                         Set.of("firefox.exe"), Set.of(), argumentSets));
+    }
+
+    private ApplicationDefinition definition(String id, String name, Set<String> aliases, String path) {
+        return new ApplicationDefinition(id, name, aliases, List.of("open"),
+                new ApplicationProcessIdentity(Set.of(path), Set.of(), Set.of()));
+    }
+
+    private ApplicationDefinition definitionWithIdentity(ApplicationProcessIdentity identity) {
+        return new ApplicationDefinition(null, "Studio", Set.of(), List.of("open"), identity);
     }
 }

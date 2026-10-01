@@ -36,7 +36,8 @@ final class ApplicationRuntimeResolver {
         }
         Map<String, Resolution> resolutions = new LinkedHashMap<>();
         for (ApplicationDefinition application : catalog) {
-            resolutions.put(application.getId(), resolveAgainst(application, catalog, observation.snapshots()));
+            resolutions.put(ApplicationCatalogIdentity.stableKey(application),
+                    resolveAgainst(application, catalog, observation.snapshots()));
         }
         return CatalogResolution.complete(catalog, resolutions);
     }
@@ -51,7 +52,7 @@ final class ApplicationRuntimeResolver {
         if (!sameObservedIdentity(verified.snapshot(), current)) return Revalidation.unverifiable();
 
         List<ApplicationDefinition> catalog = definitions.get();
-        ApplicationDefinition target = find(catalog, requested.getId());
+        ApplicationDefinition target = find(catalog, requested);
         if (target == null || !hasStrongIdentity(target, catalog)) return Revalidation.unverifiable();
         return classify(target, current, catalog) == CandidateResult.MATCH
                 ? Revalidation.valid() : Revalidation.unverifiable();
@@ -59,7 +60,7 @@ final class ApplicationRuntimeResolver {
 
     private Resolution resolveAgainst(ApplicationDefinition requested, List<ApplicationDefinition> catalog,
                                       List<WindowsProcessSnapshot> processes) {
-        ApplicationDefinition target = find(catalog, requested.getId());
+        ApplicationDefinition target = find(catalog, requested);
         if (target == null) return Resolution.unavailable(false);
         boolean candidateObserved = processes.stream().anyMatch(process -> isCandidate(target, process));
         if (!hasStrongIdentity(target, catalog)) return Resolution.unavailable(candidateObserved);
@@ -99,16 +100,19 @@ final class ApplicationRuntimeResolver {
         if (!hasArgumentSignature || !process.argumentsAvailable()) return CandidateResult.UNVERIFIABLE;
         if (!matchesArgumentSignature(identity, process.arguments())) return CandidateResult.NO_MATCH;
 
-        Set<String> compatibleIds = new HashSet<>();
+        Set<String> compatibleKeys = new HashSet<>();
         for (ApplicationDefinition definition : catalog) {
             if (!isCandidate(definition, process)) continue;
             ApplicationProcessIdentity candidate = definition.getProcessIdentity();
             if (process.executablePath().isPresent()
                     && (!candidate.executablePaths().isEmpty() || !candidate.packageRoots().isEmpty())
                     && !matchesExpectedPath(candidate, command)) continue;
-            if (matchesArgumentSignature(candidate, process.arguments())) compatibleIds.add(definition.getId());
+            if (matchesArgumentSignature(candidate, process.arguments())) {
+                compatibleKeys.add(ApplicationCatalogIdentity.stableKey(definition));
+            }
         }
-        return compatibleIds.size() == 1 && compatibleIds.contains(target.getId())
+        return compatibleKeys.size() == 1
+                && compatibleKeys.contains(ApplicationCatalogIdentity.stableKey(target))
                 && hasExclusiveMatchingSignature(target, process.arguments(), catalog)
                 ? CandidateResult.MATCH : CandidateResult.UNVERIFIABLE;
     }
@@ -144,7 +148,7 @@ final class ApplicationRuntimeResolver {
 
     private boolean exactSignatureExclusive(ApplicationDefinition target, List<String> arguments,
                                             List<ApplicationDefinition> catalog) {
-        return catalog.stream().filter(other -> !other.getId().equals(target.getId()))
+        return catalog.stream().filter(other -> !sameCatalogIdentity(other, target))
                 .filter(other -> sharesHost(target, other))
                 .noneMatch(other -> other.getProcessIdentity().exactCommandLineArgumentSets().contains(arguments)
                         || other.getProcessIdentity().commandLineArgumentSets().stream()
@@ -154,7 +158,7 @@ final class ApplicationRuntimeResolver {
     private boolean containsSignatureExclusive(ApplicationDefinition target, Set<String> arguments,
                                                List<ApplicationDefinition> catalog) {
         if (arguments.isEmpty()) return false;
-        return catalog.stream().filter(other -> !other.getId().equals(target.getId()))
+        return catalog.stream().filter(other -> !sameCatalogIdentity(other, target))
                 .filter(other -> sharesHost(target, other))
                 .noneMatch(other -> other.getProcessIdentity().commandLineArgumentSets().stream()
                         .anyMatch(candidate -> arguments.containsAll(candidate) || candidate.containsAll(arguments))
@@ -174,7 +178,7 @@ final class ApplicationRuntimeResolver {
     private boolean exactPathExclusive(ApplicationDefinition target, String path,
                                        List<ApplicationDefinition> catalog) {
         String normalized = normalizePath(path);
-        return catalog.stream().filter(other -> !other.getId().equals(target.getId()))
+        return catalog.stream().filter(other -> !sameCatalogIdentity(other, target))
                 .noneMatch(other -> other.getProcessIdentity().executablePaths().stream()
                                 .anyMatch(candidate -> normalizePath(candidate).equals(normalized))
                         || other.getProcessIdentity().packageRoots().stream()
@@ -184,7 +188,7 @@ final class ApplicationRuntimeResolver {
     private boolean packageRootExclusive(ApplicationDefinition target, String root,
                                          List<ApplicationDefinition> catalog) {
         String normalized = normalizeRoot(root);
-        return catalog.stream().filter(other -> !other.getId().equals(target.getId()))
+        return catalog.stream().filter(other -> !sameCatalogIdentity(other, target))
                 .noneMatch(other -> other.getProcessIdentity().packageRoots().stream()
                                 .map(ApplicationRuntimeResolver::normalizeRoot)
                                 .anyMatch(candidate -> rootsOverlap(normalized, candidate))
@@ -195,7 +199,7 @@ final class ApplicationRuntimeResolver {
     private boolean trustedNameExclusive(ApplicationDefinition target, String name,
                                          List<ApplicationDefinition> catalog) {
         String normalized = normalizeName(name);
-        return catalog.stream().filter(other -> !other.getId().equals(target.getId()))
+        return catalog.stream().filter(other -> !sameCatalogIdentity(other, target))
                 .noneMatch(other -> candidateNames(other).contains(normalized));
     }
 
@@ -248,8 +252,15 @@ final class ApplicationRuntimeResolver {
                 && first.arguments().equals(second.arguments());
     }
 
-    private ApplicationDefinition find(List<ApplicationDefinition> catalog, String id) {
-        return catalog.stream().filter(application -> application.getId().equals(id)).findFirst().orElse(null);
+    private ApplicationDefinition find(List<ApplicationDefinition> catalog, ApplicationDefinition requested) {
+        String key = ApplicationCatalogIdentity.stableKey(requested);
+        return catalog.stream().filter(application ->
+                ApplicationCatalogIdentity.stableKey(application).equals(key)).findFirst().orElse(null);
+    }
+
+    private boolean sameCatalogIdentity(ApplicationDefinition first, ApplicationDefinition second) {
+        return ApplicationCatalogIdentity.stableKey(first)
+                .equals(ApplicationCatalogIdentity.stableKey(second));
     }
 
     private static boolean samePath(String first, String second) {
@@ -267,7 +278,7 @@ final class ApplicationRuntimeResolver {
         return first.equals(second) || first.startsWith(second + "\\") || second.startsWith(first + "\\");
     }
 
-    private static String normalizeRoot(String value) {
+    static String normalizeRoot(String value) {
         String normalized = normalizePath(value);
         while (normalized.endsWith("\\") && normalized.length() > 3) {
             normalized = normalized.substring(0, normalized.length() - 1);
@@ -275,7 +286,7 @@ final class ApplicationRuntimeResolver {
         return normalized;
     }
 
-    private static String normalizePath(String value) {
+    static String normalizePath(String value) {
         if (value == null) return "";
         String normalized = value.trim();
         if (normalized.length() >= 2 && normalized.startsWith("\"") && normalized.endsWith("\"")) {
@@ -294,7 +305,7 @@ final class ApplicationRuntimeResolver {
         return normalizeName(separator >= 0 ? normalized.substring(separator + 1) : normalized);
     }
 
-    private static String normalizeName(String value) {
+    static String normalizeName(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 

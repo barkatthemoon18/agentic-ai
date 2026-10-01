@@ -546,6 +546,56 @@ class WindowsApplicationControllerTest {
         assertEquals(1, windows.visibleCalls);
     }
 
+    @Test
+    void runtimeResolutionShouldKeepDistinctApplicationsWithoutAppIds() {
+        ApplicationDefinition first = new ApplicationDefinition(null, "Studio", Set.of(), List.of("open"),
+                new ApplicationProcessIdentity(Set.of("C:\\Apps\\First.exe"), Set.of(), Set.of()));
+        ApplicationDefinition second = new ApplicationDefinition(null, "Studio", Set.of(), List.of("open"),
+                new ApplicationProcessIdentity(Set.of("C:\\Apps\\Second.exe"), Set.of(), Set.of()));
+        FakeSnapshotSource source = new FakeSnapshotSource();
+        source.batch = ProcessSnapshotBatch.complete(List.of(
+                snapshot(10, "2026-01-01T00:00:00Z", "C:\\Apps\\First.exe", "First.exe", List.of()),
+                snapshot(20, "2026-01-01T00:00:01Z", "C:\\Apps\\Second.exe", "Second.exe", List.of())));
+        FakeWindowService windows = new FakeWindowService();
+        windows.windows = List.of(new WindowService.WindowHandle(100, 10),
+                new WindowService.WindowHandle(200, 20));
+        WindowsApplicationController controller = snapshotController(windows, source,
+                List.of(new FakeProcess(10, "C:\\Apps\\First.exe"),
+                        new FakeProcess(20, "C:\\Apps\\Second.exe")), List.of(first, second));
+
+        assertEquals(ApplicationRuntimeState.RUNNING_WITH_WINDOW,
+                controller.runtimeState(first).runtimeState());
+        assertEquals(ApplicationRuntimeState.RUNNING_WITH_WINDOW,
+                controller.runtimeState(second).runtimeState());
+        OpenApplicationsResult result = controller.runningApplications();
+        assertEquals(OpenApplicationsResult.Status.SUCCESS, result.status());
+        assertEquals(2, result.applications().size());
+        assertEquals(Set.of(ApplicationCatalogIdentity.stableKey(first),
+                        ApplicationCatalogIdentity.stableKey(second)),
+                result.applications().stream().map(entry ->
+                        ApplicationCatalogIdentity.stableKey(entry.application()))
+                        .collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
+    void changedFingerprintWithoutAppIdShouldRejectTheRuntimeOperation() {
+        ApplicationDefinition selected = new ApplicationDefinition(null, "Studio", Set.of(), List.of("open"),
+                new ApplicationProcessIdentity(Set.of("C:\\Apps\\Studio.exe"), Set.of(), Set.of()));
+        ApplicationDefinition replacement = new ApplicationDefinition(null, "Studio", Set.of(), List.of("open"),
+                new ApplicationProcessIdentity(Set.of("C:\\Other\\Studio.exe"), Set.of(), Set.of()));
+        FakeProcess process = new FakeProcess(10, "C:\\Apps\\Studio.exe");
+        FakeSnapshotSource source = new FakeSnapshotSource();
+        source.batch = ProcessSnapshotBatch.complete(List.of(snapshot(10, "2026-01-01T00:00:00Z",
+                "C:\\Apps\\Studio.exe", "Studio.exe", List.of())));
+        WindowsApplicationController controller = new WindowsApplicationController(new FakeWindowService(), source,
+                pid -> pid == process.pid() ? Optional.of(process) : Optional.empty(),
+                () -> List.of(replacement), Duration.ZERO);
+
+        assertEquals(ApplicationActionResult.Status.PROCESS_IDENTITY_UNAVAILABLE,
+                controller.closeDetailed(selected).status());
+        assertFalse(process.destroyCalled);
+    }
+
     private WindowsApplicationController controller(FakeWindowService windows, List<ProcessHandle> processes,
                                                     List<ApplicationDefinition> definitions) {
         return new WindowsApplicationController(windows, () -> processes, () -> definitions, Duration.ZERO);

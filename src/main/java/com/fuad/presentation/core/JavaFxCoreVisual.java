@@ -1,0 +1,135 @@
+package com.fuad.presentation.core;
+
+import com.fuad.enums.Capability;
+import com.fuad.interaction.InteractionLifecycleListener;
+import com.fuad.interaction.InteractionOutcome;
+import com.fuad.pipeline.AssistantExecutionLifecycleListener;
+import com.fuad.pipeline.VoiceInputController;
+import com.fuad.pipeline.VoiceSignalSnapshot;
+import com.fuad.presentation.JavaFxRuntime;
+import com.fuad.presentation.media.MediaActionHandler;
+import com.fuad.presentation.media.MediaWorkspaceSnapshot;
+import com.fuad.presentation.tools.MoreToolsHandler;
+import com.fuad.presentation.tools.ToolsActionHandler;
+import com.fuad.presentation.interaction.InteractionDisplayResolver;
+import com.fuad.presentation.interaction.ResolvedInteractionDisplay;
+import com.fuad.presentation.tools.ToolsWorkspaceConfig;
+import com.fuad.view.CoreDashboardView;
+import javafx.geometry.Rectangle2D;
+import javafx.scene.Scene;
+import javafx.scene.paint.Color;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
+
+import java.net.URL;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.function.Supplier;
+
+public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListener, AssistantExecutionLifecycleListener {
+    private final JavaFxRuntime javaFxRuntime;
+    private final InteractionDisplayResolver interactionDisplayResolver;
+    private final Supplier<VoiceSignalSnapshot> voiceSignalSupplier;
+    private final VoiceInputController voiceInputController;
+    private final ToolsActionHandler toolsActionHandler;
+    private final MoreToolsHandler moreToolsHandler;
+    private final ToolsWorkspaceConfig toolsConfig;
+    private final Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier;
+    private final MediaActionHandler mediaActionHandler;
+    private Stage stage;
+    private CoreDashboardView dashboardView;
+
+    public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver) {
+        this(javaFxRuntime, interactionDisplayResolver, VoiceSignalSnapshot::silence, null, ToolsActionHandler.unavailable(),
+                MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable());
+    }
+
+    public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver, Supplier<VoiceSignalSnapshot> voiceSignalSupplier,
+                            VoiceInputController voiceInputController) {
+        this(javaFxRuntime, interactionDisplayResolver, voiceSignalSupplier, voiceInputController,
+                ToolsActionHandler.unavailable(), MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty(),
+                MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable());
+    }
+
+    public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver,
+                            Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController,
+                            ToolsActionHandler toolsActionHandler, MoreToolsHandler moreToolsHandler, ToolsWorkspaceConfig toolsConfig,
+                            Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier, MediaActionHandler mediaActionHandler) {
+        this.javaFxRuntime = Objects.requireNonNull(javaFxRuntime);
+        this.interactionDisplayResolver =  Objects.requireNonNull(interactionDisplayResolver);
+        this.voiceSignalSupplier = Objects.requireNonNull(voiceSignalSupplier);
+        this.voiceInputController = Objects.requireNonNull(voiceInputController);
+        this.toolsActionHandler = Objects.requireNonNull(toolsActionHandler);
+        this.moreToolsHandler = Objects.requireNonNull(moreToolsHandler);
+        this.toolsConfig = Objects.requireNonNull(toolsConfig);
+        this.mediaSnapshotSupplier = Objects.requireNonNull(mediaSnapshotSupplier);
+        this.mediaActionHandler = Objects.requireNonNull(mediaActionHandler);
+
+        javaFxRuntime.runAndWait(this::createStage);
+    }
+
+    @Override
+    public void show() {
+        javaFxRuntime.runLater(stage::show);
+    }
+
+    @Override
+    public void update(CoreVisualSnapshot visualSnapshot) {
+        javaFxRuntime.runLater(() -> dashboardView.update(visualSnapshot));
+    }
+
+    @Override
+    public void close() {
+        javaFxRuntime.runAndWait(() -> {
+            if (dashboardView != null) {
+                dashboardView.dispose();
+            }
+            if (stage != null) {
+                stage.close();
+            }
+        });
+    }
+
+    @Override
+    public void onVisible(UUID sessionId) {
+        javaFxRuntime.runLater(() -> dashboardView.interactionVisible(sessionId));
+    }
+
+    @Override
+    public void onCompleted(UUID sessionId, InteractionOutcome outcome) {
+        javaFxRuntime.runLater(() -> dashboardView.interactionCompleted(sessionId));
+    }
+
+    @Override
+    public void onExecutionCompleted(UUID executionId, Capability capability) {
+        javaFxRuntime.runLater(() -> dashboardView.executionCompleted(executionId));
+    }
+
+    @Override
+    public void onExecutionStarted(UUID executionId, Capability capability) {
+        javaFxRuntime.runLater(() -> dashboardView.executionStarted(executionId));
+    }
+
+    private void createStage() {
+        ResolvedInteractionDisplay interactionDisplay = interactionDisplayResolver.resolve().orElseThrow(() ->
+                new IllegalStateException("Core display unavailable"));
+        Rectangle2D bounds = interactionDisplay.screen().getVisualBounds();
+        dashboardView = new CoreDashboardView(voiceSignalSupplier, voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig, mediaSnapshotSupplier, mediaActionHandler);
+        Scene scene = new Scene(dashboardView, bounds.getWidth(), bounds.getHeight());
+        scene.setFill(Color.rgb(4, 13, 22));
+        URL css = JavaFxCoreVisual.class.getResource("/ui/core-visual.css");
+        if (css == null) {
+            throw new IllegalStateException("Missing /ui/core-visual.css");
+        }
+        scene.getStylesheets().add(css.toExternalForm());
+        stage = new Stage(StageStyle.UNDECORATED);
+        stage.setTitle("Ares Core Visual");
+        stage.setX(bounds.getMinX());
+        stage.setY(bounds.getMinY());
+        stage.setWidth(bounds.getWidth());
+        stage.setHeight(bounds.getHeight());
+        stage.setResizable(false);
+        stage.setAlwaysOnTop(false);
+        stage.setScene(scene);
+    }
+}
