@@ -54,6 +54,8 @@ import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
 import com.fuad.interaction.InteractionLifecycleListener;
 import com.fuad.media.MediaSessionProvider;
+import com.fuad.media.enrichment.MediaEnrichmentProvider;
+import com.fuad.media.enrichment.tidal.TidalMediaEnrichmentProvider;
 import com.fuad.media.windows.WindowsMediaSessionProvider;
 import com.fuad.model.runtime.LmStudioStartupCoordinator;
 import com.fuad.interaction.DefaultInteractionService;
@@ -129,6 +131,7 @@ public class Main {
             DeferredMoreToolsHandler moreToolsHandler = new DeferredMoreToolsHandler();
             MediaSessionProvider mediaSessionProvider;
             AudioOutputProvider audioOutputProvider = new WindowsAudioOutputProvider();
+            MediaEnrichmentProvider mediaEnrichmentProvider = new TidalMediaEnrichmentProvider();
             try {
                 mediaSessionProvider = new WindowsMediaSessionProvider();
                 System.out.println("MEDIA -> Windowws media provider ready");
@@ -137,7 +140,7 @@ public class Main {
                 System.err.println("MEDIA -> Windows media provider unavailable: " + e.getMessage());
                 mediaSessionProvider = MediaSessionProvider.unavailable();
             }
-            MediaWorkspaceController mediaWorkspaceController = new MediaWorkspaceController(mediaSessionProvider, audioOutputProvider);
+            MediaWorkspaceController mediaWorkspaceController = new MediaWorkspaceController(mediaSessionProvider, audioOutputProvider, mediaEnrichmentProvider);
             mediaWorkspaceController.start();
             PresentationComponents presentation = createPresentation(catalogSessions, voiceSignalStore::current, voiceInputController, toolsActionHandler, moreToolsHandler, toolsConfig, mediaWorkspaceController::current, mediaWorkspaceController);
             VisualOutput visualOutput = presentation.visualOutput();

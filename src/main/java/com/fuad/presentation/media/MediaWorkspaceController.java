@@ -4,7 +4,10 @@ import com.fuad.audio.output.AudioOutputProvider;
 import com.fuad.audio.output.AudioOutputSnapshot;
 import com.fuad.media.MediaSessionProvider;
 import com.fuad.media.MediaSessionSnapshot;
+import com.fuad.media.enrichment.MediaEnrichmentProvider;
+import com.fuad.media.enrichment.MediaEnrichmentSnapshot;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -21,14 +24,21 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
     });
     private final MediaSessionProvider provider;
     private final AudioOutputProvider audioOutputProvider;
+    private final MediaEnrichmentProvider enrichmentProvider;
 
     public MediaWorkspaceController(MediaSessionProvider provider) {
-        this(provider, AudioOutputProvider.unavailable());
+        this(provider, AudioOutputProvider.unavailable(), MediaEnrichmentProvider.unavailable());
     }
 
     public MediaWorkspaceController(MediaSessionProvider provider, AudioOutputProvider audioOutputProvider) {
+        this(provider, audioOutputProvider, MediaEnrichmentProvider.unavailable());
+    }
+
+    public MediaWorkspaceController(MediaSessionProvider provider, AudioOutputProvider audioOutputProvider,
+                                    MediaEnrichmentProvider enrichmentProvider) {
         this.provider = Objects.requireNonNull(provider);
         this.audioOutputProvider = Objects.requireNonNull(audioOutputProvider);
+        this.enrichmentProvider = Objects.requireNonNull(enrichmentProvider);
     }
 
     public void start() {
@@ -51,18 +61,9 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
     @Override
     public void close() throws Exception {
         executor.shutdownNow();
-        try {
-            provider.close();
-        }
-        catch (Exception e) {
-            System.err.println("Unable to close media provider: " + e.getMessage());
-        }
-        try {
-            audioOutputProvider.close();
-        }
-        catch (Exception e) {
-            System.err.println("Unable to close audio output provider: " + e.getMessage());
-        }
+        clearProvider(provider, "media provider");
+        clearProvider(audioOutputProvider, "audio output provider");
+        clearProvider(enrichmentProvider, "media enrichment provider");
     }
 
     private void execute(MediaAction action) {
@@ -78,7 +79,8 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
         try {
             MediaSessionSnapshot session = currentMediaSession();
             AudioOutputSnapshot audio = currentAudioOutput();
-            current.set(toWorkspaceSnapshot(session, audio));
+            MediaEnrichmentSnapshot enrichment = currentEnrichment();
+            current.set(toWorkspaceSnapshot(session, audio, enrichment));
         }
         catch (Exception e) {
             current.set(MediaWorkspaceSnapshot.unavailable());
@@ -106,8 +108,29 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
         return AudioOutputSnapshot.unavailable();
     }
 
-    private MediaWorkspaceSnapshot toWorkspaceSnapshot(MediaSessionSnapshot session, AudioOutputSnapshot audio) {
+    private MediaEnrichmentSnapshot currentEnrichment() {
+        try {
+            return enrichmentProvider.current();
+        }
+        catch (RuntimeException e) {
+            System.err.println("Unable to refresh media enrichment: " + e.getMessage());
+            return MediaEnrichmentSnapshot.unavailable();
+        }
+    }
+
+    private MediaWorkspaceSnapshot toWorkspaceSnapshot(MediaSessionSnapshot session, AudioOutputSnapshot audio,
+                                                       MediaEnrichmentSnapshot enrichment) {
         return new MediaWorkspaceSnapshot(session.available(), session.sourceApplication(), session.currentTrack(),
-                session.positionSeconds(), session.playbackState(), audio.volume(), audio.deviceName(), "");
+                session.positionSeconds(), session.playbackState(), audio.volume(), audio.deviceName(), enrichment.quality(),
+                enrichment.queue());
+    }
+
+    private static void clearProvider(AutoCloseable provider, String label) {
+        try {
+            provider.close();
+        }
+        catch (Exception e) {
+            System.err.println("Unable to close " + label + ": " + e.getMessage());
+        }
     }
 }

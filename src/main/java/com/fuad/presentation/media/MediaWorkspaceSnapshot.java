@@ -2,7 +2,9 @@ package com.fuad.presentation.media;
 
 import com.fuad.media.MediaPlaybackState;
 import com.fuad.media.MediaTrack;
+import com.fuad.media.enrichment.MediaEnrichmentSnapshot.MediaQueueItem;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -15,7 +17,8 @@ public record MediaWorkspaceSnapshot(
         MediaPlaybackState playbackState,
         OptionalDouble volume,
         String outputDevice,
-        String quality) {
+        String quality,
+        List<MediaQueueItem> queue) {
 
     public MediaWorkspaceSnapshot {
         sourceApplication = sourceApplication == null ? "" : sourceApplication.trim();
@@ -25,6 +28,7 @@ public record MediaWorkspaceSnapshot(
         Objects.requireNonNull(volume, "Volume must not be null");
         outputDevice = outputDevice == null ? "" : outputDevice.trim();
         quality = quality == null ? "" : quality.trim();
+        queue = queue == null ? List.of() : List.copyOf(queue);
     }
 
     public boolean playing() {
@@ -46,6 +50,6 @@ public record MediaWorkspaceSnapshot(
 
     public static MediaWorkspaceSnapshot unavailable() {
         return new MediaWorkspaceSnapshot(false, "", Optional.empty(), 0.0,
-                MediaPlaybackState.STOPPED, OptionalDouble.empty(), "", "");
+                MediaPlaybackState.STOPPED, OptionalDouble.empty(), "", "", List.of());
     }
 }

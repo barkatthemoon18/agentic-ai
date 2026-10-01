@@ -23,6 +23,7 @@ import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
 
 import java.util.OptionalDouble;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class WindowsAudioOutputProvider implements AudioOutputProvider {
     private static final CLSID CLSID_MMDEVICE_ENUMERATOR = new CLSID("BCDE0395-E52F-467C-8E3D-C4579291692E");
@@ -37,6 +38,7 @@ public final class WindowsAudioOutputProvider implements AudioOutputProvider {
     private static final int ENDPOINT_HARDWARE_SUPPORT_VOLUME = 0x00000001;
     private static final int PROPVARIANT_SIZE = Native.POINTER_SIZE == 8 ? 24 : 16;
     private static final long PROPVARIANT_VALUE_OFFSET = 8L;
+    private final AtomicBoolean showInfo = new AtomicBoolean(false);
 
     @Override
     public AudioOutputSnapshot current() {
@@ -59,9 +61,11 @@ public final class WindowsAudioOutputProvider implements AudioOutputProvider {
                 deviceName = endpointId;
             }
             VolumeInfo volume = readVolumeInfo(device);
-            System.out.println("[AUDIO OUTPUT] device=" + deviceName + " | endpoint=" + endpointId + " | hardwareVolume="
-                            + volume.hardwareVolumeSupported() + " | volume=" + (volume.volume().isPresent() ?
-                    volume.volume().getAsDouble() : "N/A"));
+            if (showInfo.compareAndSet(false, true)) {
+                System.out.println("[AUDIO OUTPUT] device=" + deviceName + " | endpoint=" + endpointId + " | hardwareVolume="
+                        + volume.hardwareVolumeSupported() + " | volume=" + (volume.volume().isPresent() ?
+                        volume.volume().getAsDouble() : "N/A"));
+            }
             return new AudioOutputSnapshot(true, endpointId, deviceName, volume.volume(), volume.hardwareVolumeSupported());
         }
         catch (RuntimeException | LinkageError e) {

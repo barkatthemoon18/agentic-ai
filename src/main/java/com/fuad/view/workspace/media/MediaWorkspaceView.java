@@ -1,6 +1,7 @@
 package com.fuad.view.workspace.media;
 
 import com.fuad.media.MediaTrack;
+import com.fuad.media.enrichment.MediaEnrichmentSnapshot.MediaQueueItem;
 import com.fuad.presentation.media.MediaAction;
 import com.fuad.presentation.media.MediaActionHandler;
 import com.fuad.presentation.media.MediaWorkspaceSnapshot;
@@ -43,6 +44,7 @@ public class MediaWorkspaceView extends VBox {
     private final StackPane cover = new StackPane();
     private final Label coverPlaceholder = new Label("MEDIA");
     private final ImageView coverImage = new ImageView();
+    private final VBox queueList = new VBox(6.0);
     private final Supplier<MediaWorkspaceSnapshot> mediaWorkspaceSnapshotSupplier;
     private final MediaActionHandler mediaActionHandler;
     private final Timeline refreshTimeline;
@@ -94,6 +96,7 @@ public class MediaWorkspaceView extends VBox {
         MediaTrack track = snapshot.currentTrack().orElseThrow();
 
         renderArtwork(track);
+
         provider.setText(snapshot.sourceDisplayName().toUpperCase() + " // ACTIVE");
         title.setText(track.title());
         artist.setText(track.artist());
@@ -102,7 +105,7 @@ public class MediaWorkspaceView extends VBox {
         duration.setText(formatTime(track.durationSeconds()));
         if (snapshot.volume().isPresent()) {
             double volume = snapshot.volume().getAsDouble();
-            volumeValue.setText(".0f %%".formatted(volume * 100.0));
+            volumeValue.setText("%.0f %%".formatted(volume * 100.0));
             double volumeWidth = 250.0 * volume;
             volumeFill.setMinWidth(volumeWidth);
             volumeFill.setPrefWidth(volumeWidth);
@@ -116,6 +119,9 @@ public class MediaWorkspaceView extends VBox {
         }
         output.setText(displayValue(snapshot.outputDevice()));
         quality.setText(displayValue(snapshot.quality()));
+
+        renderQueue(snapshot.queue());
+
         playPauseButton.setGraphic(new HudIconView(snapshot.playing() ? HudIcon.PAUSE : HudIcon.PLAY, 16.0));
 
         progress = track.durationSeconds() > 0.0 ? snapshot.positionSeconds() / track.durationSeconds() : 0.0;
@@ -212,6 +218,11 @@ public class MediaWorkspaceView extends VBox {
 
         clearArtwork();
         provider.setText("NO ACTIVE SESSION");
+
+        queueList.getChildren().clear();
+        Label emptyQueue = new Label("--");
+        emptyQueue.getStyleClass().add("media-queue-row");
+        queueList.getChildren().add(emptyQueue);
     }
 
     private HBox createNowPlaying(){
@@ -358,8 +369,27 @@ public class MediaWorkspaceView extends VBox {
         Label heading = new Label("QUEUE // NEXT");
         heading.getStyleClass().add("media-caption");
 
-        VBox list = new VBox(6.0);
+        return new VBox(8.0, heading, queueList);
+    }
 
-        return new VBox(8.0, heading, list);
+    private void renderQueue(List<MediaQueueItem> queue) {
+        queueList.getChildren().clear();
+
+        if (queue == null || queue.isEmpty()) {
+            Label empty = new Label("--");
+            empty.getStyleClass().add("media-queue-row");
+            queueList.getChildren().add(empty);
+            return;
+        }
+        int count = Math.min(queue.size(), 3);
+        for (int i = 0; i < count; i++) {
+            MediaQueueItem item = queue.get(i);
+            String artist = item.displayArtist();
+            String text = "%02d  %s%s".formatted(i + 1, item.title(), artist.isBlank() ? "" : "  //  " + artist);
+            Label row = new Label(text);
+            row.getStyleClass().add("media-queue-row");
+            row.setMaxWidth(Double.MAX_VALUE);
+            queueList.getChildren().add(row);
+        }
     }
 }
