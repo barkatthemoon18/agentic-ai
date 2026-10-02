@@ -76,8 +76,11 @@ class LmStudioStartupCoordinatorTest {
         runner.failQwenLoads.set(true);
         coordinator = coordinator(runner, Duration.ofMillis(200));
         coordinator.startAsync();
-        await(() -> coordinator.snapshot().component(RuntimeComponent.QWEN_MAIN).state()
-                == ComponentState.RETRY_WAIT);
+        await(() -> {
+            ModelRuntimeSnapshot snapshot = coordinator.snapshot();
+            return snapshot.component(RuntimeComponent.QWEN_MAIN).state() == ComponentState.RETRY_WAIT
+                    && snapshot.state() == RuntimeState.PARTIALLY_READY;
+        });
         assertEquals(RuntimeState.PARTIALLY_READY, coordinator.snapshot().state());
 
         long oldGeneration = coordinator.snapshot().component(RuntimeComponent.QWEN_MAIN).generation();

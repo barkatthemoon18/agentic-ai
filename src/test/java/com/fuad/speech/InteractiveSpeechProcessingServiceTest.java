@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 class InteractiveSpeechProcessingServiceTest {
     @Test
@@ -68,7 +69,7 @@ class InteractiveSpeechProcessingServiceTest {
         AudioPipeline audio = audioPipeline(audioController);
         TrackingVisualOutput visual = new TrackingVisualOutput();
         AssistantOutputCoordinator output = new AssistantOutputCoordinator(audioController,
-                new OutputPresentationPolicy(20), audio, visual, new MediaExclusiveAudioDetector());
+                new OutputPresentationPolicy(20), audio, visual, mock(MediaExclusiveAudioDetector.class));
         SttEngine stt = new SttEngine() {
             @Override
             public TranscriptionResult transcribe(SpeechSegment segment) {

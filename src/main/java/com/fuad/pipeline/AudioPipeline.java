@@ -90,18 +90,22 @@ public class AudioPipeline {
     }
 
     private void publishPlaybackSignal(float[] samples) {
+        double sumSquares;
+        double peak;
+        double rms;
+
         if (samples.length == 0) {
             return;
         }
-        double sumSquares = 0.0;
-        double peak = 0.0;
+        sumSquares = 0.0;
+        peak = 0.0;
 
         for (float sample : samples) {
             double value = sample;
-            sumSquares += Math.pow(value, 2);
+            sumSquares += value * value;
             peak = Math.max(peak, Math.abs(value));
-            double rms = Math.sqrt(sumSquares / samples.length);
-            voiceSignalListener.onSignal(new VoiceSignalSnapshot(samples, rms, peak, 0.0));
         }
+        rms = Math.sqrt(sumSquares / samples.length);
+        voiceSignalListener.onSignal(new VoiceSignalSnapshot(samples, rms, peak, 0.0));
     }
 }

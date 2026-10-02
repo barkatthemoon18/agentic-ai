@@ -20,6 +20,87 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class VoicePipelineTest {
     @Test
+    void mutingDuringSpeechShouldDiscardBufferedAudioAndResetOnceUntilUnmuted() {
+        StubVad vad = new StubVad();
+        VoiceInputController input = new VoiceInputController();
+        List<SpeechSegment> emitted = new ArrayList<>();
+        List<AssistantActivityState> states = new ArrayList<>();
+        List<VoiceSignalSnapshot> signals = new ArrayList<>();
+        VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), emitted::add,
+                listeningAudioPipeline(), states::add, signals::add, input);
+        process(pipeline, vad, true, 0);
+        process(pipeline, vad, true, 1);
+        assertEquals(List.of(AssistantActivityState.LISTENING), states);
+        input.setMuted(true);
+        pipeline.process(frame(2));
+        pipeline.process(frame(3));
+        assertEquals(2, vad.processCount);
+        assertEquals(1, vad.resetCount);
+        assertEquals(List.of(AssistantActivityState.LISTENING, AssistantActivityState.IDLE), states);
+        assertSame(VoiceSignalSnapshot.silence(), signals.getLast());
+
+        input.setMuted(false);
+        process(pipeline, vad, true, 100);
+        process(pipeline, vad, true, 101);
+        for (int i = 102; i < 122; i++) process(pipeline, vad, false, i);
+        assertEquals(2, vad.resetCount);
+        assertEquals(1, emitted.size());
+        assertEquals(100f, emitted.getFirst().getSamples()[0]);
+        assertEquals(22, emitted.getFirst().getSamplesCount());
+        assertEquals(AssistantActivityState.IDLE, states.getLast());
+    }
+
+    @Test
+    void mutingInputMustNotResetActivityOwnedByProcessing() {
+        StubVad vad = new StubVad();
+        VoiceInputController input = new VoiceInputController();
+        AudioPipeline audio = listeningAudioPipeline();
+        List<AssistantActivityState> states = new ArrayList<>();
+        VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), ignored -> fail("no segment"),
+                audio, states::add, VoiceSignalListener.noop(), input);
+        process(pipeline, vad, true, 0);
+        process(pipeline, vad, true, 1);
+        assertTrue(audio.beginProcessing());
+        input.setMuted(true);
+        pipeline.process(frame(2));
+        assertEquals(List.of(AssistantActivityState.LISTENING), states);
+        assertTrue(audio.isProcessing());
+    }
+
+    @Test
+    void framesShouldPublishRmsPeakAndVadProbabilityWithDefensiveSamples() {
+        StubVad vad = new StubVad();
+        List<VoiceSignalSnapshot> signals = new ArrayList<>();
+        VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), ignored -> fail("no segment"),
+                listeningAudioPipeline(), AssistantActivityListener.noop(), signals::add, new VoiceInputController());
+        float[] samples = {0.3f, -0.4f};
+        vad.results.add(new VadResult(0.7f, false));
+        pipeline.process(new AudioFrame(samples, 16_000, 0));
+        samples[0] = 1;
+        VoiceSignalSnapshot signal = signals.getFirst();
+        assertEquals(Math.sqrt(0.125), signal.rms(), 1e-7);
+        assertEquals(0.4, signal.peak(), 1e-7);
+        assertEquals(0.7, signal.vadProbability(), 1e-7);
+        assertEquals(2, signal.sampleCount());
+        assertEquals(0.3f, signal.sampleAt(0));
+        assertEquals(-0.4f, signal.sampleAt(1));
+    }
+
+    @Test
+    void submittingSpeechMustNotPublishIdleOverProcessingStartedBySegmentListener() {
+        StubVad vad = new StubVad();
+        AudioPipeline audio = listeningAudioPipeline();
+        List<AssistantActivityState> states = new ArrayList<>();
+        VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), ignored -> assertTrue(audio.beginProcessing()),
+                audio, states::add);
+        process(pipeline, vad, true, 0);
+        process(pipeline, vad, true, 1);
+        for (int i = 2; i < 22; i++) process(pipeline, vad, false, i);
+        assertTrue(audio.isProcessing());
+        assertEquals(List.of(AssistantActivityState.LISTENING), states);
+    }
+
+    @Test
     void shouldEmitSegmentAfterTwoSpeechAndTwentySilenceFrames() {
         StubVad vad = new StubVad();
         List<SpeechSegment> emitted = new ArrayList<>();

@@ -22,6 +22,7 @@ import com.sun.jna.ptr.PointerByReference;
 import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
 
+import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -38,18 +39,42 @@ public final class WindowsAudioOutputProvider implements AudioOutputProvider {
     private static final int ENDPOINT_HARDWARE_SUPPORT_VOLUME = 0x00000001;
     private static final int PROPVARIANT_SIZE = Native.POINTER_SIZE == 8 ? 24 : 16;
     private static final long PROPVARIANT_VALUE_OFFSET = 8L;
+    private final Ole32 ole32;
     private final AtomicBoolean showInfo = new AtomicBoolean(false);
+
+    public WindowsAudioOutputProvider() {
+        this(Ole32.INSTANCE);
+    }
+
+    WindowsAudioOutputProvider(Ole32 ole32) {
+        this.ole32 = Objects.requireNonNull(ole32, "ole32 must not be null");
+    }
 
     @Override
     public AudioOutputSnapshot current() {
-        boolean initialized;
+        boolean comInitialized;
 
-        HRESULT initialization = Ole32.INSTANCE.CoInitializeEx(Pointer.NULL, Ole32.COINIT_MULTITHREADED);
+        HRESULT initialization = ole32.CoInitializeEx(Pointer.NULL, Ole32.COINIT_MULTITHREADED);
 
-        initialized = COMUtils.SUCCEEDED(initialization);
-        if (!initialized) {
+        comInitialized = COMUtils.SUCCEEDED(initialization);
+        if (!comInitialized) {
             COMUtils.checkRC(initialization);
         }
+        try {
+            return readSnapshot();
+        }
+        catch (RuntimeException | LinkageError e) {
+            System.err.println("WINDOWS AUDIO OUTPUT -> unavailable" + e.getMessage());
+            return AudioOutputSnapshot.unavailable();
+        }
+        finally {
+            if (comInitialized) {
+                ole32.CoUninitialize();
+            }
+        }
+    }
+
+    AudioOutputSnapshot readSnapshot() {
         IMMDeviceEnumerator enumerator = null;
         IMMDevice device = null;
         try {
@@ -68,23 +93,15 @@ public final class WindowsAudioOutputProvider implements AudioOutputProvider {
             }
             return new AudioOutputSnapshot(true, endpointId, deviceName, volume.volume(), volume.hardwareVolumeSupported());
         }
-        catch (RuntimeException | LinkageError e) {
-            System.err.println("WINDOWS AUDIO OUTPUT -> unavailable" + e.getMessage());
-            return AudioOutputSnapshot.unavailable();
-        }
         finally {
             release(device);
             release(enumerator);
-            if (initialized) {
-                Ole32.INSTANCE.CoUninitialize();
-            }
-            Ole32.INSTANCE.CoUninitialize();
         }
     }
 
-    private static IMMDeviceEnumerator createEnumerator() {
+    private IMMDeviceEnumerator createEnumerator() {
         PointerByReference reference = new PointerByReference();
-        HRESULT result = Ole32.INSTANCE.CoCreateInstance(CLSID_MMDEVICE_ENUMERATOR, Pointer.NULL, WTypes.CLSCTX_ALL, IID_IMMDEVICE_ENUMERATOR, reference);
+        HRESULT result = ole32.CoCreateInstance(CLSID_MMDEVICE_ENUMERATOR, Pointer.NULL, WTypes.CLSCTX_ALL, IID_IMMDEVICE_ENUMERATOR, reference);
         COMUtils.checkRC(result);
         return new IMMDeviceEnumerator(reference.getValue());
     }
@@ -96,7 +113,7 @@ public final class WindowsAudioOutputProvider implements AudioOutputProvider {
         return new IMMDevice(reference.getValue());
     }
 
-    private static String readEndpointId(IMMDevice device) {
+    private String readEndpointId(IMMDevice device) {
         PointerByReference reference = new PointerByReference();
         HRESULT result = device.getId(reference);
         COMUtils.checkRC(result);
@@ -108,7 +125,7 @@ public final class WindowsAudioOutputProvider implements AudioOutputProvider {
             return pointer.getWideString(0);
         }
         finally {
-            Ole32.INSTANCE.CoTaskMemFree(pointer);
+            ole32.CoTaskMemFree(pointer);
         }
     }
 

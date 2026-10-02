@@ -570,7 +570,7 @@ class SpeechProcessingServiceTest {
                 new AssistantPipeline(staticRouter(Capability.GENERAL, cmd -> new AssistantResult("ok"))),
                 ignored -> ActivationResult.none(), new ConversationSession(), audio, valid(true),
                 request -> UtteranceDecision.OTHER,
-                new AssistantOutputCoordinator(controller, new OutputPresentationPolicy(20), audio, visual, new MediaExclusiveAudioDetector()));
+                new AssistantOutputCoordinator(controller, new OutputPresentationPolicy(20), audio, visual, org.mockito.Mockito.mock(MediaExclusiveAudioDetector.class)));
         service.close();
 
         assertDoesNotThrow(() -> service.onSpeechSegment(segment));
@@ -598,7 +598,7 @@ class SpeechProcessingServiceTest {
                 new VisualOutput() {
                     @Override public void show(VisualMessage visualMessage) { }
                     @Override public void hide() { }
-                }, new MediaExclusiveAudioDetector());
+                }, org.mockito.Mockito.mock(MediaExclusiveAudioDetector.class));
     }
 
     private SttEngine stt(java.util.function.Function<SpeechSegment, TranscriptionResult> function) {

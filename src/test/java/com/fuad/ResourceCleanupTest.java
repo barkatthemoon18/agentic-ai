@@ -28,7 +28,8 @@ class ResourceCleanupTest {
             });
         }
         assertDoesNotThrow(cleanup::close);
-        assertEquals(List.of(resources), closed);
+        assertEquals(List.of(MODEL_RUNTIME, MEDIA, CORE_VISUAL, CORE_VISUAL_SOURCE, CAPTURE, INTERACTION,
+                SPEECH_PROCESSOR, TTS, VISUAL_OUTPUT, STT, VAD, JAVAFX_RUNTIME), closed);
         cleanup.close();
         assertEquals(resources.length, closed.size());
     }

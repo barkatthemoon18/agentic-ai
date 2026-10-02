@@ -26,10 +26,15 @@ public final class ToolsWorkspaceConfigLoader {
             return ToolsWorkspaceConfig.empty();
         }
         try {
-            return objectMapper.readValue(path.toFile(), ToolsWorkspaceConfig.class);
+            ToolsWorkspaceConfig config = objectMapper.readValue(path.toFile(), ToolsWorkspaceConfig.class);
+            if (config == null) {
+                System.err.println("Invalid tools workspace config (JSON null): " + path);
+                return ToolsWorkspaceConfig.empty();
+            }
+            return config;
         }
         catch (IOException | RuntimeException e) {
-            System.err.println("Unable to load tools workspace config rom: " + path + ": " + e.getMessage());
+            System.err.println("Unable to load tools workspace config from: " + path + ": " + e.getMessage());
             return ToolsWorkspaceConfig.empty();
         }
     }

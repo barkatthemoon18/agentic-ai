@@ -32,27 +32,35 @@ public class AssistantOutputCoordinator implements AutoCloseable {
     }
 
     public void present(AssistantResult result) {
+        AssistantAudioSnapshot audioSnapshot;
+        PresentationMode presentationMode;
+        String text;
+        boolean voiceRequested;
+
         Objects.requireNonNull(result, "result must not be null");
-        String text = result.getText();
-        Objects.requireNonNull(text, "text must not be null");
+        text = Objects.requireNonNull(result.getText(), "result.getText() must not be null");
         if (text.isBlank()) {
             throw new IllegalArgumentException("Assistant output text must not be blank");
         }
-        AssistantAudioSnapshot audioSnapshot = audioController.getSnapshot();
+
+        audioSnapshot = audioController.getSnapshot();
+        presentationMode = presentationPolicy.resolve(audioSnapshot);
+        voiceRequested = presentationMode != PresentationMode.TEXT_ONLY;
+
+        if (voiceRequested && exclusiveAudioDetector.isOutputReserved()) {
+            System.out.println("AUDIO OUTPUT -> media playback reserved; response redirected to visual output");
+            showVisualSafely(new VisualMessage(text, audioSnapshot, result.getPayload(), AudioDeliveryState.OUTPUT_RESERVED));
+            return;
+        }
         if (result.getPayload() instanceof ApplicationCatalogPayload) {
             showVisualSafely(new VisualMessage(text, audioSnapshot, result.getPayload()));
-            if (!audioSnapshot.isMuted() && audioSnapshot.getVolume() > 0) audioPipeline.speak(text);
+            if (voiceRequested) {
+                audioPipeline.speak(text);
+            }
             return;
         }
         if (result.getPayload() instanceof OpenApplicationsPayload openApplications) {
-            presentOpenApplications(text, audioSnapshot, openApplications);
-            return;
-        }
-        PresentationMode presentationMode = presentationPolicy.resolve(audioSnapshot);
-        boolean voiceRequested = presentationMode != PresentationMode.TEXT_ONLY;
-        if (voiceRequested && exclusiveAudioDetector.isOutputReserved()) {
-            System.out.println("AUDIO OUTPUT -> TIDAL exclusive; response redirected to visual output");
-            showVisualSafely(new VisualMessage(text, audioSnapshot, result.getPayload(), AudioDeliveryState.OUTPUT_RESERVED));
+            presentOpenApplications(text, audioSnapshot, openApplications, presentationMode);
             return;
         }
         switch (presentationMode) {
@@ -69,15 +77,14 @@ public class AssistantOutputCoordinator implements AutoCloseable {
     }
 
     private void presentOpenApplications(String text, AssistantAudioSnapshot audioSnapshot,
-                                         OpenApplicationsPayload payload) {
-        PresentationMode mode = presentationPolicy.resolve(audioSnapshot);
+                                         OpenApplicationsPayload payload, PresentationMode presentationMode) {
         boolean forceVisual = payload.items().size() > 5;
         if (forceVisual) {
             showVisualSafely(new VisualMessage(text, audioSnapshot, payload));
-            if (mode != PresentationMode.TEXT_ONLY) audioPipeline.speak(text);
+            if (presentationMode != PresentationMode.TEXT_ONLY) audioPipeline.speak(text);
             return;
         }
-        switch (mode) {
+        switch (presentationMode) {
             case AUDIO_ONLY -> {
                 hideVisualSafely();
                 audioPipeline.speak(text);

@@ -20,6 +20,49 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class OsCommandSkillV2Test {
     @Test
+    void workspaceActionShouldResolveAndOpenWithoutCallingLanguageParser() {
+        TrackingController controller = new TrackingController();
+        OsCommandSkill skill = skill(command -> { throw new AssertionError("Workspace actions must bypass parsing"); },
+                Map.of("spotify", spotify()), controller, new CatalogSessionStore());
+
+        SkillExecution.Completed result = assertInstanceOf(SkillExecution.Completed.class,
+                skill.executionAction(OsAction.OPEN_APPLICATION, "Spotify"));
+
+        assertEquals("spotify", controller.openedId);
+        assertEquals("Abriendo: Spotify.", result.result().getText());
+    }
+
+    @Test
+    void workspaceActionShouldStillRequireSelectionWhenTargetIsAmbiguous() {
+        ApplicationDefinition idea = new ApplicationDefinition("idea", "IntelliJ IDEA", Set.of("studio"),
+                List.of("idea"), ApplicationProcessIdentity.empty());
+        ApplicationDefinition code = new ApplicationDefinition("code", "Visual Studio Code", Set.of("studio"),
+                List.of("code"), ApplicationProcessIdentity.empty());
+        TrackingController controller = new TrackingController();
+        OsCommandSkill skill = skill(command -> { throw new AssertionError("Must bypass parsing"); },
+                Map.of("idea", idea, "code", code), controller, new CatalogSessionStore());
+        @SuppressWarnings("unchecked")
+        SkillExecution.AwaitingInteraction<String> awaiting = (SkillExecution.AwaitingInteraction<String>)
+                skill.executionAction(OsAction.OPEN_APPLICATION, "studio");
+        assertNull(controller.openedId);
+        SkillExecution.Completed result = assertInstanceOf(SkillExecution.Completed.class,
+                awaiting.continuation().apply(InteractionResult.submitted(awaiting.request(), "code", InputModality.TOUCH)));
+        assertEquals("code", controller.openedId);
+        assertEquals("Abriendo: Visual Studio Code.", result.result().getText());
+    }
+
+    @Test
+    void invalidWorkspaceActionShouldNotCallController() {
+        TrackingController controller = new TrackingController();
+        OsCommandSkill skill = skill(command -> { throw new AssertionError("Must bypass parsing"); },
+                Map.of(), controller, new CatalogSessionStore());
+        assertThrows(NullPointerException.class, () -> skill.executionAction(null, "Spotify"));
+        assertThrows(NullPointerException.class, () -> skill.executionAction(OsAction.OPEN_APPLICATION, null));
+        assertInstanceOf(SkillExecution.Completed.class, skill.executionAction(OsAction.UNSUPPORTED, ""));
+        assertNull(controller.selectedId);
+    }
+
+    @Test
     void ambiguousOpenShouldSuspendAndResumeWithTheExactSelectedApplication() {
         ApplicationDefinition idea = new ApplicationDefinition("idea", "IntelliJ IDEA",
                 Set.of("studio"), List.of("idea"), ApplicationProcessIdentity.empty());
