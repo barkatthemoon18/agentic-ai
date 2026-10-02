@@ -1,4 +1,4 @@
-package com.fuad;
+package com.fuad.bootstrap;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.fuad.ResourceCleanup.Resource.*;
+import static com.fuad.bootstrap.ResourceCleanup.Resource.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ResourceCleanupTest {

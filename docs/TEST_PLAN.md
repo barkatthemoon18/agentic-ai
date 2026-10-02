@@ -71,8 +71,8 @@ Los recursos y executors creados por los tests se cierran al finalizar cada caso
   reales. Files/System y partes de Research/Dev todavía contienen datos o composición visual que requieren inspección manual.
 - **Audio/ONNX:** falta validar captura, selección de dispositivos, canal derecho, Silero real, latencia y prevención
   de autoactivación con el equipo objetivo. Java Sound está simulado en las pruebas de reproducción.
-- **Main:** no se inicia la aplicación completa en los tests. El cierre se prueba mediante `ResourceCleanup`,
-  pero el ensamblaje de dependencias, los recursos externos y el flujo completo requieren un smoke test manual.
+- **Bootstrap/Main:** se prueba la composición con factories simuladas, el runtime de voz y el cierre compartido.
+  El arranque con JavaFX, modelos y dispositivos reales y el flujo completo requieren un smoke test manual.
 
 ### Verificación manual con entorno preparado
 
@@ -106,6 +106,19 @@ sin copias defensivas. Validación limpia: **709 tests Java y 20 Python**, inclu
 buffer, campos obligatorios de AssistantRequest y contextAvailable ausente en JSON.
 La base incluye dos estabilizaciones de tests asíncronos: esperar el estado agregado de modelos y
 terminar la configuración de mocks de Media antes de ejecutar acciones. No cambian producción.
+
+### Bootstrap y lifecycle
+
+`Main` delega en `AresApplication`, que conecta factories de audio, assistant, media y presentación.
+`VoiceRuntimeCoordinator` conserva la activación por Phi, los estados STT/TTS, el reintento tras
+fallo y la exclusión mutua entre arranque y cierre. `ApplicationLifecycle` espera una señal explícita
+y comparte `ResourceCleanup` entre terminación normal y hook de la JVM, respetando el orden de cierre.
+
+Validación limpia: **737 tests Java y 20 Python**, sin fallos ni tests omitidos en la suite predeterminada.
+Se agregaron 28 casos para composición, fallo parcial, interrupción, fallback JavaFX/console,
+proveedores Media, arranque único de voz, estados degradados y cierre concurrente/idempotente.
+Los seis tests anteriores de ResourceCleanup se conservan en el paquete bootstrap.
+Las pruebas de bootstrap usan dependencias simuladas: no cargan modelos ni abren dispositivos reales.
 
 Java con Maven y **JDK 21**, verificando también que `JAVA_HOME` apunte a ese JDK:
 
