@@ -1,10 +1,7 @@
 package com.fuad.presentation;
 
+import com.fuad.assistant.skills.os.*;
 import com.fuad.audio.AssistantAudioSnapshot;
-import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
-import com.fuad.assistant.skills.os.CatalogNavigation;
-import com.fuad.assistant.skills.os.CatalogSessionStore;
-import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import com.fuad.audio.output.AudioDeliveryState;
 import com.fuad.model.runtime.ComponentSnapshot;
 import com.fuad.model.runtime.ComponentState;
@@ -569,7 +566,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         catalogNext.setVisible(false);
         catalogNext.setManaged(false);
         catalogList.getItems().setAll(payload.items().stream()
-                .map(item -> item.displayName()).toList());
+                .map(OpenApplicationItem::displayName).toList());
         String summary = payload.items().size() + (payload.items().size() == 1
                 ? " aplicación abierta" : " aplicaciones abiertas");
         if (payload.unverifiableCount() > 0) {
@@ -585,7 +582,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         updatingCatalog.set(true);
         try {
             if (!Objects.equals(catalogSearch.getText(), payload.filter())) catalogSearch.setText(payload.filter());
-            catalogList.getItems().setAll(payload.items().stream().map(item -> item.displayName()).toList());
+            catalogList.getItems().setAll(payload.items().stream().map(ApplicationListItem::displayName).toList());
             catalogPageLabel.setText("Página " + (payload.pageIndex() + 1) + " de " + payload.totalPages()
                     + " · " + payload.totalCount());
             catalogPrevious.setDisable(payload.pageIndex() == 0);
@@ -615,7 +612,7 @@ public class JavaFxVisualOutput implements VisualOutput {
         double marginY = Math.min(SCREEN_MARGIN, screen.getHeight() / 4.0);
         double width = Math.min(OVERLAY_WIDTH, screen.getWidth() - 2 * marginX);
         double maximumHeight = Math.min(screen.getHeight() * 0.8, screen.getHeight() - 2 * marginY);
-        double height = Math.min(maximumHeight, Math.max(MINIMUM_HEIGHT, preferredHeight));
+        double height = Math.clamp(preferredHeight, MINIMUM_HEIGHT, maximumHeight);
         return new Rectangle2D(screen.getMaxX() - width - marginX,
                 screen.getMaxY() - height - marginY, width, height);
     }
