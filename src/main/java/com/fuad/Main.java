@@ -49,6 +49,7 @@ import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioDeviceManager;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.audio.output.AudioOutputProvider;
+import com.fuad.audio.output.MediaExclusiveAudioDetector;
 import com.fuad.audio.output.windows.WindowsAudioOutputProvider;
 import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
@@ -228,8 +229,9 @@ public class Main {
 
             AudioPipeline audioPipeline = new AudioPipeline(
                     tts, playbackService, deviceOutFocusrite, audioController, assistantVisualStateStore, voiceSignalStore);
+            MediaExclusiveAudioDetector mediaExclusiveAudioDetector = new MediaExclusiveAudioDetector(mediaWorkspaceController::current);
             AssistantOutputCoordinator outputCoordinator = new AssistantOutputCoordinator(audioController,
-                    presentationPolicy, audioPipeline, visualOutput);
+                    presentationPolicy, audioPipeline, visualOutput, mediaExclusiveAudioDetector);
             cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, outputCoordinator);
 
             SpeechProcessingService speechProcessor = new SpeechProcessingService(stt, assistantPipeline, activationDetector,

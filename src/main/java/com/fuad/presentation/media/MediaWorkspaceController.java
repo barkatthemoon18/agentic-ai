@@ -2,13 +2,14 @@ package com.fuad.presentation.media;
 
 import com.fuad.audio.output.AudioOutputProvider;
 import com.fuad.audio.output.AudioOutputSnapshot;
+import com.fuad.media.MediaPlaybackState;
 import com.fuad.media.MediaSessionProvider;
 import com.fuad.media.MediaSessionSnapshot;
 import com.fuad.media.enrichment.MediaEnrichmentProvider;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot;
 
-import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -80,7 +81,8 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
             MediaSessionSnapshot session = currentMediaSession();
             AudioOutputSnapshot audio = currentAudioOutput();
             MediaEnrichmentSnapshot enrichment = currentEnrichment();
-            current.set(toWorkspaceSnapshot(session, audio, enrichment));
+            Optional<MediaPlaybackState> mediaPlaybackState = currentMediaPlaybackState();
+            current.set(toWorkspaceSnapshot(session, audio, enrichment, mediaPlaybackState));
         }
         catch (Exception e) {
             current.set(MediaWorkspaceSnapshot.unavailable());
@@ -119,10 +121,22 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
     }
 
     private MediaWorkspaceSnapshot toWorkspaceSnapshot(MediaSessionSnapshot session, AudioOutputSnapshot audio,
-                                                       MediaEnrichmentSnapshot enrichment) {
+                                                       MediaEnrichmentSnapshot enrichment, Optional<MediaPlaybackState> mediaPlaybackState) {
         return new MediaWorkspaceSnapshot(session.available(), session.sourceApplication(), session.currentTrack(),
                 session.positionSeconds(), session.playbackState(), audio.volume(), audio.deviceName(), enrichment.quality(),
-                enrichment.queue());
+                enrichment.queue(), mediaPlaybackState);
+    }
+
+    private Optional<MediaPlaybackState> currentMediaPlaybackState() {
+        try {
+            Optional<MediaPlaybackState> state = provider.playbackState("TIDAL");
+            System.out.println("MEDIA -> TIDAL playback state: " + state.map(Enum::name).orElse("UNAVAILABLE"));
+            return state;
+        }
+        catch (RuntimeException e) {
+            System.err.println("Unable to resolve TIDAL playback state: " + e.getMessage());
+            return Optional.empty();
+        }
     }
 
     private static void clearProvider(AutoCloseable provider, String label) {

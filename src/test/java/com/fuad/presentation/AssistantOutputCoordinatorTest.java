@@ -8,6 +8,7 @@ import com.fuad.assistant.skills.os.OpenApplicationItem;
 import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioPlaybackService;
+import com.fuad.audio.output.MediaExclusiveAudioDetector;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.tts.TtsAudio;
 import com.fuad.tts.TtsEngine;
@@ -42,7 +43,7 @@ class AssistantOutputCoordinatorTest {
                 audioController,
                 new OutputPresentationPolicy(20),
                 audioPipeline,
-                visualOutput);
+                visualOutput, new MediaExclusiveAudioDetector());
     }
 
     @Test

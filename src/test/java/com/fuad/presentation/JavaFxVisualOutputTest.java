@@ -1,6 +1,8 @@
 package com.fuad.presentation;
 
+import com.fuad.assistant.AssistantPayload;
 import com.fuad.audio.AssistantAudioSnapshot;
+import com.fuad.audio.output.AudioDeliveryState;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -18,20 +20,32 @@ class JavaFxVisualOutputTest {
     @Test
     void shouldExposeMutedStatus() {
         AssistantAudioSnapshot snapshot = new AssistantAudioSnapshot(40, true);
+        VisualMessage visualMessage = new VisualMessage("", snapshot, null, AudioDeliveryState.NORMAL);
 
-        assertEquals("\u25CF  MUTED", JavaFxVisualOutput.buildStatusText(snapshot));
+        assertEquals("\u25CF  MUTED", JavaFxVisualOutput.buildStatusText(snapshot, visualMessage.getAudioDeliveryState()));
     }
 
     @Test
     void shouldExposeLowVolumeStatus() {
         AssistantAudioSnapshot snapshot = new AssistantAudioSnapshot(10, false);
+        VisualMessage visualMessage = new VisualMessage("Testing exclusive mode", snapshot, null, AudioDeliveryState.NORMAL);
 
-        assertEquals("\u25CF  VOL 10%", JavaFxVisualOutput.buildStatusText(snapshot));
+        assertEquals("\u25CF  VOL 10%", JavaFxVisualOutput.buildStatusText(snapshot, visualMessage.getAudioDeliveryState()));
+    }
+
+    @Test
+    void shouldExposeMediaExclusive() {
+        AssistantAudioSnapshot snapshot = new AssistantAudioSnapshot(40, true);
+        VisualMessage visualMessage = new VisualMessage("Testing exclusive mode", snapshot, null, AudioDeliveryState.OUTPUT_RESERVED);
+
+        assertEquals("\u25CF AUDIO // TIDAL EXCLUSIVE", JavaFxVisualOutput.buildStatusText(snapshot, visualMessage.getAudioDeliveryState()));
     }
 
     @Test
     void shouldRejectNullStatusSnapshot() {
-        assertThrows(NullPointerException.class, () -> JavaFxVisualOutput.buildStatusText(null));
+        VisualMessage visualMessage = new VisualMessage("Testing exclusive mode", new AssistantAudioSnapshot(100, false), null, AudioDeliveryState.NORMAL);
+
+        assertThrows(NullPointerException.class, () -> JavaFxVisualOutput.buildStatusText(null, visualMessage.getAudioDeliveryState()));
     }
 
     @ParameterizedTest

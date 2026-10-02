@@ -44,10 +44,7 @@ public class AudioPlaybackService {
             System.arraycopy(samples, i, chunk, 0, length);
             listener.onSamples(chunk);
             byte[] pcm = floatToPcm16(chunk, gain);
-            System.out.printf("PLAYBACK -> chunk %d | bytes=%d | available=%d | buffer=%d%n", i, pcm.length,
-                    line.available(), line.getBufferSize());
-            int written = line.write(pcm, 0, pcm.length);
-            System.out.printf("PLAYBACK <- chunk %d | written=%d | available=%d%n", i, written, line.available());
+            line.write(pcm, 0, pcm.length);
         }
     }
 

@@ -26,6 +26,31 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     }
 
     @Override
+    public Optional<MediaPlaybackState> playbackState(String applicationName) {
+        if (applicationName == null || applicationName.isBlank()) {
+            System.out.println("applicationName must not be null or blank");
+            return Optional.empty();
+        }
+        var states = systemMediaInterface.getAllSessions().stream()
+                .filter(session -> matchesApplication(session.getApplicationName(), applicationName))
+                .map(session -> toPlaybackState(session.getControls().getPlaybackState()))
+                .toList();
+        if (states.isEmpty()) {
+            return Optional.empty();
+        }
+        if (states.contains(MediaPlaybackState.PLAYING)) {
+            return Optional.of(MediaPlaybackState.PLAYING);
+        }
+        if (states.contains(MediaPlaybackState.UNKNOWN)) {
+            return Optional.of(MediaPlaybackState.UNKNOWN);
+        }
+        if (states.contains(MediaPlaybackState.PAUSED)) {
+            return Optional.of(MediaPlaybackState.PAUSED);
+        }
+        return Optional.of(MediaPlaybackState.STOPPED);
+    }
+
+    @Override
     public MediaSessionSnapshot current() {
         return systemMediaInterface.getActiveSession().map(this::toSnapshot).orElseGet(MediaSessionSnapshot::unavailable);
     }
@@ -73,7 +98,8 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
 
         System.out.println("[MEDIA] sessions detected: " + sessions.size());
         for (var session : sessions) {
-            System.out.println("[MEDIA] session=" + session.getSessionId() + " | app=" + session.getApplicationName() + " | active=" + session.isActive() + " | state=" + session.getControls().getPlaybackState());
+            System.out.println("[MEDIA] session=" + session.getSessionId() + " | app=" + session.getApplicationName() +
+                    " | active=" + session.isActive() + " | state=" + session.getControls().getPlaybackState());
         }
     }
 
@@ -92,4 +118,18 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     private static double toSeconds(Duration duration) {
         return duration.toMillis() / 1000.0;
     }
+
+    private static boolean matchesApplication(String actual, String expected) {
+        if (actual == null || expected == null) {
+            return false;
+        }
+        return normalizeApplicationName(actual).equalsIgnoreCase(normalizeApplicationName(expected));
+    }
+
+    private static String normalizeApplicationName(String value) {
+        String normalized = value.trim().replaceAll("(?i)\\.exe", "");
+        String[] parts = normalized.split("\\.");
+
+        return parts.length == 0 ? normalized : parts[parts.length - 1];
+     }
 }

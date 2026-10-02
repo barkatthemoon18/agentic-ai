@@ -18,7 +18,8 @@ public record MediaWorkspaceSnapshot(
         OptionalDouble volume,
         String outputDevice,
         String quality,
-        List<MediaQueueItem> queue) {
+        List<MediaQueueItem> queue,
+        Optional<MediaPlaybackState> mediaPlaybackState) {
 
     public MediaWorkspaceSnapshot {
         sourceApplication = sourceApplication == null ? "" : sourceApplication.trim();
@@ -29,6 +30,7 @@ public record MediaWorkspaceSnapshot(
         outputDevice = outputDevice == null ? "" : outputDevice.trim();
         quality = quality == null ? "" : quality.trim();
         queue = queue == null ? List.of() : List.copyOf(queue);
+        mediaPlaybackState = mediaPlaybackState == null ? Optional.empty() : mediaPlaybackState;
     }
 
     public boolean playing() {
@@ -50,6 +52,6 @@ public record MediaWorkspaceSnapshot(
 
     public static MediaWorkspaceSnapshot unavailable() {
         return new MediaWorkspaceSnapshot(false, "", Optional.empty(), 0.0,
-                MediaPlaybackState.STOPPED, OptionalDouble.empty(), "", "", List.of());
+                MediaPlaybackState.STOPPED, OptionalDouble.empty(), "", "", List.of(), null);
     }
 }

@@ -5,6 +5,8 @@ import com.fuad.audio.AssistantAudioSnapshot;
 import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
 import com.fuad.assistant.skills.os.OpenApplicationsPayload;
+import com.fuad.audio.output.AudioDeliveryState;
+import com.fuad.audio.output.MediaExclusiveAudioDetector;
 import com.fuad.enums.PresentationMode;
 import com.fuad.pipeline.AudioPipeline;
 import lombok.AllArgsConstructor;
@@ -22,6 +24,8 @@ public class AssistantOutputCoordinator implements AutoCloseable {
     private final AudioPipeline audioPipeline;
     @NonNull
     private final VisualOutput visualOutput;
+    @NonNull
+    private final MediaExclusiveAudioDetector exclusiveAudioDetector;
 
     public void present(String text) {
         present(new AssistantResult(text));
@@ -45,6 +49,12 @@ public class AssistantOutputCoordinator implements AutoCloseable {
             return;
         }
         PresentationMode presentationMode = presentationPolicy.resolve(audioSnapshot);
+        boolean voiceRequested = presentationMode != PresentationMode.TEXT_ONLY;
+        if (voiceRequested && exclusiveAudioDetector.isOutputReserved()) {
+            System.out.println("AUDIO OUTPUT -> TIDAL exclusive; response redirected to visual output");
+            showVisualSafely(new VisualMessage(text, audioSnapshot, result.getPayload(), AudioDeliveryState.OUTPUT_RESERVED));
+            return;
+        }
         switch (presentationMode) {
             case AUDIO_ONLY -> {
                 hideVisualSafely();

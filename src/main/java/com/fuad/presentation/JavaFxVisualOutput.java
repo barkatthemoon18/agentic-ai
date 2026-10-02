@@ -5,6 +5,7 @@ import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
 import com.fuad.assistant.skills.os.CatalogNavigation;
 import com.fuad.assistant.skills.os.CatalogSessionStore;
 import com.fuad.assistant.skills.os.OpenApplicationsPayload;
+import com.fuad.audio.output.AudioDeliveryState;
 import com.fuad.model.runtime.ComponentSnapshot;
 import com.fuad.model.runtime.ComponentState;
 import com.fuad.model.runtime.RuntimeComponent;
@@ -299,7 +300,7 @@ public class JavaFxVisualOutput implements VisualOutput {
             messageScroll.setManaged(true);
             messageLabel.setText(visualMessage.getText());
         }
-        statusLabel.setText(buildStatusText(audioSnapshot));
+        statusLabel.setText(buildStatusText(audioSnapshot, visualMessage.getAudioDeliveryState()));
         timeLabel.setText(LocalTime.now().format(TIME_FORMATTER));
         messageScroll.setVvalue(0.0);
         overlayRoot.setOpacity(0.0);
@@ -637,8 +638,13 @@ public class JavaFxVisualOutput implements VisualOutput {
         return Screen.getPrimary();
     }
 
-    static String buildStatusText(AssistantAudioSnapshot audioSnapshot) {
+    static String buildStatusText(AssistantAudioSnapshot audioSnapshot, AudioDeliveryState audioDeliveryState) {
         Objects.requireNonNull(audioSnapshot, "audioSnapshot must not be null");
+        Objects.requireNonNull(audioDeliveryState, "audioDeliveryState must not be null");
+
+        if (audioDeliveryState == AudioDeliveryState.OUTPUT_RESERVED) {
+            return "\u25CF AUDIO // TIDAL EXCLUSIVE";
+        }
         return audioSnapshot.isMuted()
                 ? "\u25CF  MUTED"
                 : "\u25CF  VOL " + audioSnapshot.getVolume() + "%";
