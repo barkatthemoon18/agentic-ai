@@ -28,8 +28,8 @@ class LocalOsCommandParserOutputTest {
         for (String query : java.util.List.of("Ares, ¿qué aplicaciones están abiertas?",
                 "¿Cuáles apps tengo abiertas?", "qué programas están abiertos")) {
             OsCommandIntent intent = parser.parse(query);
-            assertEquals(OsAction.LIST_RUNNING_APPLICATIONS, intent.getAction());
-            assertEquals("", intent.getTarget());
+            assertEquals(OsAction.LIST_RUNNING_APPLICATIONS, intent.action());
+            assertEquals("", intent.target());
         }
     }
 
@@ -45,7 +45,7 @@ class LocalOsCommandParserOutputTest {
 
     private void assertIntent(String output, OsAction action, String target) {
         OsCommandIntent intent = LocalOsCommandParser.parseOutput(output);
-        assertEquals(action, intent.getAction());
-        assertEquals(target, intent.getTarget());
+        assertEquals(action, intent.action());
+        assertEquals(target, intent.target());
     }
 }

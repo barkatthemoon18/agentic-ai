@@ -216,14 +216,14 @@ public class Main {
             final SileroVadEngine vad = new SileroVadEngine(AppConfig.SILERO_MODEL_PATH, AppConfig.VAD_THRESHOLD);
             cleanup.register(ResourceCleanup.Resource.VAD, vad);
             AudioDeviceInfo deviceFocusrite = new AudioDeviceManager().getInputDevices().stream()
-                    .filter(device -> device.getName().contains("Analogue 1 + 2")
-                            && device.getName().contains("Focusrite")
-                            && !device.getName().contains("Port"))
+                    .filter(device -> device.name().contains("Analogue 1 + 2")
+                            && device.name().contains("Focusrite")
+                            && !device.name().contains("Port"))
                     .findFirst()
                     .orElseThrow();
             AudioDeviceInfo deviceOutFocusrite = new AudioDeviceManager().getOutputDevices().stream()
-                    .filter(device -> device.getName().contains("Altavoces")
-                            && device.getName().contains("Focusrite"))
+                    .filter(device -> device.name().contains("Altavoces")
+                            && device.name().contains("Focusrite"))
                     .findFirst()
                     .orElseThrow();
 

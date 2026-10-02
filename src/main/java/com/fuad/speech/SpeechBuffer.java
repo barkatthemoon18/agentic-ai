@@ -35,15 +35,15 @@ public class SpeechBuffer {
         if (frames.isEmpty()) {
             throw new IllegalStateException("Cannot create SpeechSegment from empty buffer");
         }
-        int totalSamples = frames.stream().mapToInt(frame -> frame.getSamples().length).sum();
+        int totalSamples = frames.stream().mapToInt(frame -> frame.samples().length).sum();
         float[] samples = new float[totalSamples];
         int offset = 0;
         for (AudioFrame frame : frames) {
-            float[] frameSamples = frame.getSamples();
+            float[] frameSamples = frame.samples();
             System.arraycopy(frameSamples, 0, samples, offset, frameSamples.length);
             offset += frameSamples.length;
         }
         AudioFrame firstFrame = frames.getFirst();
-        return new SpeechSegment(samples, firstFrame.getSampleRate(), firstFrame.getTimestampNanos());
+        return new SpeechSegment(samples, firstFrame.sampleRate(), firstFrame.timestampNanos());
     }
 }

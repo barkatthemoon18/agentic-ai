@@ -6,7 +6,6 @@ import com.fuad.audio.AudioPlaybackService;
 import com.fuad.enums.AudioState;
 import com.fuad.tts.TtsAudio;
 import com.fuad.tts.TtsEngine;
-import lombok.Getter;
 
 public class AudioPipeline {
     private static final long POST_PLAYBACK_GUARD_NANOS = 350_000_000L;
@@ -16,7 +15,7 @@ public class AudioPipeline {
     private final AudioPlaybackService playbackService;
     private final AudioDeviceInfo outputDevice;
     private final AssistantAudioController assistantAudioController;
-    @Getter
+
     private volatile AudioState state = AudioState.LISTENING;
     private volatile long listeningBlockedUntilNanos = 0;
 
@@ -107,5 +106,9 @@ public class AudioPipeline {
         }
         rms = Math.sqrt(sumSquares / samples.length);
         voiceSignalListener.onSignal(new VoiceSignalSnapshot(samples, rms, peak, 0.0));
+    }
+
+    public AudioState state() {
+        return state;
     }
 }

@@ -1,8 +1,5 @@
 package com.fuad.presentation.core;
 
-import lombok.Getter;
-
-@Getter
 public enum WorkspaceType {
     TOOLS("TOOLS", "Tools"),
     MEDIA("MEDIA", "Media"),
@@ -16,5 +13,13 @@ public enum WorkspaceType {
     WorkspaceType(String label, String subtitle) {
         this.label = label;
         this.subtitle = subtitle;
+    }
+
+    public String label() {
+        return label;
+    }
+
+    public String subtitle() {
+        return subtitle;
     }
 }

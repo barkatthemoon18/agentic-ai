@@ -45,8 +45,8 @@ class VoicePipelineTest {
         for (int i = 102; i < 122; i++) process(pipeline, vad, false, i);
         assertEquals(2, vad.resetCount);
         assertEquals(1, emitted.size());
-        assertEquals(100f, emitted.getFirst().getSamples()[0]);
-        assertEquals(22, emitted.getFirst().getSamplesCount());
+        assertEquals(100f, emitted.getFirst().samples()[0]);
+        assertEquals(22, emitted.getFirst().sampleCount());
         assertEquals(AssistantActivityState.IDLE, states.getLast());
     }
 
@@ -113,10 +113,10 @@ class VoicePipelineTest {
 
         assertEquals(1, emitted.size());
         SpeechSegment segment = emitted.getFirst();
-        assertEquals(25, segment.getSamplesCount());
-        assertEquals(0L, segment.getStartTimestampNanos());
-        assertEquals(0f, segment.getSamples()[0]);
-        assertEquals(24f, segment.getSamples()[24]);
+        assertEquals(25, segment.sampleCount());
+        assertEquals(0L, segment.startTimestampNanos());
+        assertEquals(0f, segment.samples()[0]);
+        assertEquals(24f, segment.samples()[24]);
     }
 
     @Test
@@ -131,9 +131,9 @@ class VoicePipelineTest {
         for (int i = 17; i < 37; i++) process(pipeline, vad, false, i);
 
         SpeechSegment segment = emitted.getFirst();
-        assertEquals(30, segment.getSamplesCount());
-        assertEquals(7f, segment.getSamples()[0]);
-        assertEquals(7L, segment.getStartTimestampNanos());
+        assertEquals(30, segment.sampleCount());
+        assertEquals(7f, segment.samples()[0]);
+        assertEquals(7L, segment.startTimestampNanos());
     }
 
     @Test

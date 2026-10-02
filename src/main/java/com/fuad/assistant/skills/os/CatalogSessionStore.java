@@ -74,7 +74,7 @@ public class CatalogSessionStore {
             int from = Math.min(pageIndex * PAGE_SIZE, filtered.size());
             int to = Math.min(from + PAGE_SIZE, filtered.size());
             List<ApplicationListItem> items = filtered.subList(from, to).stream()
-                    .map(app -> new ApplicationListItem(app.getId(), app.getDisplayName())).toList();
+                    .map(app -> new ApplicationListItem(app.id(), app.displayName())).toList();
             return new ApplicationCatalogPayload(id, filter, pageIndex, PAGE_SIZE,
                     filtered.size(), totalPages, items);
         }
@@ -110,8 +110,8 @@ public class CatalogSessionStore {
             String query = filterNormalizer.apply(filter);
             if (query.isBlank()) return all;
             return all.stream().filter(app -> ApplicationNames.normalize(
-                            app.getDisplayName()).contains(query)
-                    || app.getAliases().stream().anyMatch(alias ->
+                            app.displayName()).contains(query)
+                    || app.aliases().stream().anyMatch(alias ->
                     ApplicationNames.normalize(alias).contains(query)))
                     .toList();
         }

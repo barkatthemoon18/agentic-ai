@@ -36,7 +36,7 @@ public class AudioDeviceManager {
     }
 
     public Optional<AudioDeviceInfo> findInputDevice(String name) {
-        return getInputDevices().stream().filter(device -> device.getName().toLowerCase()
+        return getInputDevices().stream().filter(device -> device.name().toLowerCase()
                 .contains(name.toLowerCase())).findFirst();
     }
 }

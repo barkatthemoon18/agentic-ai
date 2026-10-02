@@ -90,8 +90,8 @@ public class ApplicationCatalog {
         String normalized = current.nameMatcher.normalizeTarget(filter);
         return current.applications.stream()
                 .filter(app -> normalized.isBlank()
-                        || ApplicationNames.normalize(app.getDisplayName()).contains(normalized)
-                        || app.getAliases().stream().anyMatch(alias ->
+                        || ApplicationNames.normalize(app.displayName()).contains(normalized)
+                        || app.aliases().stream().anyMatch(alias ->
                         ApplicationNames.normalize(alias).contains(normalized)))
                 .sorted(ApplicationCatalogIdentity.STABLE_ORDER)
                 .toList();
@@ -113,8 +113,8 @@ public class ApplicationCatalog {
         if (normalized.isBlank()) return ApplicationResolution.unknown();
         if (current.removedAliases.contains(normalized)) return ApplicationResolution.unknown();
         List<ApplicationDefinition> exactNames = candidates.stream()
-                .filter(app -> ApplicationNames.normalize(app.getDisplayName()).equals(normalized)
-                        || ApplicationNames.compact(app.getDisplayName())
+                .filter(app -> ApplicationNames.normalize(app.displayName()).equals(normalized)
+                        || ApplicationNames.compact(app.displayName())
                         .equals(ApplicationNames.compact(normalized)))
                 .toList();
         if (!exactNames.isEmpty()) return resolution(exactNames);
@@ -132,11 +132,11 @@ public class ApplicationCatalog {
     private ApplicationResolution resolveNatural(List<ApplicationDefinition> applications, String normalizedTarget) {
         List<ApplicationDefinition> matches = applications.stream()
                 .filter(app -> ApplicationNames.containsWholeTokenSequence(
-                        app.getDisplayName(), normalizedTarget))
+                        app.displayName(), normalizedTarget))
                 .sorted(ApplicationCatalogIdentity.STABLE_ORDER)
                 .toList();
         System.out.println("APP RESOLVE NATURAL -> target='" + normalizedTarget + "' | matches=" +
-                matches.stream().map(ApplicationDefinition::getDisplayName).toList());
+                matches.stream().map(ApplicationDefinition::displayName).toList());
         return resolution(matches);
     }
 
@@ -159,27 +159,27 @@ public class ApplicationCatalog {
                 java.util.stream.Collectors.toMap(ApplicationCatalogIdentity::stableKey, app -> app,
                         (left, right) -> left, LinkedHashMap::new));
         Map<String, ApplicationDefinition> byId = canonical.stream()
-                .filter(app -> ApplicationCatalogIdentity.canonicalId(app.getId()) != null)
+                .filter(app -> ApplicationCatalogIdentity.canonicalId(app.id()) != null)
                 .collect(java.util.stream.Collectors.toMap(
-                        app -> ApplicationCatalogIdentity.canonicalId(app.getId()), app -> app));
+                        app -> ApplicationCatalogIdentity.canonicalId(app.id()), app -> app));
 
         Map<String, Set<String>> primaryCandidates = new HashMap<>();
         Map<String, Set<String>> derivedCandidates = new HashMap<>();
         for (ApplicationDefinition app : canonical) {
             String key = ApplicationCatalogIdentity.stableKey(app);
-            addCandidate(primaryCandidates, app.getDisplayName(), key);
-            app.getAliases().forEach(alias -> addCandidate(derivedCandidates, alias, key));
-            String withoutVersion = app.getDisplayName().replaceFirst("(?i)\\s+v?\\d+(?:[.\\-]\\d+)*.*$", "");
-            if (!withoutVersion.equals(app.getDisplayName()) && withoutVersion.split("\\s+").length > 1) {
+            addCandidate(primaryCandidates, app.displayName(), key);
+            app.aliases().forEach(alias -> addCandidate(derivedCandidates, alias, key));
+            String withoutVersion = app.displayName().replaceFirst("(?i)\\s+v?\\d+(?:[.\\-]\\d+)*.*$", "");
+            if (!withoutVersion.equals(app.displayName()) && withoutVersion.split("\\s+").length > 1) {
                 addCandidate(derivedCandidates, withoutVersion, key);
             }
-            String[] words = ApplicationNames.normalize(app.getDisplayName()).split(" ");
+            String[] words = ApplicationNames.normalize(app.displayName()).split(" ");
             if (words.length > 1) {
                 StringBuilder acronym = new StringBuilder();
                 for (String word : words) if (word.matches("[a-z]+")) acronym.append(word.charAt(0));
                 if (acronym.length() >= 2) addCandidate(derivedCandidates, acronym.toString(), key);
             }
-            for (String path : app.getProcessIdentity().executablePaths()) {
+            for (String path : app.processIdentity().executablePaths()) {
                 try {
                     String filename = Path.of(path).getFileName().toString().replaceFirst("(?i)\\.exe$", "");
                     if (filename.length() >= 3) addCandidate(derivedCandidates, filename, key);
@@ -221,34 +221,34 @@ public class ApplicationCatalog {
         for (ApplicationDefinition app : canonical) {
             String catalogKey = ApplicationCatalogIdentity.stableKey(app);
             Set<String> processNames = new HashSet<>(configured(
-                    config.processNames(), app.getId(), List.of()));
+                    config.processNames(), app.id(), List.of()));
             Set<String> trustedProcessNames = new HashSet<>(configured(
-                    config.trustedProcessNamesWhenPathUnavailable(), app.getId(), List.of()));
+                    config.trustedProcessNamesWhenPathUnavailable(), app.id(), List.of()));
             List<Set<String>> commandLineArgumentSets = configured(config.commandLineArgumentSets(),
-                    app.getId(), List.<List<String>>of()).stream()
+                    app.id(), List.<List<String>>of()).stream()
                     .filter(arguments -> arguments != null && !arguments.isEmpty())
                     .map(Set::copyOf)
                     .toList();
             List<List<String>> exactCommandLineArgumentSets = configured(config.exactCommandLineArgumentSets(),
-                    app.getId(), List.<List<String>>of()).stream()
+                    app.id(), List.<List<String>>of()).stream()
                     .filter(Objects::nonNull).map(List::copyOf).toList();
-            String inferredHost = app.getId() == null ? "" : inferredHosts.getOrDefault(app.getId(), "");
-            String hostApplicationId = configured(config.hostRelationships(), app.getId(), inferredHost);
+            String inferredHost = app.id() == null ? "" : inferredHosts.getOrDefault(app.id(), "");
+            String hostApplicationId = configured(config.hostRelationships(), app.id(), inferredHost);
             if (!hostApplicationId.isBlank()
                     && (!byId.containsKey(ApplicationCatalogIdentity.canonicalId(hostApplicationId))
-                    || hostApplicationId.equalsIgnoreCase(Objects.toString(app.getId(), "")))) {
-                System.err.println("APPLICATION HOST -> invalid relationship for AppID: " + app.getId());
+                    || hostApplicationId.equalsIgnoreCase(Objects.toString(app.id(), "")))) {
+                System.err.println("APPLICATION HOST -> invalid relationship for AppID: " + app.id());
                 hostApplicationId = "";
             }
             else if (!hostApplicationId.isBlank()) {
                 hostApplicationId = byId.get(
-                        ApplicationCatalogIdentity.canonicalId(hostApplicationId)).getId();
+                        ApplicationCatalogIdentity.canonicalId(hostApplicationId)).id();
             }
             List<ApplicationWindowSignature> windowSignatures = configured(
-                    config.windowSignatures(), app.getId(), List.of());
+                    config.windowSignatures(), app.id(), List.of());
             boolean windowAssociationEnabled = Boolean.TRUE.equals(configured(
-                    config.windowAssociationsEnabled(), app.getId(), false));
-            Set<String> resolvedAliases = new HashSet<>(app.getAliases());
+                    config.windowAssociationsEnabled(), app.id(), false));
+            Set<String> resolvedAliases = new HashSet<>(app.aliases());
             resolvedAliases.addAll(aliasesByKey.getOrDefault(catalogKey, Set.of()));
             ApplicationDefinition updated = enrichDefinitions
                     ? app.withCatalogConfiguration(resolvedAliases, processNames,
@@ -273,8 +273,8 @@ public class ApplicationCatalog {
     private Map<String, String> inferHostRelationships(Collection<ApplicationDefinition> applications) {
         Map<String, List<ApplicationDefinition>> byPath = new HashMap<>();
         for (ApplicationDefinition application : applications) {
-            if (application.getId() == null || application.getId().isBlank()) continue;
-            for (String path : application.getProcessIdentity().executablePaths()) {
+            if (application.id() == null || application.id().isBlank()) continue;
+            for (String path : application.processIdentity().executablePaths()) {
                 String normalized = path.replace('/', '\\').toLowerCase(Locale.ROOT);
                 byPath.computeIfAbsent(normalized, ignored -> new ArrayList<>()).add(application);
             }
@@ -282,11 +282,11 @@ public class ApplicationCatalog {
         Map<String, String> inferred = new HashMap<>();
         for (List<ApplicationDefinition> group : byPath.values()) {
             List<ApplicationDefinition> bases = group.stream()
-                    .filter(app -> app.getProcessIdentity().commandLineArgumentSets().isEmpty()).toList();
+                    .filter(app -> app.processIdentity().commandLineArgumentSets().isEmpty()).toList();
             List<ApplicationDefinition> hosted = group.stream()
-                    .filter(app -> !app.getProcessIdentity().commandLineArgumentSets().isEmpty()).toList();
+                    .filter(app -> !app.processIdentity().commandLineArgumentSets().isEmpty()).toList();
             if (bases.size() != 1 || hosted.isEmpty() || !hostedSignaturesAreExclusive(hosted)) continue;
-            hosted.forEach(app -> inferred.putIfAbsent(app.getId(), bases.getFirst().getId()));
+            hosted.forEach(app -> inferred.putIfAbsent(app.id(), bases.getFirst().id()));
         }
         return Map.copyOf(inferred);
     }
@@ -294,8 +294,8 @@ public class ApplicationCatalog {
     private boolean hostedSignaturesAreExclusive(List<ApplicationDefinition> hosted) {
         for (int first = 0; first < hosted.size(); first++) {
             for (int second = first + 1; second < hosted.size(); second++) {
-                for (Set<String> left : hosted.get(first).getProcessIdentity().commandLineArgumentSets()) {
-                    for (Set<String> right : hosted.get(second).getProcessIdentity().commandLineArgumentSets()) {
+                for (Set<String> left : hosted.get(first).processIdentity().commandLineArgumentSets()) {
+                    for (Set<String> right : hosted.get(second).processIdentity().commandLineArgumentSets()) {
                         if (left.containsAll(right) || right.containsAll(left)) return false;
                     }
                 }

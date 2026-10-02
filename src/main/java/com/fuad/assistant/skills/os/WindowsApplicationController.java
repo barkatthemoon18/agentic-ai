@@ -54,7 +54,7 @@ public class WindowsApplicationController implements ApplicationController {
 
     @Override
     public boolean open(ApplicationDefinition applicationDefinition) throws IOException {
-        new ProcessBuilder(applicationDefinition.getOpenCommand()).start();
+        new ProcessBuilder(applicationDefinition.openCommand()).start();
         return true;
     }
 
@@ -193,7 +193,7 @@ public class WindowsApplicationController implements ApplicationController {
                 unverifiable++;
             }
         }
-        open.sort(Comparator.comparing(entry -> entry.application().getDisplayName(), String.CASE_INSENSITIVE_ORDER));
+        open.sort(Comparator.comparing(entry -> entry.application().displayName(), String.CASE_INSENSITIVE_ORDER));
         return OpenApplicationsResult.success(open, unverifiable);
     }
 
@@ -230,7 +230,7 @@ public class WindowsApplicationController implements ApplicationController {
             return TargetResolution.resolved(application, direct.processes(), windows, false,
                     direct.candidateObserved());
         }
-        ApplicationProcessIdentity identity = application.getProcessIdentity();
+        ApplicationProcessIdentity identity = application.processIdentity();
         if (!canAssociateWindows(identity)) return TargetResolution.unavailable(!windows.isEmpty());
         List<WindowService.WindowHandle> owned = matchingWindows(identity, windows);
         return TargetResolution.resolved(application, direct.processes(), owned, true,
@@ -241,7 +241,7 @@ public class WindowsApplicationController implements ApplicationController {
                                           ApplicationRuntimeResolver.Resolution direct,
                                           Map<String, ApplicationRuntimeResolver.Resolution> batch,
                                           List<WindowService.WindowHandle> allWindows) {
-        ApplicationProcessIdentity identity = application.getProcessIdentity();
+        ApplicationProcessIdentity identity = application.processIdentity();
         if (identity.hostApplicationId().isBlank()) return null;
         ApplicationDefinition host = find(catalog, identity.hostApplicationId());
         if (host == null || !canAssociateWindows(identity)) {
@@ -275,10 +275,10 @@ public class WindowsApplicationController implements ApplicationController {
     }
 
     private boolean hasHostedChildren(ApplicationDefinition application, List<ApplicationDefinition> catalog) {
-        String id = ApplicationCatalogIdentity.canonicalId(application.getId());
+        String id = ApplicationCatalogIdentity.canonicalId(application.id());
         return id != null && catalog.stream().anyMatch(other -> id.equals(
                 ApplicationCatalogIdentity.canonicalId(
-                        other.getProcessIdentity().hostApplicationId())));
+                        other.processIdentity().hostApplicationId())));
     }
 
     private List<WindowService.WindowHandle> windowsFor(
@@ -319,7 +319,7 @@ public class WindowsApplicationController implements ApplicationController {
         String canonicalId = ApplicationCatalogIdentity.canonicalId(id);
         if (canonicalId == null) return null;
         return catalog.stream().filter(application -> canonicalId.equals(
-                ApplicationCatalogIdentity.canonicalId(application.getId()))).findFirst().orElse(null);
+                ApplicationCatalogIdentity.canonicalId(application.id()))).findFirst().orElse(null);
     }
 
     private ApplicationActionResult identityUnavailable() {

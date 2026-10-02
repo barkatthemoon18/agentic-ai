@@ -98,6 +98,15 @@ ya estaba completado al iniciar la implementación del seguimiento; se conservó
 
 ## Ejecución
 
+### Modernización Java
+
+La migración de 26 objetos de datos a records elimina Lombok y actualiza sus consumidores.
+OutputPresentationPolicy permanece como clase final. Los buffers de audio conservan su referencia
+sin copias defensivas. Validación limpia: **709 tests Java y 20 Python**, incluyendo contratos de
+buffer, campos obligatorios de AssistantRequest y contextAvailable ausente en JSON.
+La base incluye dos estabilizaciones de tests asíncronos: esperar el estado agregado de modelos y
+terminar la configuración de mocks de Media antes de ejecutar acciones. No cambian producción.
+
 Java con Maven y **JDK 21**, verificando también que `JAVA_HOME` apunte a ese JDK:
 
 ```powershell

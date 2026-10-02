@@ -1,18 +1,12 @@
 package com.fuad.speech;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.Setter;
+/** Samples are an owned, read-only-by-convention buffer; construction and access are zero-copy. */
+public record SpeechSegment(
+        float[] samples,
+        int sampleRate,
+        long startTimestampNanos) {
 
-@Getter
-@Setter
-@AllArgsConstructor
-public class SpeechSegment {
-    float[] samples;
-    int sampleRate;
-    long startTimestampNanos;
-
-    public int getSamplesCount() {
+    public int sampleCount() {
         return samples.length;
     }
 

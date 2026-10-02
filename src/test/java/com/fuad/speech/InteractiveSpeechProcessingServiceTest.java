@@ -97,7 +97,7 @@ class InteractiveSpeechProcessingServiceTest {
             completingThread.join();
 
             assertTrue(visual.shown.await(2, TimeUnit.SECONDS));
-            assertEquals("resuelto", visual.message.get().getText());
+            assertEquals("resuelto", visual.message.get().text());
             assertNotEquals("fake-javafx-thread", continuationThread.get());
             assertNotNull(continuationThread.get());
         }

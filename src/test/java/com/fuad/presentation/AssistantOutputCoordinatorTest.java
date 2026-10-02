@@ -70,12 +70,12 @@ class AssistantOutputCoordinatorTest {
         assertEquals(0, audioPipeline.speakCalls);
         assertEquals(0, visualOutput.hideCalls);
         assertEquals(1, visualOutput.showCalls);
-        assertSame(result.getPayload(), visualOutput.lastMessage.getPayload());
-        assertEquals(result.getText(), visualOutput.lastMessage.getText());
-        assertEquals(snapshot.getVolume(), visualOutput.lastMessage.getAudioSnapshot().getVolume());
-        assertEquals(snapshot.isMuted(), visualOutput.lastMessage.getAudioSnapshot().isMuted());
-        assertEquals(snapshot.getGain(), visualOutput.lastMessage.getAudioSnapshot().getGain());
-        assertEquals(AudioDeliveryState.OUTPUT_RESERVED, visualOutput.lastMessage.getAudioDeliveryState());
+        assertSame(result.payload(), visualOutput.lastMessage.payload());
+        assertEquals(result.text(), visualOutput.lastMessage.text());
+        assertEquals(snapshot.volume(), visualOutput.lastMessage.audioSnapshot().volume());
+        assertEquals(snapshot.muted(), visualOutput.lastMessage.audioSnapshot().muted());
+        assertEquals(snapshot.gain(), visualOutput.lastMessage.audioSnapshot().gain());
+        assertEquals(AudioDeliveryState.OUTPUT_RESERVED, visualOutput.lastMessage.audioDeliveryState());
     }
 
     @ParameterizedTest
@@ -90,8 +90,8 @@ class AssistantOutputCoordinatorTest {
         assertEquals(0, audioPipeline.speakCalls);
         assertEquals(0, visualOutput.hideCalls);
         assertEquals(1, visualOutput.showCalls);
-        assertSame(result.getPayload(), visualOutput.lastMessage.getPayload());
-        assertEquals(AudioDeliveryState.NORMAL, visualOutput.lastMessage.getAudioDeliveryState());
+        assertSame(result.payload(), visualOutput.lastMessage.payload());
+        assertEquals(AudioDeliveryState.NORMAL, visualOutput.lastMessage.audioDeliveryState());
     }
 
     @ParameterizedTest
@@ -116,18 +116,18 @@ class AssistantOutputCoordinatorTest {
 
         coordinator.present(result);
         assertEquals(0, audioPipeline.speakCalls);
-        assertEquals(AudioDeliveryState.OUTPUT_RESERVED, visualOutput.lastMessage.getAudioDeliveryState());
+        assertEquals(AudioDeliveryState.OUTPUT_RESERVED, visualOutput.lastMessage.audioDeliveryState());
 
         coordinator.present(result);
 
         assertEquals(1, audioPipeline.speakCalls);
-        assertEquals(result.getText(), audioPipeline.spokenText);
-        boolean forceVisual = result.getPayload() instanceof ApplicationCatalogPayload
-                || ((OpenApplicationsPayload) result.getPayload()).items().size() > 5;
+        assertEquals(result.text(), audioPipeline.spokenText);
+        boolean forceVisual = result.payload() instanceof ApplicationCatalogPayload
+                || ((OpenApplicationsPayload) result.payload()).items().size() > 5;
         assertEquals(forceVisual ? List.of("show", "show", "speak") : List.of("show", "hide", "speak"), events);
         if (forceVisual) {
-            assertSame(result.getPayload(), visualOutput.lastMessage.getPayload());
-            assertEquals(AudioDeliveryState.NORMAL, visualOutput.lastMessage.getAudioDeliveryState());
+            assertSame(result.payload(), visualOutput.lastMessage.payload());
+            assertEquals(AudioDeliveryState.NORMAL, visualOutput.lastMessage.audioDeliveryState());
         }
     }
 
@@ -156,7 +156,7 @@ class AssistantOutputCoordinatorTest {
         audioController.setVolume(40);
 
         coordinator.present("Solo pantalla");
-        assertEquals(AudioDeliveryState.OUTPUT_RESERVED, visualOutput.lastMessage.getAudioDeliveryState());
+        assertEquals(AudioDeliveryState.OUTPUT_RESERVED, visualOutput.lastMessage.audioDeliveryState());
         assertEquals(0, audioPipeline.speakCalls);
 
         coordinator.present("Audio disponible");
@@ -175,9 +175,9 @@ class AssistantOutputCoordinatorTest {
         assertEquals(0, audioPipeline.speakCalls);
         assertEquals(0, visualOutput.hideCalls);
         assertEquals(1, visualOutput.showCalls);
-        assertEquals("Respuesta reservada", visualOutput.lastMessage.getText());
-        assertEquals(AudioDeliveryState.OUTPUT_RESERVED, visualOutput.lastMessage.getAudioDeliveryState());
-        assertEquals(volume, visualOutput.lastMessage.getAudioSnapshot().getVolume());
+        assertEquals("Respuesta reservada", visualOutput.lastMessage.text());
+        assertEquals(AudioDeliveryState.OUTPUT_RESERVED, visualOutput.lastMessage.audioDeliveryState());
+        assertEquals(volume, visualOutput.lastMessage.audioSnapshot().volume());
     }
 
     @Test
@@ -219,7 +219,7 @@ class AssistantOutputCoordinatorTest {
         assertEquals(silent ? 0 : 1, audioPipeline.speakCalls);
         assertEquals(visual ? 1 : 0, visualOutput.showCalls);
         assertEquals(visual ? 0 : 1, visualOutput.hideCalls);
-        if (visual) assertSame(payload, visualOutput.lastMessage.getPayload());
+        if (visual) assertSame(payload, visualOutput.lastMessage.payload());
     }
 
     @Test
@@ -242,8 +242,8 @@ class AssistantOutputCoordinatorTest {
 
         assertEquals(1, visualOutput.showCalls);
         assertNotNull(visualOutput.lastMessage);
-        assertEquals("Respuesta con volumen bajo", visualOutput.lastMessage.getText());
-        assertEquals(19, visualOutput.lastMessage.getAudioSnapshot().getVolume());
+        assertEquals("Respuesta con volumen bajo", visualOutput.lastMessage.text());
+        assertEquals(19, visualOutput.lastMessage.audioSnapshot().volume());
         assertEquals(1, audioPipeline.speakCalls);
         assertEquals("Respuesta con volumen bajo", audioPipeline.spokenText);
     }
@@ -256,7 +256,7 @@ class AssistantOutputCoordinatorTest {
         coordinator.present("Respuesta silenciada");
 
         assertEquals(1, visualOutput.showCalls);
-        assertTrue(visualOutput.lastMessage.getAudioSnapshot().isMuted());
+        assertTrue(visualOutput.lastMessage.audioSnapshot().muted());
         assertEquals(0, audioPipeline.speakCalls);
         assertEquals(0, visualOutput.hideCalls);
     }
@@ -363,7 +363,7 @@ class AssistantOutputCoordinatorTest {
         coordinator.present(AssistantResult.catalog("Encontré una aplicación; te la muestro en pantalla.", payload));
 
         assertEquals(1, visualOutput.showCalls);
-        assertSame(payload, visualOutput.lastMessage.getPayload());
+        assertSame(payload, visualOutput.lastMessage.payload());
         assertEquals(1, audioPipeline.speakCalls);
     }
 
@@ -373,7 +373,7 @@ class AssistantOutputCoordinatorTest {
         audioController.setVolume(0);
         coordinator.present("Cero");
         assertEquals(0, audioPipeline.speakCalls);
-        assertEquals(0, visualOutput.lastMessage.getAudioSnapshot().getVolume());
+        assertEquals(0, visualOutput.lastMessage.audioSnapshot().volume());
 
         audioController.unmute();
         coordinator.present("Recuperado");
@@ -406,7 +406,7 @@ class AssistantOutputCoordinatorTest {
 
         assertEquals(1, audioPipeline.speakCalls);
         assertEquals(1, visualOutput.showCalls);
-        assertSame(payload, visualOutput.lastMessage.getPayload());
+        assertSame(payload, visualOutput.lastMessage.payload());
     }
 
     @Test

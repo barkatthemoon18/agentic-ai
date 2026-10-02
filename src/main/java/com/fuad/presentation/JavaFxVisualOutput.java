@@ -283,14 +283,14 @@ public class JavaFxVisualOutput implements VisualOutput {
         displayMode = DisplayMode.RESPONSE;
         infrastructurePane.setVisible(false);
         infrastructurePane.setManaged(false);
-        AssistantAudioSnapshot audioSnapshot = visualMessage.getAudioSnapshot();
-        boolean catalog = visualMessage.getPayload() instanceof ApplicationCatalogPayload;
-        boolean openApplications = visualMessage.getPayload() instanceof OpenApplicationsPayload;
+        AssistantAudioSnapshot audioSnapshot = visualMessage.audioSnapshot();
+        boolean catalog = visualMessage.payload() instanceof ApplicationCatalogPayload;
+        boolean openApplications = visualMessage.payload() instanceof OpenApplicationsPayload;
         if (catalog) {
-            showCatalog((ApplicationCatalogPayload) visualMessage.getPayload());
+            showCatalog((ApplicationCatalogPayload) visualMessage.payload());
         }
         else if (openApplications) {
-            showOpenApplications((OpenApplicationsPayload) visualMessage.getPayload());
+            showOpenApplications((OpenApplicationsPayload) visualMessage.payload());
         }
         else {
             closeCatalogSubscription();
@@ -298,9 +298,9 @@ public class JavaFxVisualOutput implements VisualOutput {
             catalogPane.setManaged(false);
             messageScroll.setVisible(true);
             messageScroll.setManaged(true);
-            messageLabel.setText(visualMessage.getText());
+            messageLabel.setText(visualMessage.text());
         }
-        statusLabel.setText(buildStatusText(audioSnapshot, visualMessage.getAudioDeliveryState()));
+        statusLabel.setText(buildStatusText(audioSnapshot, visualMessage.audioDeliveryState()));
         timeLabel.setText(LocalTime.now().format(TIME_FORMATTER));
         messageScroll.setVvalue(0.0);
         overlayRoot.setOpacity(0.0);
@@ -324,7 +324,7 @@ public class JavaFxVisualOutput implements VisualOutput {
 
         entrance.setOnFinished(event -> {
             activeAnimation = null;
-            if (!catalog && !openApplications) startDismissTimer(visualMessage.getText().length());
+            if (!catalog && !openApplications) startDismissTimer(visualMessage.text().length());
         });
         entrance.play();
     }
@@ -645,9 +645,9 @@ public class JavaFxVisualOutput implements VisualOutput {
         if (audioDeliveryState == AudioDeliveryState.OUTPUT_RESERVED) {
             return "\u25CF AUDIO // TIDAL EXCLUSIVE";
         }
-        return audioSnapshot.isMuted()
+        return audioSnapshot.muted()
                 ? "\u25CF  MUTED"
-                : "\u25CF  VOL " + audioSnapshot.getVolume() + "%";
+                : "\u25CF  VOL " + audioSnapshot.volume() + "%";
     }
 
     static double calculateDisplaySeconds(int charCount) {

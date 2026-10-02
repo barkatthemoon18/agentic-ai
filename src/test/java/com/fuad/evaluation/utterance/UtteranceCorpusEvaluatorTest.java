@@ -19,7 +19,7 @@ class UtteranceCorpusEvaluatorTest {
                 "follow", "follow", true, UtteranceDecision.FOLLOW_UP, "contextual");
         UtteranceEvaluationCase other = evaluationCase(
                 "other", "other", false, UtteranceDecision.OTHER, "ambient");
-        UtteranceClassifier classifier = request -> switch (request.getCurrentText()) {
+        UtteranceClassifier classifier = request -> switch (request.currentText()) {
             case "new" -> UtteranceDecision.NEW_REQUEST;
             case "follow" -> UtteranceDecision.OTHER;
             default -> UtteranceDecision.NEW_REQUEST;
@@ -49,7 +49,7 @@ class UtteranceCorpusEvaluatorTest {
         UtteranceEvaluationCase successful = evaluationCase(
                 "success", "success", false, UtteranceDecision.NEW_REQUEST, "critical");
         UtteranceClassifier classifier = request -> {
-            if (request.getCurrentText().equals("failure")) {
+            if (request.currentText().equals("failure")) {
                 throw new IllegalStateException("model unavailable");
             }
             return UtteranceDecision.NEW_REQUEST;
@@ -61,23 +61,15 @@ class UtteranceCorpusEvaluatorTest {
         assertEquals(1, report.errorCount());
         assertEquals(1, report.correctCount());
         assertEquals(0.5, report.accuracy(), 0.0001);
-        assertTrue(report.failures().getFirst().getError().contains("model unavailable"));
+        assertTrue(report.failures().getFirst().error().contains("model unavailable"));
     }
 
     private UtteranceEvaluationCase evaluationCase(String id, String text, boolean contextAvailable,
                                                      UtteranceDecision expected, String tag) {
-        UtteranceEvaluationCase evaluationCase = new UtteranceEvaluationCase();
-        evaluationCase.setId(id);
-        evaluationCase.setCurrentText(text);
-        evaluationCase.setContextAvailable(contextAvailable);
-        evaluationCase.setExpected(expected.name().toLowerCase());
-        evaluationCase.setTags(List.of(tag));
-        evaluationCase.setRationale("test");
-        if (contextAvailable) {
-            evaluationCase.setPreviousUserText("pregunta anterior");
-            evaluationCase.setPreviousAssistantText("respuesta anterior");
-            evaluationCase.setOwner("general");
-        }
-        return evaluationCase;
+        return new UtteranceEvaluationCase(id, text, contextAvailable,
+                contextAvailable ? "pregunta anterior" : null,
+                contextAvailable ? "respuesta anterior" : null,
+                contextAvailable ? "general" : null,
+                expected.name().toLowerCase(), List.of(tag), "test");
     }
 }

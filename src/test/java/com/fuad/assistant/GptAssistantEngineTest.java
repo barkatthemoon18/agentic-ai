@@ -31,8 +31,8 @@ class GptAssistantEngineTest {
         Response response = response("next-token", output);
         when(client.responses().create(any(ResponseCreateParams.class))).thenReturn(response);
         AssistantResult result = engine.process(new AssistantRequest("command", "instructions", 300, null));
-        assertEquals("hola mundo", result.getText());
-        assertEquals("next-token", result.getContinuationToken());
+        assertEquals("hola mundo", result.text());
+        assertEquals("next-token", result.continuationToken());
         ArgumentCaptor<ResponseCreateParams> params = ArgumentCaptor.forClass(ResponseCreateParams.class);
         verify(client.responses()).create(params.capture());
         assertEquals("command", params.getValue().input().orElseThrow().asText());

@@ -30,8 +30,8 @@ class AudioControlIntentTest {
     void unsupportedFactoryShouldPreserveScope() {
         AudioControlIntent intent = AudioControlIntent.unsupported(AudioScope.APPLICATION);
 
-        assertEquals(AudioAction.UNSUPPORTED, intent.getAudioAction());
-        assertEquals(AudioScope.APPLICATION, intent.getAudioScope());
-        assertEquals(null, intent.getValue());
+        assertEquals(AudioAction.UNSUPPORTED, intent.audioAction());
+        assertEquals(AudioScope.APPLICATION, intent.audioScope());
+        assertEquals(null, intent.value());
     }
 }

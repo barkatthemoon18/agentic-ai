@@ -25,35 +25,35 @@ class WakeWordMatcherTest {
     void shouldReturnNoneWhenNoWakeWordIsPresent(String text) {
         WakeWordMatch result = matcher.match(text);
 
-        assertEquals(WakeMatchStatus.NONE, result.getStatus());
-        assertEquals("", result.getCommand());
+        assertEquals(WakeMatchStatus.NONE, result.status());
+        assertEquals("", result.command());
     }
 
     @Test
     void shouldMatchWakeWordAndExtractCommandAfterPunctuation() {
         WakeWordMatch result = matcher.match("¡Oye Ares!, abre Spotify");
 
-        assertEquals(WakeMatchStatus.MATCH, result.getStatus());
-        assertEquals("Oye Ares", result.getCandidate());
-        assertEquals("abre Spotify", result.getCommand());
-        assertEquals(1.0, result.getSimilarity());
+        assertEquals(WakeMatchStatus.MATCH, result.status());
+        assertEquals("Oye Ares", result.candidate());
+        assertEquals("abre Spotify", result.command());
+        assertEquals(1.0, result.similarity());
     }
 
     @Test
     void shouldMatchIgnoringCase() {
         WakeWordMatch result = matcher.match("ARES qué hora es");
 
-        assertEquals(WakeMatchStatus.MATCH, result.getStatus());
-        assertEquals("qué hora es", result.getCommand());
+        assertEquals(WakeMatchStatus.MATCH, result.status());
+        assertEquals("qué hora es", result.command());
     }
 
     @Test
     void shouldMarkSimilarCandidateAsAmbiguous() {
         WakeWordMatch result = matcher.match("Eres bastante rápido");
 
-        assertEquals(WakeMatchStatus.AMBIGUOUS, result.getStatus());
-        assertEquals("Eres", result.getCandidate());
-        assertEquals("bastante rápido", result.getCommand());
-        assertTrue(result.getSimilarity() >= 0.55 && result.getSimilarity() < 0.85);
+        assertEquals(WakeMatchStatus.AMBIGUOUS, result.status());
+        assertEquals("Eres", result.candidate());
+        assertEquals("bastante rápido", result.command());
+        assertTrue(result.similarity() >= 0.55 && result.similarity() < 0.85);
     }
 }

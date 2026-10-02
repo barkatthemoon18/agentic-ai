@@ -7,6 +7,6 @@ public interface SkillRouter {
     SkillRoute route(String command);
     SkillRoute routeTo(Capability capability);
     default SkillRoute routeFollowUp(String command, ConversationSnapshot snapshot) {
-        return routeTo(snapshot.getOwner());
+        return routeTo(snapshot.owner());
     }
 }

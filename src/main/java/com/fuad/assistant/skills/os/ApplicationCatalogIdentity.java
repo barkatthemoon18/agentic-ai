@@ -21,8 +21,8 @@ import java.util.TreeSet;
 final class ApplicationCatalogIdentity {
     private static final Comparator<String> NULLABLE_TEXT = Comparator.nullsLast(Comparator.naturalOrder());
     static final Comparator<ApplicationDefinition> STABLE_ORDER = Comparator
-            .comparing((ApplicationDefinition app) -> normalizedOrNull(app.getDisplayName()), NULLABLE_TEXT)
-            .thenComparing(ApplicationDefinition::getDisplayName, NULLABLE_TEXT)
+            .comparing((ApplicationDefinition app) -> normalizedOrNull(app.displayName()), NULLABLE_TEXT)
+            .thenComparing(ApplicationDefinition::displayName, NULLABLE_TEXT)
             .thenComparing(ApplicationCatalogIdentity::stableKey);
 
     private ApplicationCatalogIdentity() { }
@@ -30,8 +30,8 @@ final class ApplicationCatalogIdentity {
     static List<ApplicationDefinition> canonicalize(Collection<ApplicationDefinition> definitions) {
         Map<String, List<ApplicationDefinition>> groups = new LinkedHashMap<>();
         for (ApplicationDefinition definition : definitions) {
-            if (definition == null || definition.getDisplayName() == null
-                    || definition.getDisplayName().isBlank()) continue;
+            if (definition == null || definition.displayName() == null
+                    || definition.displayName().isBlank()) continue;
             groups.computeIfAbsent(stableKey(definition), ignored -> new ArrayList<>()).add(definition);
         }
         List<ApplicationDefinition> result = groups.entrySet().stream()
@@ -43,14 +43,14 @@ final class ApplicationCatalogIdentity {
     }
 
     static String stableKey(ApplicationDefinition definition) {
-        String id = canonicalId(definition.getId());
+        String id = canonicalId(definition.id());
         return id == null ? "fingerprint:" + definitionFingerprint(definition) : "appid:" + id;
     }
 
     static String definitionFingerprint(ApplicationDefinition definition) {
         CanonicalWriter writer = new CanonicalWriter();
-        writer.string(1, ApplicationNames.normalize(definition.getDisplayName()));
-        writer.unorderedStrings(2, normalizedSet(definition.getAliases()));
+        writer.string(1, ApplicationNames.normalize(definition.displayName()));
+        writer.unorderedStrings(2, normalizedSet(definition.aliases()));
         writer.object(3, runtimeIdentityBytes(definition));
         return writer.digest();
     }
@@ -73,31 +73,31 @@ final class ApplicationCatalogIdentity {
                         "Conflicting runtime identity for application " + stableKey.substring("appid:".length()));
             }
         }
-        String displayName = ordered.stream().map(ApplicationDefinition::getDisplayName)
+        String displayName = ordered.stream().map(ApplicationDefinition::displayName)
                 .min(Comparator.comparing(ApplicationNames::normalize)
                         .thenComparing(Comparator.naturalOrder())).orElseThrow();
         Set<String> aliases = new TreeSet<>(Comparator.comparing(ApplicationNames::normalize)
                 .thenComparing(Comparator.naturalOrder()));
         ordered.forEach(definition -> {
-            aliases.addAll(definition.getAliases());
-            if (!definition.getDisplayName().equals(displayName)) aliases.add(definition.getDisplayName());
+            aliases.addAll(definition.aliases());
+            if (!definition.displayName().equals(displayName)) aliases.add(definition.displayName());
         });
-        String id = ordered.stream().map(ApplicationDefinition::getId).filter(Objects::nonNull)
+        String id = ordered.stream().map(ApplicationDefinition::id).filter(Objects::nonNull)
                 .map(String::trim).filter(value -> !value.isEmpty())
                 .min(String.CASE_INSENSITIVE_ORDER.thenComparing(Comparator.naturalOrder()))
                 .orElse(null);
         return new ApplicationDefinition(id, displayName, aliases,
-                base.getOpenCommand(), base.getProcessIdentity());
+                base.openCommand(), base.processIdentity());
     }
 
     private static byte[] runtimeIdentityBytes(ApplicationDefinition definition) {
         CanonicalWriter writer = new CanonicalWriter();
-        List<String> command = new ArrayList<>(definition.getOpenCommand());
+        List<String> command = new ArrayList<>(definition.openCommand());
         if (!command.isEmpty()) {
             command.set(0, ApplicationRuntimeResolver.normalizePath(command.getFirst()));
         }
         writer.orderedStrings(1, command);
-        ApplicationProcessIdentity identity = definition.getProcessIdentity();
+        ApplicationProcessIdentity identity = definition.processIdentity();
         writer.unorderedStrings(2, identity.executablePaths().stream()
                 .map(ApplicationRuntimeResolver::normalizePath).toList());
         writer.unorderedStrings(3, identity.packageRoots().stream()

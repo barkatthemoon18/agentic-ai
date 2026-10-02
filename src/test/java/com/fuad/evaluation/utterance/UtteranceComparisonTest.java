@@ -44,13 +44,8 @@ class UtteranceComparisonTest {
 
     @Test
     void shouldPersistMetadataEveryOutcomeAndSeparateRuleLatencyWithoutOverwriting() throws Exception {
-        var item = new UtteranceEvaluationCase();
-        item.setId("rules");
-        item.setCurrentText("Explícame RSA");
-        item.setContextAvailable(false);
-        item.setExpected("new_request");
-        item.setTags(List.of("critical"));
-        item.setRationale("test");
+        var item = new UtteranceEvaluationCase("rules", "Explícame RSA", false,
+                null, null, null, "new_request", List.of("critical"), "test");
         var report = new UtteranceCorpusEvaluator().evaluate(request -> UtteranceDecision.NEW_REQUEST, List.of(item));
         var metadata = Map.<String, Object>of("model", "test-model", "promptSha256", "abc", "corpusSha256", "def");
         Path path = directory.resolve("run.json");

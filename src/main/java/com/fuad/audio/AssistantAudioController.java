@@ -67,7 +67,7 @@ public class AssistantAudioController {
     }
 
     public synchronized float getGain() {
-        return getSnapshot().getGain();
+        return getSnapshot().gain();
     }
 
     public synchronized AssistantAudioSnapshot getSnapshot() {

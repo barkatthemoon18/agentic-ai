@@ -18,12 +18,12 @@ class LocalAudioControlParserTest {
         AudioControlIntent defaultRelative = LocalAudioControlParser.parseClassification(
                 "decrease_volume|assistant|default");
 
-        assertEquals(AudioAction.SET_VOLUME, absolute.getAudioAction());
-        assertEquals(40, absolute.getValue());
-        assertEquals(AudioAction.INCREASE_VOLUME, relative.getAudioAction());
-        assertEquals(15, relative.getValue());
-        assertEquals(AudioAction.DECREASE_VOLUME, defaultRelative.getAudioAction());
-        assertNull(defaultRelative.getValue());
+        assertEquals(AudioAction.SET_VOLUME, absolute.audioAction());
+        assertEquals(40, absolute.value());
+        assertEquals(AudioAction.INCREASE_VOLUME, relative.audioAction());
+        assertEquals(15, relative.value());
+        assertEquals(AudioAction.DECREASE_VOLUME, defaultRelative.audioAction());
+        assertNull(defaultRelative.value());
     }
 
     @Test
@@ -32,10 +32,10 @@ class LocalAudioControlParserTest {
         AudioControlIntent application = LocalAudioControlParser.parseClassification(
                 "set_volume|application|30");
 
-        assertEquals(AudioScope.SYSTEM, system.getAudioScope());
-        assertEquals(AudioAction.MUTE, system.getAudioAction());
-        assertEquals(AudioScope.APPLICATION, application.getAudioScope());
-        assertEquals(30, application.getValue());
+        assertEquals(AudioScope.SYSTEM, system.audioScope());
+        assertEquals(AudioAction.MUTE, system.audioAction());
+        assertEquals(AudioScope.APPLICATION, application.audioScope());
+        assertEquals(30, application.value());
     }
 
     @Test
@@ -48,8 +48,8 @@ class LocalAudioControlParserTest {
     }
 
     private void assertUnsupported(AudioControlIntent intent) {
-        assertEquals(AudioAction.UNSUPPORTED, intent.getAudioAction());
-        assertEquals(AudioScope.UNKNOWN, intent.getAudioScope());
-        assertNull(intent.getValue());
+        assertEquals(AudioAction.UNSUPPORTED, intent.audioAction());
+        assertEquals(AudioScope.UNKNOWN, intent.audioScope());
+        assertNull(intent.value());
     }
 }

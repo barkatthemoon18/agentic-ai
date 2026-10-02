@@ -21,7 +21,6 @@ import com.fuad.speech.validation.SpeechSegmentValidator;
 import com.fuad.speech.validation.SpeechValidationResult;
 import com.fuad.stt.SttEngine;
 import com.fuad.stt.TranscriptionResult;
-import lombok.NonNull;
 
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -32,25 +31,25 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 public class SpeechProcessingService implements SpeechSegmentListener, AutoCloseable {
-    @NonNull
+
     private final SttEngine sttEngine;
-    @NonNull
+
     private final AssistantPipeline assistantPipeline;
-    @NonNull
+
     private final ActivationDetector activationDetector;
-    @NonNull
+
     private final ConversationSession conversationSession;
-    @NonNull
+
     private final AudioPipeline audioPipeline;
-    @NonNull
+
     private final SpeechSegmentValidator speechValidator;
-    @NonNull
+
     private final UtteranceClassifier utteranceClassifier;
-    @NonNull
+
     private final AssistantOutputCoordinator assistantOutputCoordinator;
     private final InteractionService interactionService;
     private final InteractionVoiceRouter interactionVoiceRouter;
-    @NonNull
+
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final AtomicBoolean pendingTurn = new AtomicBoolean(false);
 
@@ -172,14 +171,14 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
         try {
             SpeechValidationResult validationResult = speechValidator.validate(speechSegment);
             System.out.printf("Speech validation | %.0f ms | RMS %.4f | Peak %.4f | %s%n",
-                    validationResult.getDurationMillis(), validationResult.getRms(), validationResult.getPeak(),
-                    validationResult.getReason());
-            if (!validationResult.isValid()) {
+                    validationResult.durationMillis(), validationResult.rms(), validationResult.peak(),
+                    validationResult.reason());
+            if (!validationResult.valid()) {
                 System.out.println("Speech segment ignored");
                 return;
             }
             TranscriptionResult result = sttEngine.transcribe(speechSegment);
-            String text = result.getText() != null ? result.getText().trim() : "";
+            String text = result.text() != null ? result.text().trim() : "";
             System.out.println("STT: " + text);
             if (text.isEmpty()) {
                 System.out.println("STT: empty. Ignored");
@@ -204,7 +203,7 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                 conversationSession.close();
             }
             ActivationResult explicitActivation = activationDetector.detect(result);
-            if (explicitActivation.isActivated()) {
+            if (explicitActivation.activated()) {
                 activationResult = explicitActivation;
             }
             else {
@@ -213,12 +212,12 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                 System.out.println("UTTERANCE AI -> " + decision);
                 activationResult = mapDecision(decision, text);
             }
-            if (!activationResult.isActivated()) {
+            if (!activationResult.activated()) {
                 System.out.println("Activation ignored");
                 return;
             }
             AssistantTurn turn;
-            if (activationResult.getType() == ActivationType.CONTEXTUAL) {
+            if (activationResult.type() == ActivationType.CONTEXTUAL) {
                 ConversationSnapshot conversationSnapshot = conversationSession.getSnapshot().orElseThrow(() ->
                         new IllegalStateException("Contextual activation without conversation snapshot"));
                 turn = assistantPipeline.processFollowUpTurn(activationResult, conversationSnapshot);
@@ -226,7 +225,7 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             else {
                 turn = assistantPipeline.processTurn(activationResult);
             }
-            advanceTurn(turn, activationResult.getCommand());
+            advanceTurn(turn, activationResult.command());
         }
         catch (Exception e) {
             System.err.println("Error processing speech segment: " + e.getMessage());
@@ -254,10 +253,10 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
     }
 
     private void finishExecution(AssistantExecutionResult executionResult, String userText) {
-        AssistantResult response = executionResult.getResponse();
-        System.out.println("ASSISTANT: " + response.getText());
+        AssistantResult response = executionResult.response();
+        System.out.println("ASSISTANT: " + response.text());
         assistantOutputCoordinator.present(response);
-        applyConversationPolicy(executionResult, userText, response.getText());
+        applyConversationPolicy(executionResult, userText, response.text());
     }
 
     private void suspendAsync(AssistantTurn.Async async, String userText) {
@@ -356,13 +355,13 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
     }
 
     private void applyConversationPolicy(AssistantExecutionResult executionResult, String userText, String assistantText) {
-        switch (executionResult.getConversationPolicy()) {
+        switch (executionResult.conversationPolicy()) {
             case KEEP_OPEN -> {
-                ConversationSnapshot conversationSnapshot = new ConversationSnapshot(executionResult.getCapability(),
-                        userText, assistantText, executionResult.getResponse().getContinuationToken(),
-                        executionResult.getResponse().getResearchConversationState(),
-                        executionResult.getResponse().getGeneralConversationState(),
-                        executionResult.getResponse().getOsConversationState());
+                ConversationSnapshot conversationSnapshot = new ConversationSnapshot(executionResult.capability(),
+                        userText, assistantText, executionResult.response().continuationToken(),
+                        executionResult.response().researchConversationState(),
+                        executionResult.response().generalConversationState(),
+                        executionResult.response().osConversationState());
                 boolean wasActive = conversationSession.isActive();
                 conversationSession.openOrRefresh(conversationSnapshot);
                 System.out.println("CONVERSATION POLICY: -> " + (wasActive ? "CONVERSATION -> REFRESHED" : "CONVERSATION -> OPENED"));

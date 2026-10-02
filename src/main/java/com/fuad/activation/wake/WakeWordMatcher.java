@@ -41,17 +41,17 @@ public class WakeWordMatcher {
             for (int tokenCount = minTokens; tokenCount <= maxTokens; tokenCount++) {
                 String candidate = buildCandidate(text, tokens, tokenCount);
                 double similarity = similarity(normalize(candidate), normalizedWake);
-                if (bestMatch == null || similarity > bestMatch.getSimilarity()) {
+                if (bestMatch == null || similarity > bestMatch.similarity()) {
                     bestMatch = new CandidateMatch(candidate, tokenCount, similarity);
                 }
             }
         }
-        if (bestMatch == null || bestMatch.getSimilarity() < lowThreshold) {
+        if (bestMatch == null || bestMatch.similarity() < lowThreshold) {
             return WakeWordMatch.none();
         }
-        String command = extractCommand(text, tokens, bestMatch.getTokenCount());
-        WakeMatchStatus status = bestMatch.getSimilarity() >= highThreshold ? WakeMatchStatus.MATCH : WakeMatchStatus.AMBIGUOUS;
-        return new WakeWordMatch(status, bestMatch.getCandidate(), command,  bestMatch.getSimilarity());
+        String command = extractCommand(text, tokens, bestMatch.tokenCount());
+        WakeMatchStatus status = bestMatch.similarity() >= highThreshold ? WakeMatchStatus.MATCH : WakeMatchStatus.AMBIGUOUS;
+        return new WakeWordMatch(status, bestMatch.candidate(), command,  bestMatch.similarity());
     }
 
     private List<Token> tokenize(String text) {
@@ -66,12 +66,12 @@ public class WakeWordMatcher {
     private String buildCandidate(String text, List<Token> tokens,  int tokenCount) {
         Token first = tokens.getFirst();
         Token last = tokens.get(tokenCount - 1);
-        return text.substring(first.start, last.end);
+        return text.substring(first.start(), last.end());
     }
 
     private String extractCommand(String text, List<Token> tokens, int tokenCount) {
         Token last =  tokens.get(tokenCount - 1);
-        return text.substring(last.getEnd()).replaceFirst("^[,.:;!?¿¡\\s]+", "").trim();
+        return text.substring(last.end()).replaceFirst("^[,.:;!?¿¡\\s]+", "").trim();
     }
 
     private String normalize(String value) {

@@ -118,13 +118,13 @@ class AudioPipelineTest {
         AudioPipeline pipeline = pipeline(tts(text -> new TtsAudio(new float[]{0}, 16_000)), new TrackingPlayback());
 
         assertTrue(pipeline.beginProcessing());
-        assertEquals(AudioState.PROCESSING, pipeline.getState());
+        assertEquals(AudioState.PROCESSING, pipeline.state());
         assertTrue(pipeline.isProcessing());
         assertFalse(pipeline.beginProcessing());
 
         pipeline.finishProcessing();
 
-        assertEquals(AudioState.LISTENING, pipeline.getState());
+        assertEquals(AudioState.LISTENING, pipeline.state());
         assertTrue(pipeline.canListen());
     }
 
@@ -140,7 +140,7 @@ class AudioPipelineTest {
         assertEquals("hola", synthesized.get());
         assertSame(audio, playback.audio);
         assertEquals(1.0f, playback.gain);
-        assertEquals(AudioState.LISTENING, pipeline.getState());
+        assertEquals(AudioState.LISTENING, pipeline.state());
         assertFalse(pipeline.canListen());
     }
 
@@ -150,7 +150,7 @@ class AudioPipelineTest {
 
         assertThrows(IllegalStateException.class, () -> pipeline.speak("hola"));
 
-        assertEquals(AudioState.LISTENING, pipeline.getState());
+        assertEquals(AudioState.LISTENING, pipeline.state());
         assertTrue(pipeline.canListen());
     }
 
@@ -162,7 +162,7 @@ class AudioPipelineTest {
 
         assertThrows(IllegalStateException.class, () -> pipeline.speak("hola"));
 
-        assertEquals(AudioState.LISTENING, pipeline.getState());
+        assertEquals(AudioState.LISTENING, pipeline.state());
         assertFalse(pipeline.canListen());
     }
 
@@ -203,7 +203,7 @@ class AudioPipelineTest {
             this.audio = audio;
             this.gain = gain;
             if (failure != null) throw failure;
-            listener.onSamples(audio.getSamples());
+            listener.onSamples(audio.samples());
         }
     }
 }

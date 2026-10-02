@@ -25,13 +25,13 @@ class WindowsApplicationDiscoveryTest {
 
         assertEquals(2, applications.size());
         assertEquals(List.of("explorer.exe", "shell:AppsFolder\\Microsoft.VisualStudioCode"),
-                applications.getFirst().getOpenCommand());
+                applications.getFirst().openCommand());
         assertEquals("C:\\Apps\\Code.exe",
-                applications.getFirst().getProcessIdentity().executablePaths().iterator().next());
+                applications.getFirst().processIdentity().executablePaths().iterator().next());
         assertEquals(List.of(java.util.Set.of("--profile", "work", "--folder", "C:\\My Project")),
-                applications.getFirst().getProcessIdentity().commandLineArgumentSets());
+                applications.getFirst().processIdentity().commandLineArgumentSets());
         assertEquals("C:\\Program Files\\WindowsApps\\Spotify",
-                applications.get(1).getProcessIdentity().packageRoots().iterator().next());
+                applications.get(1).processIdentity().packageRoots().iterator().next());
     }
 
     @Test

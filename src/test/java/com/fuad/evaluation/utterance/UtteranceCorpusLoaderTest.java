@@ -16,6 +16,17 @@ class UtteranceCorpusLoaderTest {
     private final UtteranceCorpusLoader loader = new UtteranceCorpusLoader();
 
     @Test
+    void missingContextFlagShouldRemainDistinctFromFalseAfterRecordMigration() {
+        String json = """
+                {"id":"missing","currentText":"hola","expected":"other","tags":[],"rationale":"test"}
+                """;
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> loader.load(new StringReader(json), "missing.jsonl"));
+        assertTrue(error.getMessage().contains("missing.jsonl:1"));
+        assertTrue(error.getMessage().contains("contextAvailable is required"));
+    }
+
+    @Test
     void shouldLoadContextFreeAndContextualCases() {
         String corpus = """
                 {"id":"new-001","currentText":"¿Qué hora es?","contextAvailable":false,"expected":"new_request","tags":["direct"],"rationale":"Petición independiente"}
@@ -26,10 +37,10 @@ class UtteranceCorpusLoaderTest {
 
         assertEquals(2, cases.size());
         assertEquals(UtteranceDecision.NEW_REQUEST, cases.get(0).expectedDecision());
-        assertFalse(cases.get(0).toClassificationRequest().getPreviousTurn().isPresent());
+        assertFalse(cases.get(0).toClassificationRequest().previousTurn().isPresent());
         assertEquals(UtteranceDecision.FOLLOW_UP, cases.get(1).expectedDecision());
         assertEquals(Capability.GENERAL, cases.get(1).toClassificationRequest()
-                .getPreviousTurn().orElseThrow().getOwner());
+                .previousTurn().orElseThrow().owner());
         assertTrue(cases.get(1).hasTag("CRITICAL"));
     }
 

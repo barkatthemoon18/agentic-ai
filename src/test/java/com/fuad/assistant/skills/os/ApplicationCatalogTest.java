@@ -29,7 +29,7 @@ class ApplicationCatalogTest {
 
         assertTrue(catalog.refresh());
 
-        assertEquals("vscode-id", catalog.resolve("CODE", false).found().orElseThrow().getId());
+        assertEquals("vscode-id", catalog.resolve("CODE", false).found().orElseThrow().id());
         assertEquals(ApplicationResolution.Status.UNKNOWN, catalog.resolve("spotify", false).status());
         assertEquals(1, catalog.search("code", false).size());
     }
@@ -54,8 +54,8 @@ class ApplicationCatalogTest {
                 app("prime", "Primevideo")), new ApplicationAliasConfigLoader(null));
         catalog.refresh();
 
-        assertEquals("idea", catalog.resolve("IntelliJ", false).found().orElseThrow().getId());
-        assertEquals("prime", catalog.resolve("Prime Video", false).found().orElseThrow().getId());
+        assertEquals("idea", catalog.resolve("IntelliJ", false).found().orElseThrow().id());
+        assertEquals("prime", catalog.resolve("Prime Video", false).found().orElseThrow().id());
         assertEquals(ApplicationResolution.Status.UNKNOWN, catalog.resolve("InteliJ", false).status());
     }
 
@@ -73,7 +73,7 @@ class ApplicationCatalogTest {
 
         assertEquals(ApplicationResolution.Status.AMBIGUOUS, result.status());
         assertEquals(List.of("IntelliJ IDEA Community", "IntelliJ IDEA Ultimate"), result.candidates().stream()
-                .map(ApplicationDefinition::getDisplayName).toList());
+                .map(ApplicationDefinition::displayName).toList());
         assertEquals(1, calls.get());
     }
 
@@ -88,7 +88,7 @@ class ApplicationCatalogTest {
                 new ApplicationAliasConfigLoader(config));
         catalog.refresh();
 
-        assertEquals("preferred", catalog.resolve("IntelliJ", false).found().orElseThrow().getId());
+        assertEquals("preferred", catalog.resolve("IntelliJ", false).found().orElseThrow().id());
     }
 
     @Test
@@ -128,7 +128,7 @@ class ApplicationCatalogTest {
                 new ApplicationAliasConfigLoader(null));
         catalog.refresh();
 
-        assertEquals("firefox", catalog.resolve("Firefox", false).found().orElseThrow().getId());
+        assertEquals("firefox", catalog.resolve("Firefox", false).found().orElseThrow().id());
     }
 
     @Test
@@ -147,7 +147,7 @@ class ApplicationCatalogTest {
                 () -> List.of(app("web-app", "Prime Video")), new ApplicationAliasConfigLoader(config));
 
         assertTrue(catalog.refresh());
-        ApplicationProcessIdentity identity = catalog.applications().getFirst().getProcessIdentity();
+        ApplicationProcessIdentity identity = catalog.applications().getFirst().processIdentity();
 
         assertEquals(Set.of("firefox.exe"), identity.processNames());
         assertEquals(Set.of("trusted-host.exe"), identity.trustedProcessNamesWhenPathUnavailable());
@@ -176,9 +176,9 @@ class ApplicationCatalogTest {
 
         assertTrue(catalog.refresh());
         ApplicationProcessIdentity firefoxIdentity = catalog.applications().stream()
-                .filter(app -> app.getId().equals("firefox")).findFirst().orElseThrow().getProcessIdentity();
+                .filter(app -> app.id().equals("firefox")).findFirst().orElseThrow().processIdentity();
         ApplicationProcessIdentity primeIdentity = catalog.applications().stream()
-                .filter(app -> app.getId().equals("prime")).findFirst().orElseThrow().getProcessIdentity();
+                .filter(app -> app.id().equals("prime")).findFirst().orElseThrow().processIdentity();
         assertEquals(List.of(List.of(), List.of("-os-autostart")),
                 firefoxIdentity.exactCommandLineArgumentSets());
         assertTrue(firefoxIdentity.windowAssociationEnabled());
@@ -194,9 +194,9 @@ class ApplicationCatalogTest {
 
         assertTrue(catalog.refresh());
         ApplicationProcessIdentity firefox = catalog.applications().stream()
-                .filter(app -> app.getId().equals("firefox")).findFirst().orElseThrow().getProcessIdentity();
+                .filter(app -> app.id().equals("firefox")).findFirst().orElseThrow().processIdentity();
         ApplicationProcessIdentity prime = catalog.applications().stream()
-                .filter(app -> app.getId().equals("prime")).findFirst().orElseThrow().getProcessIdentity();
+                .filter(app -> app.id().equals("prime")).findFirst().orElseThrow().processIdentity();
         assertEquals("firefox", prime.hostApplicationId());
         assertTrue(firefox.exactCommandLineArgumentSets().isEmpty());
     }
@@ -221,14 +221,14 @@ class ApplicationCatalogTest {
 
         assertEquals(List.of("Android Studio", "Studio One 7", "Visual Studio Code"),
                 catalog.resolve("Estudio", false).candidates().stream()
-                        .map(ApplicationDefinition::getDisplayName).toList());
+                        .map(ApplicationDefinition::displayName).toList());
         assertEquals("android", catalog.resolve("Android Estudio", false)
-                .found().orElseThrow().getId());
+                .found().orElseThrow().id());
         assertEquals(List.of("Topaz Photo AI", "Topaz Video AI"),
                 catalog.resolve("Topás", false).candidates().stream()
-                        .map(ApplicationDefinition::getDisplayName).toList());
+                        .map(ApplicationDefinition::displayName).toList());
         assertEquals("photo", catalog.resolve("Topas Photo", false)
-                .found().orElseThrow().getId());
+                .found().orElseThrow().id());
         assertEquals(ApplicationResolution.Status.UNKNOWN,
                 catalog.resolve("Graph Studio", false).status());
     }
@@ -250,7 +250,7 @@ class ApplicationCatalogTest {
 
         assertFalse(catalog.refresh());
         assertEquals("photo", catalog.resolve("topas photo", false)
-                .found().orElseThrow().getId());
+                .found().orElseThrow().id());
     }
 
     @Test
@@ -263,8 +263,8 @@ class ApplicationCatalogTest {
 
         assertTrue(catalog.refresh());
         assertEquals(1, catalog.applications().size());
-        assertEquals("Studio", catalog.applications().getFirst().getDisplayName());
-        assertTrue(catalog.applications().getFirst().getAliases().containsAll(
+        assertEquals("Studio", catalog.applications().getFirst().displayName());
+        assertTrue(catalog.applications().getFirst().aliases().containsAll(
                 Set.of("editor", "ide", "Studio IDE")));
 
         definitions.set(List.of(
@@ -273,7 +273,7 @@ class ApplicationCatalogTest {
 
         assertFalse(catalog.refresh());
         assertEquals("C:\\Apps\\Studio.exe", catalog.applications().getFirst()
-                .getProcessIdentity().executablePaths().iterator().next());
+                .processIdentity().executablePaths().iterator().next());
     }
 
     @Test
@@ -353,8 +353,8 @@ class ApplicationCatalogTest {
 
         assertTrue(catalog.refresh());
         ApplicationDefinition prime = catalog.applications().stream()
-                .filter(application -> "prime".equals(application.getId())).findFirst().orElseThrow();
-        assertEquals("Firefox", prime.getProcessIdentity().hostApplicationId());
+                .filter(application -> "prime".equals(application.id())).findFirst().orElseThrow();
+        assertEquals("Firefox", prime.processIdentity().hostApplicationId());
     }
 
     private ApplicationDefinition app(String id, String name) {

@@ -1,17 +1,11 @@
 package com.fuad.tts;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.Setter;
+/** Samples are an owned, read-only-by-convention buffer; construction and access are zero-copy. */
+public record TtsAudio(
+        float[] samples,
+        int sampleRate) {
 
-@Getter
-@Setter
-@AllArgsConstructor
-public class TtsAudio {
-    private final float[] samples;
-    private final int sampleRate;
-
-    public int getSamplesCount() {
+    public int sampleCount() {
         return samples.length;
     }
 

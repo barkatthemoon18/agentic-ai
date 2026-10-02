@@ -9,23 +9,32 @@ import com.fuad.audio.output.AudioDeliveryState;
 import com.fuad.audio.output.MediaExclusiveAudioDetector;
 import com.fuad.enums.PresentationMode;
 import com.fuad.pipeline.AudioPipeline;
-import lombok.AllArgsConstructor;
-import lombok.NonNull;
 
 import java.util.Objects;
 
-@AllArgsConstructor
 public class AssistantOutputCoordinator implements AutoCloseable {
-    @NonNull
+
     private final AssistantAudioController audioController;
-    @NonNull
+
     private final OutputPresentationPolicy presentationPolicy;
-    @NonNull
+
     private final AudioPipeline audioPipeline;
-    @NonNull
+
     private final VisualOutput visualOutput;
-    @NonNull
+
     private final MediaExclusiveAudioDetector exclusiveAudioDetector;
+
+    public AssistantOutputCoordinator(AssistantAudioController audioController,
+                                      OutputPresentationPolicy presentationPolicy,
+                                      AudioPipeline audioPipeline,
+                                      VisualOutput visualOutput,
+                                      MediaExclusiveAudioDetector exclusiveAudioDetector) {
+        this.audioController = Objects.requireNonNull(audioController, "audioController cannot be null");
+        this.presentationPolicy = Objects.requireNonNull(presentationPolicy, "presentationPolicy cannot be null");
+        this.audioPipeline = Objects.requireNonNull(audioPipeline, "audioPipeline cannot be null");
+        this.visualOutput = Objects.requireNonNull(visualOutput, "visualOutput cannot be null");
+        this.exclusiveAudioDetector = Objects.requireNonNull(exclusiveAudioDetector, "exclusiveAudioDetector cannot be null");
+    }
 
     public void present(String text) {
         present(new AssistantResult(text));
@@ -38,7 +47,7 @@ public class AssistantOutputCoordinator implements AutoCloseable {
         boolean voiceRequested;
 
         Objects.requireNonNull(result, "result must not be null");
-        text = Objects.requireNonNull(result.getText(), "result.getText() must not be null");
+        text = Objects.requireNonNull(result.text(), "result.getText() must not be null");
         if (text.isBlank()) {
             throw new IllegalArgumentException("Assistant output text must not be blank");
         }
@@ -49,17 +58,17 @@ public class AssistantOutputCoordinator implements AutoCloseable {
 
         if (voiceRequested && exclusiveAudioDetector.isOutputReserved()) {
             System.out.println("AUDIO OUTPUT -> media playback reserved; response redirected to visual output");
-            showVisualSafely(new VisualMessage(text, audioSnapshot, result.getPayload(), AudioDeliveryState.OUTPUT_RESERVED));
+            showVisualSafely(new VisualMessage(text, audioSnapshot, result.payload(), AudioDeliveryState.OUTPUT_RESERVED));
             return;
         }
-        if (result.getPayload() instanceof ApplicationCatalogPayload) {
-            showVisualSafely(new VisualMessage(text, audioSnapshot, result.getPayload()));
+        if (result.payload() instanceof ApplicationCatalogPayload) {
+            showVisualSafely(new VisualMessage(text, audioSnapshot, result.payload()));
             if (voiceRequested) {
                 audioPipeline.speak(text);
             }
             return;
         }
-        if (result.getPayload() instanceof OpenApplicationsPayload openApplications) {
+        if (result.payload() instanceof OpenApplicationsPayload openApplications) {
             presentOpenApplications(text, audioSnapshot, openApplications, presentationMode);
             return;
         }

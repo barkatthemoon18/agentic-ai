@@ -15,11 +15,11 @@ public class BasicSpeechSegmentValidator implements SpeechSegmentValidator{
 
     @Override
     public SpeechValidationResult validate(SpeechSegment speechSegment) {
-        float[] samples = speechSegment.getSamples();
+        float[] samples = speechSegment.samples();
         if (samples == null || samples.length == 0) {
             return new SpeechValidationResult(false, "empty segment", 0, 0, 0);
         }
-        double durationMillis = ((double) samples.length / speechSegment.getSampleRate() * 1000.0);
+        double durationMillis = ((double) samples.length / speechSegment.sampleRate() * 1000.0);
         double squareSum = 0;
         double peak = 0;
         for (float sample : samples) {

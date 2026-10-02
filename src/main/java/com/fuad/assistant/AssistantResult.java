@@ -6,21 +6,21 @@ import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
 import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import com.fuad.assistant.skills.os.OsConversationState;
 import com.fuad.enums.ConversationPolicy;
-import lombok.Getter;
-import lombok.NonNull;
 
 import java.util.Objects;
 
-@Getter
-public class AssistantResult {
-    @NonNull
-    private final String text;
-    private final String continuationToken;
-    private final ResearchConversationState researchConversationState;
-    private final GeneralConversationState generalConversationState;
-    private final ConversationPolicy conversationPolicyOverride;
-    private final AssistantPayload payload;
-    private final OsConversationState osConversationState;
+public record AssistantResult(
+        String text,
+        String continuationToken,
+        ResearchConversationState researchConversationState,
+        GeneralConversationState generalConversationState,
+        ConversationPolicy conversationPolicyOverride,
+        AssistantPayload payload,
+        OsConversationState osConversationState) {
+
+    public AssistantResult {
+        text = Objects.requireNonNull(text, "text cannot be null");
+    }
 
     public AssistantResult(String text) {
         this(text, null, null, null, null, null, null);
@@ -41,21 +41,6 @@ public class AssistantResult {
                            ConversationPolicy conversationPolicyOverride) {
         this(text, continuationToken, researchConversationState, generalConversationState,
                 conversationPolicyOverride, null, null);
-    }
-
-    public AssistantResult(String text, String continuationToken,
-                           ResearchConversationState researchConversationState,
-                           GeneralConversationState generalConversationState,
-                           ConversationPolicy conversationPolicyOverride,
-                           AssistantPayload payload,
-                           OsConversationState osConversationState) {
-        this.text = Objects.requireNonNull(text, "text cannot be null");
-        this.continuationToken = continuationToken;
-        this.researchConversationState = researchConversationState;
-        this.generalConversationState = generalConversationState;
-        this.conversationPolicyOverride = conversationPolicyOverride;
-        this.payload = payload;
-        this.osConversationState = osConversationState;
     }
 
     public static AssistantResult preserveConversation(String text) {

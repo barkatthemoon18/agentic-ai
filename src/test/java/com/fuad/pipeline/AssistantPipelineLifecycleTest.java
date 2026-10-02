@@ -39,9 +39,9 @@ class AssistantPipelineLifecycleTest {
         when(router.route("command")).thenReturn(new SkillRoute(Capability.GENERAL, skill));
         AssistantTurn.Completed turn = assertInstanceOf(AssistantTurn.Completed.class,
                 pipeline.processTurn(activation()));
-        assertEquals("done", turn.result().getResponse().getText());
-        assertEquals(ConversationPolicy.PRESERVE, turn.result().getConversationPolicy());
-        assertEquals(Capability.GENERAL, turn.result().getCapability());
+        assertEquals("done", turn.result().response().text());
+        assertEquals(ConversationPolicy.PRESERVE, turn.result().conversationPolicy());
+        assertEquals(Capability.GENERAL, turn.result().capability());
         assertLifecyclePair(0, Capability.GENERAL);
     }
 
@@ -71,7 +71,7 @@ class AssistantPipelineLifecycleTest {
         }
         else {
             future.complete(new AssistantResult("researched"));
-            assertEquals("researched", turn.stage().toCompletableFuture().get(2, TimeUnit.SECONDS).getResponse().getText());
+            assertEquals("researched", turn.stage().toCompletableFuture().get(2, TimeUnit.SECONDS).response().text());
         }
         assertLifecyclePair(0, Capability.CURRENT_RESEARCH);
     }
@@ -89,7 +89,7 @@ class AssistantPipelineLifecycleTest {
 
         AssistantTurn.Completed resumed = assertInstanceOf(AssistantTurn.Completed.class,
                 turn.continuation().apply(InteractionResult.submitted(request, "one", InputModality.TOUCH)));
-        assertEquals("selected one", resumed.result().getResponse().getText());
+        assertEquals("selected one", resumed.result().response().text());
         assertLifecyclePair(2, Capability.OS_COMMAND);
         assertNotEquals(events.getFirst().id(), events.get(2).id());
     }
@@ -100,7 +100,7 @@ class AssistantPipelineLifecycleTest {
         when(router.routeTo(Capability.OS_COMMAND)).thenReturn(new SkillRoute(Capability.OS_COMMAND, skill));
         AssistantTurn.Completed turn = assertInstanceOf(AssistantTurn.Completed.class,
                 pipeline.processDirectTurn(Capability.OS_COMMAND, () -> SkillExecution.completed(new AssistantResult("opened"))));
-        assertEquals("opened", turn.result().getResponse().getText());
+        assertEquals("opened", turn.result().response().text());
         verify(router).routeTo(Capability.OS_COMMAND);
         verifyNoMoreInteractions(router);
         assertLifecyclePair(0, Capability.OS_COMMAND);
@@ -115,7 +115,7 @@ class AssistantPipelineLifecycleTest {
         when(router.routeFollowUp("command", snapshot)).thenReturn(new SkillRoute(Capability.CURRENT_RESEARCH, skill));
         AssistantTurn.Completed turn = assertInstanceOf(AssistantTurn.Completed.class,
                 pipeline.processFollowUpTurn(activation(), snapshot));
-        assertEquals(ConversationPolicy.KEEP_OPEN, turn.result().getConversationPolicy());
+        assertEquals(ConversationPolicy.KEEP_OPEN, turn.result().conversationPolicy());
         verify(skill).executeFollowUpTurn("command", snapshot);
         verify(router).routeFollowUp("command", snapshot);
         verifyNoMoreInteractions(router);

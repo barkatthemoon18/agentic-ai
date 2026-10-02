@@ -17,8 +17,8 @@ class LocalOsCommandParserRetryTest {
 
         OsCommandIntent result = new LocalOsCommandParser(inference).parse("Abre Firefox");
 
-        assertEquals(OsAction.OPEN_APPLICATION, result.getAction());
-        assertEquals("Firefox", result.getTarget());
+        assertEquals(OsAction.OPEN_APPLICATION, result.action());
+        assertEquals("Firefox", result.target());
         assertEquals(1, inference.requests.size());
         assertFalse(inference.requests.getFirst().retry());
     }
@@ -32,8 +32,8 @@ class LocalOsCommandParserRetryTest {
         OsCommandIntent result = new LocalOsCommandParser(inference)
                 .parse("¿Está abierto IntelliJ IDEA?");
 
-        assertEquals(OsAction.GET_APPLICATION_STATUS, result.getAction());
-        assertEquals("IntelliJ IDEA", result.getTarget());
+        assertEquals(OsAction.GET_APPLICATION_STATUS, result.action());
+        assertEquals("IntelliJ IDEA", result.target());
         assertEquals(2, inference.requests.size());
         assertTrue(inference.requests.get(1).retry());
         assertEquals(invalid, inference.requests.get(1).previousInvalidOutput());

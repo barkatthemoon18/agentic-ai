@@ -66,8 +66,8 @@ class AsyncSpeechProcessingServiceTest {
             assertEquals(!failed, fixture.session.isActive());
             if (!failed) {
                 var snapshot = fixture.session.getSnapshot().orElseThrow();
-                assertEquals("direct command", snapshot.getPreviousUserText());
-                assertEquals("finished", snapshot.getPreviousAssistantText());
+                assertEquals("direct command", snapshot.previousUserText());
+                assertEquals("finished", snapshot.previousAssistantText());
             }
 
             assertTrue(fixture.service.submitDirectTurn("after completion", () -> completed("next")));
@@ -176,7 +176,7 @@ class AsyncSpeechProcessingServiceTest {
 
         Fixture(boolean withInteraction) {
             doAnswer(invocation -> {
-                outputs.add(new Output(((AssistantResult) invocation.getArgument(0)).getText(), Thread.currentThread().getName()));
+                outputs.add(new Output(((AssistantResult) invocation.getArgument(0)).text(), Thread.currentThread().getName()));
                 return null;
             }).when(output).present(any(AssistantResult.class));
             doAnswer(invocation -> {

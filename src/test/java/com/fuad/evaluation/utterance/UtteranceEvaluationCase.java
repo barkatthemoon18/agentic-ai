@@ -4,26 +4,20 @@ import com.fuad.activation.utterance.UtteranceClassificationRequest;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.Capability;
 import com.fuad.enums.UtteranceDecision;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.util.List;
 import java.util.Locale;
 
-@Getter
-@Setter
-@NoArgsConstructor
-public class UtteranceEvaluationCase {
-    private String id;
-    private String currentText;
-    private Boolean contextAvailable;
-    private String previousUserText;
-    private String previousAssistantText;
-    private String owner;
-    private String expected;
-    private List<String> tags;
-    private String rationale;
+public record UtteranceEvaluationCase(
+        String id,
+        String currentText,
+        Boolean contextAvailable,
+        String previousUserText,
+        String previousAssistantText,
+        String owner,
+        String expected,
+        List<String> tags,
+        String rationale) {
 
     public UtteranceDecision expectedDecision() {
         return UtteranceDecision.valueOf(expected.trim().toUpperCase(Locale.ROOT));

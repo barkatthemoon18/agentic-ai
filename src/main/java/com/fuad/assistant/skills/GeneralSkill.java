@@ -113,13 +113,13 @@ public class GeneralSkill implements Skill {
     }
 
     private GeneralConversationState stateFrom(ConversationSnapshot snapshot) {
-        if (snapshot == null || snapshot.getOwner() != Capability.GENERAL) {
+        if (snapshot == null || snapshot.owner() != Capability.GENERAL) {
             return GeneralConversationState.empty();
         }
-        if (snapshot.getGeneralConversationState() != null) {
-            return snapshot.getGeneralConversationState();
+        if (snapshot.generalConversationState() != null) {
+            return snapshot.generalConversationState();
         }
-        String token = snapshot.getContinuationToken();
+        String token = snapshot.continuationToken();
         if (token != null && !token.isBlank()) {
             return GeneralConversationState.empty().withActiveBranch(GeneralBackend.GPT,
                     SelectionOrigin.AUTOMATIC, new GeneralBranchState(token, List.of()));
@@ -132,9 +132,9 @@ public class GeneralSkill implements Skill {
             return GeneralBranchState.empty();
         }
         List<GeneralMessage> messages = new ArrayList<>();
-        messages.add(new GeneralMessage(GeneralMessage.Role.USER, snapshot.getPreviousUserText()));
+        messages.add(new GeneralMessage(GeneralMessage.Role.USER, snapshot.previousUserText()));
         messages.add(new GeneralMessage(GeneralMessage.Role.ASSISTANT,
-                snapshot.getPreviousAssistantText()));
+                snapshot.previousAssistantText()));
         return new GeneralBranchState(null, messages);
     }
 

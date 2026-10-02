@@ -1,8 +1,5 @@
 package com.fuad.enums;
 
-import lombok.Getter;
-
-@Getter
 public enum Capability {
     SYSTEM_TIME("system-time"),
     AUDIO_CONTROL("audio-control"),
@@ -23,5 +20,9 @@ public enum Capability {
             }
         }
         throw new IllegalArgumentException("Unknown routing skill: " + value);
+    }
+
+    public String value() {
+        return value;
     }
 }

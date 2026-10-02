@@ -12,8 +12,8 @@ public class AudioPlaybackService {
     }
 
     public void play(AudioDeviceInfo device, TtsAudio audio, float gain, PlaybackSignalListener listener) {
-        AudioFormat format = new AudioFormat(audio.getSampleRate(), 16, 1, true, false);
-        Mixer mixer = AudioSystem.getMixer(device.getInfo());
+        AudioFormat format = new AudioFormat(audio.sampleRate(), 16, 1, true, false);
+        Mixer mixer = AudioSystem.getMixer(device.info());
         DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
         try {
             System.out.println("PLAYBACK -> getLine");
@@ -23,7 +23,7 @@ public class AudioPlaybackService {
             System.out.println("PLAYBACK -> start");
             line.start();
             System.out.println("PLAYBACK -> write");
-            playChunks(line, audio.getSamples(), gain, listener);
+            playChunks(line, audio.samples(), gain, listener);
             System.out.println("PLAYBACK -> drain");
             line.drain();
             System.out.println("PLAYBACK -> stop");

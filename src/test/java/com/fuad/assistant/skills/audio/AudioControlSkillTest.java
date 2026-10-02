@@ -20,11 +20,11 @@ class AudioControlSkillTest {
 
         AssistantResult setResult = absolute.execute("irrelevant");
         assertEquals(40, controller.getVolume());
-        assertEquals("Volumen al 40 por ciento.", setResult.getText());
+        assertEquals("Volumen al 40 por ciento.", setResult.text());
 
         AudioControlSkill relative = skill(controller,
                 new AudioControlIntent(AudioAction.INCREASE_VOLUME, AudioScope.ASSISTANT, 15));
-        assertEquals("Volumen al 55 por ciento.", relative.execute("irrelevant").getText());
+        assertEquals("Volumen al 55 por ciento.", relative.execute("irrelevant").text());
     }
 
     @Test
@@ -38,7 +38,7 @@ class AudioControlSkillTest {
 
         assertEquals(40, controller.getVolume());
         assertEquals(0.4f, controller.getGain());
-        assertTrue(result.getText().contains("aplicaciones"));
+        assertTrue(result.text().contains("aplicaciones"));
     }
 
     @Test
@@ -48,14 +48,14 @@ class AudioControlSkillTest {
         AudioControlSkill mute = skill(controller,
                 new AudioControlIntent(AudioAction.MUTE, AudioScope.ASSISTANT, null));
 
-        assertEquals("Mi voz quedó silenciada.", mute.execute("Silencia tu voz").getText());
+        assertEquals("Mi voz quedó silenciada.", mute.execute("Silencia tu voz").text());
         assertEquals(0.0f, controller.getGain());
 
         controller.setVolume(0);
         AudioControlSkill unmute = skill(controller,
                 new AudioControlIntent(AudioAction.UNMUTE, AudioScope.ASSISTANT, null));
         assertEquals("Mi voz fue restaurada al 35 por ciento.",
-                unmute.execute("Vuelve a hablar").getText());
+                unmute.execute("Vuelve a hablar").text());
         assertEquals(0.35f, controller.getGain());
     }
 
@@ -73,7 +73,7 @@ class AudioControlSkillTest {
         AudioControlSkill skill = skill(controller,
                 AudioControlIntent.unsupported(AudioScope.APPLICATION));
 
-        assertEquals("No interpreté ese control de audio.", skill.execute("diagnóstico").getText());
+        assertEquals("No interpreté ese control de audio.", skill.execute("diagnóstico").text());
         assertEquals(1.0f, controller.getGain());
     }
 
