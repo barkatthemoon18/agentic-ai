@@ -55,7 +55,7 @@ public class OverlayDisplayResolver {
 
     private static double overlap(Rectangle2D left, Rectangle2D right) {
         double width = Math.max(0.0, Math.min(left.getMaxX(), right.getMaxX()) - Math.max(left.getMinX(), right.getMinX()));
-        double height = Math.max(0.0, Math.min(left.getMaxX(), right.getMaxY()) - Math.max(left.getMinY(), right.getMinY()));
+        double height = Math.max(0.0, Math.min(left.getMaxY(), right.getMaxY()) - Math.max(left.getMinY(), right.getMinY()));
 
         return width * height;
     }

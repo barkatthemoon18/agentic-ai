@@ -16,13 +16,21 @@ public class AudioPlaybackService {
         Mixer mixer = AudioSystem.getMixer(device.getInfo());
         DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
         try {
+            System.out.println("PLAYBACK -> getLine");
             SourceDataLine line = (SourceDataLine) mixer.getLine(info);
+            System.out.println("PLAYBACK -> open");
             line.open(format);
+            System.out.println("PLAYBACK -> start");
             line.start();
+            System.out.println("PLAYBACK -> write");
             playChunks(line, audio.getSamples(), gain, listener);
+            System.out.println("PLAYBACK -> drain");
             line.drain();
+            System.out.println("PLAYBACK -> stop");
             line.stop();
+            System.out.println("PLAYBACK -> close");
             line.close();
+            System.out.println("PLAYBACK -> done");
         }
         catch (LineUnavailableException e) {
             throw new RuntimeException("Unable to play TTS audio", e);
@@ -36,7 +44,10 @@ public class AudioPlaybackService {
             System.arraycopy(samples, i, chunk, 0, length);
             listener.onSamples(chunk);
             byte[] pcm = floatToPcm16(chunk, gain);
-            line.write(pcm, 0, pcm.length);
+            System.out.printf("PLAYBACK -> chunk %d | bytes=%d | available=%d | buffer=%d%n", i, pcm.length,
+                    line.available(), line.getBufferSize());
+            int written = line.write(pcm, 0, pcm.length);
+            System.out.printf("PLAYBACK <- chunk %d | written=%d | available=%d%n", i, written, line.available());
         }
     }
 

@@ -46,7 +46,7 @@ public final class WindowsAudioOutputProvider implements AudioOutputProvider {
 
         HRESULT initialization = Ole32.INSTANCE.CoInitializeEx(Pointer.NULL, Ole32.COINIT_MULTITHREADED);
 
-        initialized = COMUtils.FAILED(initialization);
+        initialized = COMUtils.SUCCEEDED(initialization);
         if (!initialized) {
             COMUtils.checkRC(initialization);
         }
