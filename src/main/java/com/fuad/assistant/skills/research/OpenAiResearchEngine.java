@@ -6,10 +6,10 @@ import com.fuad.assistant.AssistantResult;
 
 import java.util.Objects;
 
-public class GptWebResearchEngine implements QuickResearchEngine {
+public class OpenAiResearchEngine implements QuickResearchEngine {
     private final AssistantEngine assistantEngine;
 
-    public GptWebResearchEngine(AssistantEngine assistantEngine) {
+    public OpenAiResearchEngine(AssistantEngine assistantEngine) {
         this.assistantEngine = Objects.requireNonNull(assistantEngine, "assistantEngine cannot be null");
     }
 
@@ -29,7 +29,7 @@ public class GptWebResearchEngine implements QuickResearchEngine {
         }
         AssistantResult result = assistantEngine.process(new AssistantRequest(
                 command, request.instructions(), request.maxOutputTokens(),
-                request.continuation().continuationToken(), request.depth()));
+                request.continuation().continuationToken(), request.depth(), request.access()));
         return new ResearchEngineResult(result.text(),
                 new ResearchBranchState(result.continuationToken(), request.previousMessages()));
     }

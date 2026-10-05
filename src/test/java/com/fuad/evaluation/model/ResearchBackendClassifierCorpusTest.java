@@ -41,7 +41,7 @@ class ResearchBackendClassifierCorpusTest {
         if (label == null) {
             return null;
         }
-        return label.equals("qwen_local") ? ResearchBackend.QWEN_LOCAL : ResearchBackend.GPT_WEB;
+        return label.equals("qwen_local") ? ResearchBackend.QWEN_LOCAL : ResearchBackend.GPT_API;
     }
 
     private String label(ResearchBackend backend) {

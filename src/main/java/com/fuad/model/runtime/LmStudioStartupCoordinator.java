@@ -31,6 +31,7 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
     private final Map<RuntimeComponent, Recovery> recoveries = new EnumMap<>(RuntimeComponent.class);
     private final List<Consumer<ModelRuntimeSnapshot>> listeners = new CopyOnWriteArrayList<>();
     private final ReentrantLock mutatingCommandLock = new ReentrantLock();
+    private final Object qwenDemandLock = new Object();
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -68,9 +69,9 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
         if (!started.compareAndSet(false, true)) {
             return;
         }
-        for (RuntimeComponent component : RuntimeComponent.values()) {
-            beginSeries(component, false);
-        }
+        beginSeries(RuntimeComponent.LMS_DAEMON, false);
+        beginSeries(RuntimeComponent.API_SERVER, false);
+        beginSeries(RuntimeComponent.PHI_ROUTER, false);
     }
 
     public void retry(RuntimeComponent component) {
@@ -111,6 +112,30 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
         return snapshot().isQwenUsable();
     }
 
+    public void ensureQwenReady() {
+        if (closed.get()) {
+            throw new ModelRuntimeUnavailableException("Model runtime is closed");
+        }
+        requireQwenInfrastructure();
+        Recovery recovery = recoveries.get(RuntimeComponent.QWEN_MAIN);
+        synchronized (qwenDemandLock) {
+            ComponentState qwenState = state(RuntimeComponent.QWEN_MAIN);
+            switch (qwenState) {
+                case READY -> {
+                    return;
+                }
+                case STANDBY -> beginSeries(RuntimeComponent.QWEN_MAIN, false);
+                case CHECKING, LOADING -> {
+                    /* Nothing to do */
+                }
+                case RETRY_WAIT -> throw new ModelRuntimeUnavailableException("Qwen is waiting for an automatic retry");
+                case FAILED -> throw new ModelRuntimeUnavailableException("Qwen is unavailable after exhausting its retries");
+            }
+        }
+        awaitCurrentQwenAttempt(recovery);
+        requireQwenInfrastructure();
+    }
+
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {
@@ -121,12 +146,54 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
                 recovery.generation++;
                 cancelScheduled(recovery);
                 recovery.commandGeneration.cancel();
+                recovery.notifyAll();
             }
             commandRunner.cancel(recovery.component);
         }
         scheduler.shutdownNow();
         commandRunner.close();
         listeners.clear();
+    }
+
+    private void requireQwenInfrastructure() {
+        ComponentState daemon = state(RuntimeComponent.LMS_DAEMON);
+        ComponentState server = state(RuntimeComponent.API_SERVER);
+
+        if (daemon != ComponentState.READY || server != ComponentState.READY) {
+            throw new ModelRuntimeUnavailableException("LM Studio infrastructure is not ready" + " (daemon=" + daemon +
+                    ", apiServer=" + server + ")");
+        }
+    }
+
+    private void awaitCurrentQwenAttempt(Recovery recovery) {
+        synchronized (recovery) {
+            while (!closed.get()) {
+                switch (recovery.state) {
+                    case READY -> {
+                        return;
+                    }
+                    case RETRY_WAIT -> throw new ModelRuntimeUnavailableException("Qwen could not become ready: " +
+                            "An automatic retry is scheduled: " + recovery.detail);
+                    case FAILED -> throw new ModelRuntimeUnavailableException("Qwen failed to load: " + recovery.detail);
+                    case STANDBY -> throw new  ModelRuntimeUnavailableException("Qwen returned to standby before becoming ready: "
+                            + recovery.detail);
+                    case CHECKING, LOADING -> {
+                        if (recovery.blockedBy != null) {
+                            throw new ModelRuntimeUnavailableException("Qwen is blocked by: " + recovery.blockedBy + ": "
+                                    + recovery.detail);
+                        }
+                        try {
+                            recovery.wait();
+                        }
+                        catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new ModelRuntimeUnavailableException("Interrupted while waiting for Qwen", e);
+                        }
+                    }
+                }
+            }
+        }
+        throw new ModelRuntimeUnavailableException("Model runtime closed while waiting for Qwen");
     }
 
     private void beginSeries(RuntimeComponent component, boolean cancelRunning) {
@@ -143,6 +210,7 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
             recovery.blockedBy = null;
             recovery.nextRetryAt = null;
             recovery.commandGeneration = new CommandGeneration();
+            recovery.notifyAll();
         }
         if (cancelRunning) {
             commandRunner.cancel(component);
@@ -414,6 +482,7 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
                 recovery.nextRetryAt = Instant.now().plus(delay);
                 recovery.blockedBy = null;
             }
+            recovery.notifyAll();
         }
         publish();
         if (!terminal) {
@@ -433,6 +502,7 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
             recovery.blockedBy = null;
             recovery.nextRetryAt = null;
             recovery.generation++;
+            recovery.notifyAll();
         }
         publish();
         if (recovery.component == RuntimeComponent.LMS_DAEMON) {
@@ -483,6 +553,7 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
             recovery.detail = detail;
             recovery.blockedBy = blockedBy;
             recovery.nextRetryAt = nextRetryAt;
+            recovery.notifyAll();
         }
         publish();
     }
@@ -513,11 +584,14 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
         boolean daemon = ready(components, RuntimeComponent.LMS_DAEMON);
         boolean server = ready(components, RuntimeComponent.API_SERVER);
         boolean phi = ready(components, RuntimeComponent.PHI_ROUTER);
-        boolean qwen = ready(components, RuntimeComponent.QWEN_MAIN);
-        if (daemon && server && phi && qwen) {
+        ComponentSnapshot qwen = components.get(RuntimeComponent.QWEN_MAIN);
+        if (daemon && server && phi && ((qwen != null) && (qwen.state() == ComponentState.READY || qwen.state() == ComponentState.STANDBY))) {
             return RuntimeState.READY;
         }
-        return daemon && server && phi ? RuntimeState.PARTIALLY_READY : RuntimeState.STARTING;
+        if (daemon && server && phi) {
+            return RuntimeState.PARTIALLY_READY;
+        }
+        return RuntimeState.STARTING;
     }
 
     private static boolean ready(Map<RuntimeComponent, ComponentSnapshot> components,
@@ -631,8 +705,8 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
     private static final class Recovery {
         private final RuntimeComponent component;
         private final ReentrantLock operationLock = new ReentrantLock();
-        private ComponentState state = ComponentState.CHECKING;
-        private String detail = "Pendiente";
+        private ComponentState state;
+        private String detail;
         private RuntimeComponent blockedBy;
         private int retriesUsed;
         private Instant nextRetryAt;
@@ -642,6 +716,15 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
 
         private Recovery(RuntimeComponent component) {
             this.component = component;
+
+            if (component == RuntimeComponent.QWEN_MAIN) {
+                this.state = ComponentState.STANDBY;
+                this.detail = "Disponible bajo demanda";
+            }
+            else {
+                this.state = ComponentState.CHECKING;
+                this.detail = "Pendiente";
+            }
         }
 
         private ComponentSnapshot snapshot() {

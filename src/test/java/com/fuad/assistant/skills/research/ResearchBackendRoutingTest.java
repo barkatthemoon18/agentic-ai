@@ -18,23 +18,23 @@ class ResearchBackendRoutingTest {
 
     @Test
     void classifierShouldHonorScopeAndRouteFreshInformationToWeb() {
-        assertEquals(ResearchBackend.GPT_WEB,
+        assertEquals(ResearchBackend.GPT_API,
                 classifier.classify("Busca globalmente quien fue Alan Turing", null));
         assertEquals(ResearchBackend.QWEN_LOCAL,
-                classifier.classify("Busca localmente quien fue Alan Turing", ResearchBackend.GPT_WEB));
-        assertEquals(ResearchBackend.GPT_WEB,
+                classifier.classify("Busca localmente quien fue Alan Turing", ResearchBackend.GPT_API));
+        assertEquals(ResearchBackend.GPT_API,
                 classifier.classify("Que ocurrio hoy con NVIDIA", ResearchBackend.QWEN_LOCAL));
         assertEquals(ResearchBackend.QWEN_LOCAL,
                 classifier.classify("Busca informacion sobre Alan Turing", null));
         assertEquals(ResearchBackend.QWEN_LOCAL,
                 classifier.classify("Explicame mas", ResearchBackend.QWEN_LOCAL));
-        assertEquals(ResearchBackend.GPT_WEB,
+        assertEquals(ResearchBackend.GPT_API,
                 classifier.classify("Dame las fuentes que encontraste", ResearchBackend.QWEN_LOCAL));
-        assertEquals(ResearchBackend.GPT_WEB,
+        assertEquals(ResearchBackend.GPT_API,
                 classifier.classify("Verifica si eso sigue siendo cierto", ResearchBackend.QWEN_LOCAL));
-        assertEquals(ResearchBackend.GPT_WEB,
+        assertEquals(ResearchBackend.GPT_API,
                 classifier.classify("Dame las fuentes", ResearchBackend.QWEN_LOCAL));
-        assertEquals(ResearchBackend.GPT_WEB,
+        assertEquals(ResearchBackend.GPT_API,
                 classifier.classify("Verifica si sigue siendo cierto", ResearchBackend.QWEN_LOCAL));
     }
 
@@ -42,8 +42,8 @@ class ResearchBackendRoutingTest {
     void nowAloneShouldInheritTheResearchBackendOrDefaultToLocal() {
         assertEquals(ResearchBackend.QWEN_LOCAL,
                 classifier.classify("Ahora profundiza", ResearchBackend.QWEN_LOCAL));
-        assertEquals(ResearchBackend.GPT_WEB,
-                classifier.classify("Ahora profundiza", ResearchBackend.GPT_WEB));
+        assertEquals(ResearchBackend.GPT_API,
+                classifier.classify("Ahora profundiza", ResearchBackend.GPT_API));
         assertEquals(ResearchBackend.QWEN_LOCAL,
                 classifier.classify("Ahora profundiza", null));
     }
@@ -74,7 +74,7 @@ class ResearchBackendRoutingTest {
         assertEquals(ResearchBackend.QWEN_LOCAL,
                 second.researchConversationState().getActiveBackend().orElseThrow());
         assertEquals("gpt-1", second.researchConversationState()
-                .getBranch(ResearchBackend.GPT_WEB).orElseThrow().continuationToken());
+                .getBranch(ResearchBackend.GPT_API).orElseThrow().continuationToken());
         assertEquals(2, localRequest.get().previousMessages().size());
         assertEquals("respuesta global", localRequest.get().previousMessages().get(1).content());
 
