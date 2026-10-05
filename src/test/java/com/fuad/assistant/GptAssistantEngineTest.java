@@ -6,7 +6,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
-import com.fuad.enums.ResearchDepth;
+import com.fuad.assistant.skills.research.ResearchDepth;
 import com.openai.client.OpenAIClient;
 import com.openai.models.ChatModel;
 import com.openai.models.ReasoningEffort;

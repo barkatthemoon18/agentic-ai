@@ -1,7 +1,6 @@
 package com.fuad.assistant.skills.research;
 
 import com.fuad.config.AppConfig;
-import com.fuad.enums.ResearchDepth;
 import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;

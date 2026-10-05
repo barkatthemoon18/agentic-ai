@@ -1,8 +1,8 @@
 package com.fuad.assistant.skills.audio;
 
 import com.fuad.audio.AudioControlIntent;
-import com.fuad.enums.AudioAction;
-import com.fuad.enums.AudioScope;
+import com.fuad.audio.AudioAction;
+import com.fuad.audio.AudioScope;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

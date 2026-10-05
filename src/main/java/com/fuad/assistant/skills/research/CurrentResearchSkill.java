@@ -5,8 +5,7 @@ import com.fuad.assistant.local.LocalQwenException;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.assistant.skills.Skill;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ConversationPolicy;
-import com.fuad.enums.ResearchDepth;
+import com.fuad.pipeline.ConversationPolicy;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -2,7 +2,6 @@ package com.fuad.assistant.skills.research;
 
 import com.fuad.assistant.AssistantRequest;
 import com.fuad.assistant.AssistantResult;
-import com.fuad.enums.ResearchDepth;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;

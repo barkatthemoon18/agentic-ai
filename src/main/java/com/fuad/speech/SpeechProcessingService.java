@@ -2,6 +2,7 @@ package com.fuad.speech;
 
 import com.fuad.activation.ActivationDetector;
 import com.fuad.activation.ActivationResult;
+import com.fuad.activation.ActivationType;
 import com.fuad.activation.utterance.UtteranceClassificationRequest;
 import com.fuad.activation.utterance.UtteranceClassifier;
 import com.fuad.assistant.AssistantExecutionResult;
@@ -13,6 +14,7 @@ import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.*;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
+import com.fuad.pipeline.ConversationControl;
 import com.fuad.presentation.AssistantOutputCoordinator;
 import com.fuad.interaction.InteractionService;
 import com.fuad.interaction.InteractionVoiceRouter;

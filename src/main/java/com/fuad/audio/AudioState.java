@@ -1,4 +1,4 @@
-package com.fuad.enums;
+package com.fuad.audio;
 
 public enum AudioState {
     LISTENING,

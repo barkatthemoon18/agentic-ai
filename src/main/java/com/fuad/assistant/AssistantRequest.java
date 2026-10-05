@@ -1,6 +1,6 @@
 package com.fuad.assistant;
 
-import com.fuad.enums.ResearchDepth;
+import com.fuad.assistant.skills.research.ResearchDepth;
 
 import java.util.Objects;
 

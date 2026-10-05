@@ -5,7 +5,7 @@ import com.fuad.assistant.skills.research.ResearchConversationState;
 import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
 import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import com.fuad.assistant.skills.os.OsConversationState;
-import com.fuad.enums.ConversationPolicy;
+import com.fuad.pipeline.ConversationPolicy;
 
 import java.util.Objects;
 

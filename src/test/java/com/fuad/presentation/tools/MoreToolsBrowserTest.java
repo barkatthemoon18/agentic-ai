@@ -1,6 +1,6 @@
 package com.fuad.presentation.tools;
 
-import com.fuad.enums.OsAction;
+import com.fuad.pipeline.OsAction;
 import com.fuad.interaction.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -9,7 +9,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;

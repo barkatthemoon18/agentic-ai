@@ -16,7 +16,7 @@ import com.fuad.assistant.skills.general.GeneralRequest;
 import com.fuad.assistant.skills.general.GptGeneralEngine;
 import com.fuad.assistant.skills.general.SelectionOrigin;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ConversationPolicy;
+import com.fuad.pipeline.ConversationPolicy;
 
 import java.util.ArrayList;
 import java.util.List;

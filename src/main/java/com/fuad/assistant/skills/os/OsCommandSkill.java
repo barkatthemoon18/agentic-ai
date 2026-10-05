@@ -4,7 +4,7 @@ import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.assistant.skills.Skill;
 import com.fuad.assistant.skills.SkillExecution;
-import com.fuad.enums.OsAction;
+import com.fuad.pipeline.OsAction;
 import com.fuad.interaction.ChoiceOption;
 import com.fuad.interaction.ChoiceRequest;
 import com.fuad.interaction.ChoiceVoiceResolution;

@@ -1,6 +1,6 @@
 package com.fuad.assistant;
 
-import com.fuad.enums.ResearchDepth;
+import com.fuad.assistant.skills.research.ResearchDepth;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

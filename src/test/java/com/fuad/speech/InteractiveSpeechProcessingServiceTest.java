@@ -11,7 +11,7 @@ import com.fuad.audio.AssistantAudioController;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.audio.output.MediaExclusiveAudioDetector;
-import com.fuad.enums.ActivationType;
+import com.fuad.activation.ActivationType;
 import com.fuad.enums.Capability;
 import com.fuad.interaction.*;
 import com.fuad.pipeline.AssistantPipeline;

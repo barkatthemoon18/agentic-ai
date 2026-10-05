@@ -1,8 +1,5 @@
 package com.fuad.audio;
 
-import com.fuad.enums.AudioAction;
-import com.fuad.enums.AudioScope;
-
 import java.util.Objects;
 
 public record AudioControlIntent(

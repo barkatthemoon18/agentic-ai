@@ -3,7 +3,7 @@ package com.fuad.speech;
 import com.fuad.assistant.*;
 import com.fuad.assistant.session.ConversationSession;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ConversationPolicy;
+import com.fuad.pipeline.ConversationPolicy;
 import com.fuad.interaction.*;
 import com.fuad.pipeline.*;
 import com.fuad.audio.*;

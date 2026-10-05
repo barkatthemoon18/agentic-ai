@@ -8,10 +8,10 @@ import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.AssistantTurn;
 import com.fuad.assistant.routing.AiSkillRouter;
 import com.fuad.assistant.session.ConversationSnapshot;
-import com.fuad.enums.ActivationType;
+import com.fuad.activation.ActivationType;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ConversationPolicy;
-import com.fuad.enums.ResearchDepth;
+import com.fuad.pipeline.ConversationPolicy;
+import com.fuad.assistant.skills.research.ResearchDepth;
 import com.fuad.pipeline.AssistantPipeline;
 import org.junit.jupiter.api.Test;
 

@@ -3,9 +3,8 @@ package com.fuad.activation;
 import com.fuad.activation.wake.WakeClassifier;
 import com.fuad.activation.wake.WakeWordMatch;
 import com.fuad.activation.wake.WakeWordMatcher;
-import com.fuad.enums.ActivationType;
-import com.fuad.enums.WakeMatchStatus;
-import com.fuad.enums.WakeResolution;
+import com.fuad.vad.WakeMatchStatus;
+import com.fuad.vad.WakeResolution;
 import com.fuad.stt.TranscriptionResult;
 
 import java.util.List;

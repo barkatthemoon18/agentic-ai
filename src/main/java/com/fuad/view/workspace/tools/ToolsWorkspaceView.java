@@ -1,6 +1,6 @@
 package com.fuad.view.workspace.tools;
 
-import com.fuad.enums.OsAction;
+import com.fuad.pipeline.OsAction;
 import com.fuad.presentation.tools.*;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;

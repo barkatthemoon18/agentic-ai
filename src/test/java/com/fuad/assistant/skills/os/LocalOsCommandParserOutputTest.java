@@ -1,6 +1,6 @@
 package com.fuad.assistant.skills.os;
 
-import com.fuad.enums.OsAction;
+import com.fuad.pipeline.OsAction;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

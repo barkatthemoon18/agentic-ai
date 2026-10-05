@@ -1,7 +1,5 @@
 package com.fuad.activation;
 
-import com.fuad.enums.ActivationType;
-
 public record ActivationResult(
         boolean activated,
         ActivationType type,

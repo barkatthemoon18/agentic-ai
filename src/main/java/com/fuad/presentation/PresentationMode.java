@@ -1,4 +1,4 @@
-package com.fuad.enums;
+package com.fuad.presentation;
 
 public enum PresentationMode {
     AUDIO_ONLY,

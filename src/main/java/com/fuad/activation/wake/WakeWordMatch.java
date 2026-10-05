@@ -1,6 +1,6 @@
 package com.fuad.activation.wake;
 
-import com.fuad.enums.WakeMatchStatus;
+import com.fuad.vad.WakeMatchStatus;
 
 public record WakeWordMatch(
         WakeMatchStatus status,

@@ -1,4 +1,4 @@
-package com.fuad.enums;
+package com.fuad.pipeline;
 
 public enum ConversationControl {
     CLOSE,

@@ -1,8 +1,7 @@
 package com.fuad.pipeline;
 
 import com.fuad.audio.AudioFrame;
-import com.fuad.enums.AudioState;
-import com.fuad.enums.VoiceState;
+import com.fuad.stt.VoiceState;
 import com.fuad.speech.SpeechBuffer;
 import com.fuad.speech.SpeechSegment;
 import com.fuad.speech.SpeechSegmentListener;

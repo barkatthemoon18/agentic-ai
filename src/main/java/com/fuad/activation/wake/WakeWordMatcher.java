@@ -1,6 +1,6 @@
 package com.fuad.activation.wake;
 
-import com.fuad.enums.WakeMatchStatus;
+import com.fuad.vad.WakeMatchStatus;
 
 import java.text.Normalizer;
 import java.util.ArrayList;

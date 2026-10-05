@@ -11,9 +11,9 @@ import com.fuad.assistant.skills.research.ResearchBackend;
 import com.fuad.assistant.skills.research.ResearchBranchState;
 import com.fuad.assistant.skills.research.ResearchEngineResult;
 import com.fuad.assistant.skills.research.ResearchRequest;
-import com.fuad.enums.ActivationType;
+import com.fuad.activation.ActivationType;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ResearchDepth;
+import com.fuad.assistant.skills.research.ResearchDepth;
 import com.fuad.pipeline.AssistantPipeline;
 import org.junit.jupiter.api.Test;
 

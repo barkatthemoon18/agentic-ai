@@ -1,6 +1,6 @@
 package com.fuad.assistant;
 
-import com.fuad.enums.ResearchDepth;
+import com.fuad.assistant.skills.research.ResearchDepth;
 import com.openai.client.OpenAIClient;
 import com.openai.models.ChatModel;
 import com.openai.models.Reasoning;

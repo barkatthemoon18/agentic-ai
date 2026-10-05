@@ -1,6 +1,6 @@
 package com.fuad.assistant.session;
 
-import com.fuad.enums.ConversationControl;
+import com.fuad.pipeline.ConversationControl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

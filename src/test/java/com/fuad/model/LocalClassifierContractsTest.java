@@ -3,7 +3,7 @@ package com.fuad.model;
 import com.fuad.activation.wake.LocalWakeClassifier;
 import com.fuad.assistant.routing.LocalSemanticRouter;
 import com.fuad.enums.Capability;
-import com.fuad.enums.WakeResolution;
+import com.fuad.vad.WakeResolution;
 import com.openai.client.OpenAIClient;
 import com.openai.models.ChatModel;
 import com.openai.models.chat.completions.*;

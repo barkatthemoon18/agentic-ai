@@ -1,4 +1,4 @@
-package com.fuad.enums;
+package com.fuad.pipeline;
 
 public enum OsAction {
     OPEN_APPLICATION,

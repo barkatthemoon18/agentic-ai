@@ -3,7 +3,6 @@ package com.fuad.assistant.skills.research;
 import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ResearchDepth;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

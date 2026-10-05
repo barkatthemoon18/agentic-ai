@@ -4,7 +4,7 @@ import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.audio.PlaybackSignalListener;
-import com.fuad.enums.AudioState;
+import com.fuad.audio.AudioState;
 import com.fuad.tts.TtsAudio;
 import com.fuad.tts.TtsEngine;
 import org.junit.jupiter.api.Test;

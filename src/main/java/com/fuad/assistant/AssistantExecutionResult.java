@@ -1,7 +1,7 @@
 package com.fuad.assistant;
 
 import com.fuad.enums.Capability;
-import com.fuad.enums.ConversationPolicy;
+import com.fuad.pipeline.ConversationPolicy;
 
 public record AssistantExecutionResult(
         AssistantResult response,

@@ -7,7 +7,6 @@ import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
 import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import com.fuad.audio.output.AudioDeliveryState;
 import com.fuad.audio.output.MediaExclusiveAudioDetector;
-import com.fuad.enums.PresentationMode;
 import com.fuad.pipeline.AudioPipeline;
 
 import java.util.Objects;

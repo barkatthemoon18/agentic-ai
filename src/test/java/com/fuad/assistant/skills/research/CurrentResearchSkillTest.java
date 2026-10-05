@@ -4,8 +4,7 @@ import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.local.LocalQwenException;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ConversationPolicy;
-import com.fuad.enums.ResearchDepth;
+import com.fuad.pipeline.ConversationPolicy;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicReference;
