@@ -4,7 +4,7 @@ import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.assistant.skills.Skill;
 import com.fuad.assistant.skills.SkillExecution;
-import com.fuad.enums.OsAction;
+import com.fuad.pipeline.OsAction;
 import com.fuad.interaction.ChoiceOption;
 import com.fuad.interaction.ChoiceRequest;
 import com.fuad.interaction.ChoiceVoiceResolution;
@@ -52,13 +52,13 @@ public class OsCommandSkill implements Skill {
         OsCommandIntent intent;
         try {
             intent = parser.parse(command);
-            System.out.println("OS INTENT -> action=" + intent.getAction() + " | target='" + intent.getTarget() + "'");
+            System.out.println("OS INTENT -> action=" + intent.action() + " | target='" + intent.target() + "'");
         }
         catch (RuntimeException e) {
             System.err.println("OS command parsing failed: " + e.getMessage());
             return new AssistantResult("No pude interpretar el comando del sistema.");
         }
-        if (intent.getAction() == OsAction.UNSUPPORTED) {
+        if (intent.action() == OsAction.UNSUPPORTED) {
             return new AssistantResult("Ese comando del sistema todavía no está soportado");
         }
         try {
@@ -80,7 +80,7 @@ public class OsCommandSkill implements Skill {
         OsCommandIntent intent;
         try {
             intent = parser.parse(command);
-            System.out.println("OS INTENT -> action=" + intent.getAction() + " | target='" + intent.getTarget() + "'");
+            System.out.println("OS INTENT -> action=" + intent.action() + " | target='" + intent.target() + "'");
         }
         catch (RuntimeException e) {
             System.err.println("OS command parsing failed: " + e.getMessage());
@@ -92,8 +92,8 @@ public class OsCommandSkill implements Skill {
 
     @Override
     public AssistantResult executeFollowUp(String command, ConversationSnapshot snapshot) {
-        if (snapshot == null || snapshot.getOsConversationState() == null) return execute(command);
-        UUID sessionId = snapshot.getOsConversationState().catalogSessionId();
+        if (snapshot == null || snapshot.osConversationState() == null) return execute(command);
+        UUID sessionId = snapshot.osConversationState().catalogSessionId();
         String normalized = normalize(command);
         CatalogNavigation navigation = switch (normalized) {
             case "siguiente", "siguiente pagina", "pagina siguiente", "muestrame mas", "muestra mas", "continua" -> CatalogNavigation.NEXT;
@@ -116,10 +116,10 @@ public class OsCommandSkill implements Skill {
 
     @Override
     public SkillExecution executeFollowUpTurn(String command, ConversationSnapshot snapshot) {
-        if (snapshot == null || snapshot.getOsConversationState() == null) {
+        if (snapshot == null || snapshot.osConversationState() == null) {
             return executeTurn(command);
         }
-        UUID sessionId = snapshot.getOsConversationState().catalogSessionId();
+        UUID sessionId = snapshot.osConversationState().catalogSessionId();
         String normalized = normalize(command);
         CatalogNavigation navigation = navigation(normalized);
         if (navigation != null) {
@@ -146,7 +146,7 @@ public class OsCommandSkill implements Skill {
     }
 
     private SkillExecution executeInteractively(OsCommandIntent intent) throws IOException {
-        ApplicationResolution resolution = applicationRegistry.resolve(intent.getTarget(), true);
+        ApplicationResolution resolution = applicationRegistry.resolve(intent.target(), true);
         if (resolution.status() == ApplicationResolution.Status.CATALOG_UNAVAILABLE) {
             return SkillExecution.completed(new AssistantResult(
                     "El catálogo de aplicaciones no está disponible en este momento."));
@@ -161,10 +161,10 @@ public class OsCommandSkill implements Skill {
         List<ApplicationDefinition> candidates = List.copyOf(resolution.candidates());
         List<ChoiceOption> options = candidates.stream()
                 .map(application -> new ChoiceOption(choiceId(application),
-                        application.getDisplayName(), List.copyOf(application.getAliases())))
+                        application.displayName(), List.copyOf(application.aliases())))
                 .toList();
         ChoiceRequest request = new ChoiceRequest(Optional.empty(),
-                ambiguityPrompt(intent.getAction()),
+                ambiguityPrompt(intent.action()),
                 Set.of(InputModality.TOUCH, InputModality.VOICE), Optional.empty(),
                 FocusRequirement.PASSIVE, options, Optional.of(transcription -> {
                     ApplicationResolution voice = applicationRegistry.resolveAmong(transcription, candidates);
@@ -210,7 +210,7 @@ public class OsCommandSkill implements Skill {
     }
 
     private AssistantResult executeResolved(OsCommandIntent intent) throws IOException {
-        ApplicationResolution resolution = applicationRegistry.resolve(intent.getTarget(), true);
+        ApplicationResolution resolution = applicationRegistry.resolve(intent.target(), true);
         if (resolution.status() == ApplicationResolution.Status.CATALOG_UNAVAILABLE) {
             return new AssistantResult("El catálogo de aplicaciones no está disponible en este momento.");
         }
@@ -224,7 +224,7 @@ public class OsCommandSkill implements Skill {
 
     private AssistantResult executeSelected(OsCommandIntent intent,
                                             ApplicationDefinition application) throws IOException {
-        return switch (intent.getAction()) {
+        return switch (intent.action()) {
             case OPEN_APPLICATION -> open(application);
             case CLOSE_APPLICATION -> close(application);
             case FOCUS_APPLICATION -> focus(application);
@@ -235,8 +235,8 @@ public class OsCommandSkill implements Skill {
     }
 
     private AssistantResult executeParsed(OsCommandIntent intent) throws IOException {
-        return switch (intent.getAction()) {
-            case LIST_APPLICATIONS -> list(intent.getTarget());
+        return switch (intent.action()) {
+            case LIST_APPLICATIONS -> list(intent.target());
             case LIST_RUNNING_APPLICATIONS -> listRunning();
             case OPEN_APPLICATION, CLOSE_APPLICATION, FOCUS_APPLICATION,
                  GET_APPLICATION_STATUS, CHECK_APPLICATION_INSTALLED -> executeResolved(intent);
@@ -253,7 +253,7 @@ public class OsCommandSkill implements Skill {
     }
 
     private String choiceId(ApplicationDefinition application) {
-        String id = application.getId();
+        String id = application.id();
         return id == null || id.isBlank() ? applicationRegistry.catalogKey(application) : id;
     }
 
@@ -269,8 +269,8 @@ public class OsCommandSkill implements Skill {
     }
 
     private AssistantResult unknown(OsCommandIntent intent) {
-        return intent.getAction() == OsAction.CHECK_APPLICATION_INSTALLED
-                ? new AssistantResult("No encontré " + intent.getTarget()
+        return intent.action() == OsAction.CHECK_APPLICATION_INSTALLED
+                ? new AssistantResult("No encontré " + intent.target()
                 + " entre las aplicaciones instaladas.")
                 : new AssistantResult("No tengo registrada esa aplicación");
     }
@@ -288,47 +288,47 @@ public class OsCommandSkill implements Skill {
     private AssistantResult open(ApplicationDefinition application) throws IOException {
         ApplicationActionResult result = applicationController.openDetailed(application);
         return result.status() == ApplicationActionResult.Status.SUCCESS
-                ? new AssistantResult("Abriendo: " + application.getDisplayName() + ".")
-                : new AssistantResult("No pude abrir " + application.getDisplayName() + ".");
+                ? new AssistantResult("Abriendo: " + application.displayName() + ".")
+                : new AssistantResult("No pude abrir " + application.displayName() + ".");
     }
 
     private AssistantResult close(ApplicationDefinition application) {
         ApplicationActionResult result = applicationController.closeDetailed(application);
         return switch (result.status()) {
-            case SUCCESS -> new AssistantResult("Cerrando: " + application.getDisplayName() + ".");
-            case NOT_RUNNING -> new AssistantResult(application.getDisplayName() + " no está abierto");
+            case SUCCESS -> new AssistantResult("Cerrando: " + application.displayName() + ".");
+            case NOT_RUNNING -> new AssistantResult(application.displayName() + " no está abierto");
             case PROCESS_IDENTITY_UNAVAILABLE -> new AssistantResult(
-                    "Puedo abrir " + application.getDisplayName() + ", pero no identificar sus procesos con seguridad.");
-            default -> new AssistantResult("No pude cerrar " + application.getDisplayName() + ".");
+                    "Puedo abrir " + application.displayName() + ", pero no identificar sus procesos con seguridad.");
+            default -> new AssistantResult("No pude cerrar " + application.displayName() + ".");
         };
     }
 
     private AssistantResult focus(ApplicationDefinition application) {
         ApplicationActionResult result = applicationController.focus(application);
         return switch (result.status()) {
-            case SUCCESS -> new AssistantResult("Enfocando: " + application.getDisplayName() + ".");
-            case NOT_RUNNING -> new AssistantResult(application.getDisplayName() + " no está abierto.");
-            case NO_VISIBLE_WINDOW -> new AssistantResult(application.getDisplayName() + " no tiene una ventana visible.");
-            case FOCUS_REJECTED -> new AssistantResult("Windows no permitió enfocar " + application.getDisplayName() + ".");
+            case SUCCESS -> new AssistantResult("Enfocando: " + application.displayName() + ".");
+            case NOT_RUNNING -> new AssistantResult(application.displayName() + " no está abierto.");
+            case NO_VISIBLE_WINDOW -> new AssistantResult(application.displayName() + " no tiene una ventana visible.");
+            case FOCUS_REJECTED -> new AssistantResult("Windows no permitió enfocar " + application.displayName() + ".");
             case PROCESS_IDENTITY_UNAVAILABLE -> new AssistantResult(
-                    "No puedo identificar una ventana de " + application.getDisplayName() + " con seguridad.");
-            default -> new AssistantResult("No pude enfocar " + application.getDisplayName() + ".");
+                    "No puedo identificar una ventana de " + application.displayName() + " con seguridad.");
+            default -> new AssistantResult("No pude enfocar " + application.displayName() + ".");
         };
     }
 
     private AssistantResult status(ApplicationDefinition application) {
         ApplicationActionResult result = applicationController.runtimeState(application);
         if (result.status() == ApplicationActionResult.Status.PROCESS_IDENTITY_UNAVAILABLE) {
-            return new AssistantResult("No puedo comprobar el estado de " + application.getDisplayName() + " con seguridad.");
+            return new AssistantResult("No puedo comprobar el estado de " + application.displayName() + " con seguridad.");
         }
         if (result.status() != ApplicationActionResult.Status.SUCCESS || result.runtimeState() == null) {
-            return new AssistantResult("No pude comprobar el estado de " + application.getDisplayName() + ".");
+            return new AssistantResult("No pude comprobar el estado de " + application.displayName() + ".");
         }
         return switch (result.runtimeState()) {
-            case NOT_RUNNING -> new AssistantResult(application.getDisplayName() + " no está ejecutándose.");
-            case RUNNING_BACKGROUND -> new AssistantResult(application.getDisplayName()
+            case NOT_RUNNING -> new AssistantResult(application.displayName() + " no está ejecutándose.");
+            case RUNNING_BACKGROUND -> new AssistantResult(application.displayName()
                     + " está ejecutándose en segundo plano, sin una ventana visible.");
-            case RUNNING_WITH_WINDOW -> new AssistantResult(application.getDisplayName() + " está abierto.");
+            case RUNNING_WITH_WINDOW -> new AssistantResult(application.displayName() + " está abierto.");
         };
     }
 
@@ -341,17 +341,17 @@ public class OsCommandSkill implements Skill {
             return ambiguous(resolution);
         }
         return resolution.found()
-                .map(app -> new AssistantResult("Sí, " + app.getDisplayName() + " está instalada."))
+                .map(app -> new AssistantResult("Sí, " + app.displayName() + " está instalada."))
                 .orElseGet(() -> new AssistantResult("No encontré " + target + " entre las aplicaciones instaladas."));
     }
 
     private AssistantResult installed(ApplicationDefinition application) {
-        return new AssistantResult("Sí, " + application.getDisplayName() + " está instalada.");
+        return new AssistantResult("Sí, " + application.displayName() + " está instalada.");
     }
 
     private AssistantResult ambiguous(ApplicationResolution resolution) {
         String choices = resolution.candidates().stream().limit(3)
-                .map(ApplicationDefinition::getDisplayName).reduce((a, b) -> a + ", " + b).orElse("");
+                .map(ApplicationDefinition::displayName).reduce((a, b) -> a + ", " + b).orElse("");
         return new AssistantResult("Encontré varias aplicaciones con ese nombre: " + choices + ".");
     }
 
@@ -378,8 +378,8 @@ public class OsCommandSkill implements Skill {
             return new AssistantResult("No pude comprobar qué aplicaciones están abiertas con seguridad.");
         }
         List<OpenApplicationItem> items = result.applications().stream()
-                .map(entry -> new OpenApplicationItem(entry.application().getId(),
-                        entry.application().getDisplayName())).toList();
+                .map(entry -> new OpenApplicationItem(entry.application().id(),
+                        entry.application().displayName())).toList();
         String text = runningApplicationsSpeech(items, result.unverifiableCount());
         return AssistantResult.openApplications(text,
                 new OpenApplicationsPayload(items, result.unverifiableCount()));
@@ -421,11 +421,11 @@ public class OsCommandSkill implements Skill {
     }
 
     private SkillExecution executeIntent(OsCommandIntent intent) {
-        if (intent.getAction() == OsAction.UNSUPPORTED) {
+        if (intent.action() == OsAction.UNSUPPORTED) {
             return SkillExecution.completed(new AssistantResult("Ese comando del sistema no está soportado"));
         }
         try {
-            return requiresUniqueApplication(intent.getAction()) ? executeInteractively(intent) :
+            return requiresUniqueApplication(intent.action()) ? executeInteractively(intent) :
                     SkillExecution.completed(executeParsed(intent));
         }
         catch (Exception e) {

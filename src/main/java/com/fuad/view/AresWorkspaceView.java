@@ -86,7 +86,7 @@ public class AresWorkspaceView extends VBox {
         Region workspace = instances.computeIfAbsent(workspaceType, ignored -> supplier.get());
         workspace.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         workspace.setMinHeight(0.0);
-        workspaceSubtitle.setText("WORKSPACE // " + workspaceType.getSubtitle().toUpperCase());
+        workspaceSubtitle.setText("WORKSPACE // " + workspaceType.subtitle().toUpperCase());
         navigationButtons.forEach((wsType, button) -> button.pseudoClassStateChanged(ACTIVE_CATEGORY,
                 wsType == workspaceType));
         contentHost.getChildren().setAll(workspace);
@@ -110,7 +110,7 @@ public class AresWorkspaceView extends VBox {
 
     private void createNavigation() {
         for (WorkspaceType workspaceType : WorkspaceType.values()) {
-            Button button = new Button(workspaceType.getLabel());
+            Button button = new Button(workspaceType.label());
             button.getStyleClass().add("workspace-tab");
             button.setMaxWidth(Double.MAX_VALUE);
             HBox.setHgrow(button, Priority.ALWAYS);

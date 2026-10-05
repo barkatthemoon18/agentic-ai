@@ -540,7 +540,7 @@ class WindowsApplicationControllerTest {
 
         assertEquals(OpenApplicationsResult.Status.SUCCESS, result.status());
         assertEquals(List.of("first", "second"), result.applications().stream()
-                .map(entry -> entry.application().getId()).toList());
+                .map(entry -> entry.application().id()).toList());
         assertEquals(1, result.unverifiableCount());
         assertEquals(1, source.snapshotAllCalls);
         assertEquals(1, windows.visibleCalls);

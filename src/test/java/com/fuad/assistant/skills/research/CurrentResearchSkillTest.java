@@ -4,8 +4,7 @@ import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.local.LocalQwenException;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ConversationPolicy;
-import com.fuad.enums.ResearchDepth;
+import com.fuad.pipeline.ConversationPolicy;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -29,8 +28,8 @@ class CurrentResearchSkillTest {
 
         AssistantResult result = skill.execute("precio actual de Bitcoin");
 
-        assertEquals("respuesta", result.getText());
-        assertEquals("token-nuevo", result.getContinuationToken());
+        assertEquals("respuesta", result.text());
+        assertEquals("token-nuevo", result.continuationToken());
         assertEquals("precio actual de Bitcoin", captured.get().query());
         assertEquals(ResearchDepth.QUICK, captured.get().depth());
         assertEquals(500, captured.get().maxOutputTokens());
@@ -52,7 +51,7 @@ class CurrentResearchSkillTest {
 
         AssistantResult result = skill.execute("compara las noticias", "token-anterior");
 
-        assertEquals("analisis", result.getText());
+        assertEquals("analisis", result.text());
         assertEquals(ResearchDepth.DEEP, captured.get().depth());
         assertEquals(1200, captured.get().maxOutputTokens());
         assertEquals("token-anterior", captured.get().continuation().continuationToken());
@@ -94,7 +93,7 @@ class CurrentResearchSkillTest {
 
         AssistantResult result = skill.execute("investiga localmente");
 
-        assertEquals("El modelo local no está disponible en este momento.", result.getText());
-        assertEquals(ConversationPolicy.PRESERVE, result.getConversationPolicyOverride());
+        assertEquals("El modelo local no está disponible en este momento.", result.text());
+        assertEquals(ConversationPolicy.PRESERVE, result.conversationPolicyOverride());
     }
 }

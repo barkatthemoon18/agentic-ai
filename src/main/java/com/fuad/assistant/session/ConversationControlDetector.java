@@ -1,10 +1,9 @@
 package com.fuad.assistant.session;
 
-import com.fuad.enums.ConversationControl;
+import com.fuad.pipeline.ConversationControl;
 
 import java.text.Normalizer;
 import java.util.Locale;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 public class ConversationControlDetector {

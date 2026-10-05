@@ -1,21 +1,16 @@
 package com.fuad.audio;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+/** Samples are an owned, read-only-by-convention buffer; construction and access are zero-copy. */
+public record AudioFrame(
+        float[] samples,
+        int sampleRate,
+        long timestampNanos) {
 
-@Getter
-@AllArgsConstructor
-public class AudioFrame {
-    float[] samples;
-    int sampleRate;
-    long timestampNanos;
-
-    public int getSamplesCount() {
+    public int sampleCount() {
         return samples.length;
     }
 
     public double durationMillis() {
-        return getSamplesCount() * 1000.0 / sampleRate;
+        return sampleCount() * 1000.0 / sampleRate;
     }
 }

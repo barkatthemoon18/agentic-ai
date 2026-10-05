@@ -13,26 +13,26 @@ class AssistantAudioSnapshotTest {
     void shouldCalculateGainFromVolume() {
         AssistantAudioSnapshot snapshot = new AssistantAudioSnapshot(40, false);
 
-        assertEquals(40, snapshot.getVolume());
-        assertFalse(snapshot.isMuted());
-        assertEquals(0.4f, snapshot.getGain(), 0.0001f);
+        assertEquals(40, snapshot.volume());
+        assertFalse(snapshot.muted());
+        assertEquals(0.4f, snapshot.gain(), 0.0001f);
     }
 
     @Test
     void shouldReturnZeroGainWhenMuted() {
         AssistantAudioSnapshot snapshot = new AssistantAudioSnapshot(40, true);
 
-        assertTrue(snapshot.isMuted());
-        assertEquals(0.0f, snapshot.getGain(), 0.0001f);
+        assertTrue(snapshot.muted());
+        assertEquals(0.0f, snapshot.gain(), 0.0001f);
     }
 
     @Test
     void shouldAcceptZeroVolumeWhenMuted() {
         AssistantAudioSnapshot snapshot = new AssistantAudioSnapshot(0, true);
 
-        assertEquals(0, snapshot.getVolume());
-        assertTrue(snapshot.isMuted());
-        assertEquals(0.0f, snapshot.getGain(), 0.0001f);
+        assertEquals(0, snapshot.volume());
+        assertTrue(snapshot.muted());
+        assertEquals(0.0f, snapshot.gain(), 0.0001f);
     }
 
     @Test

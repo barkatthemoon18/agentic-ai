@@ -38,20 +38,20 @@ public class AssistantPipeline {
 
     public AssistantTurn processTurn(ActivationResult activationResult) {
         validateActivation(activationResult);
-        SkillRoute skillRoute = skillRouter.route(activationResult.getCommand());
-        Skill skill = skillRoute.getSkill();
+        SkillRoute skillRoute = skillRouter.route(activationResult.command());
+        Skill skill = skillRoute.skill();
         System.out.println("SKILL -> " + skill.getClass().getSimpleName());
-        return execute(() -> skill.executeTurn(activationResult.getCommand()), skill, skillRoute);
+        return execute(() -> skill.executeTurn(activationResult.command()), skill, skillRoute);
     }
 
     public AssistantTurn processFollowUpTurn(ActivationResult activationResult,
                                              ConversationSnapshot conversationSnapshot) {
         validateActivation(activationResult);
         Objects.requireNonNull(conversationSnapshot, "conversationSnapshot cannot be null");
-        SkillRoute skillRoute = skillRouter.routeFollowUp(activationResult.getCommand(), conversationSnapshot);
-        Skill skill = skillRoute.getSkill();
+        SkillRoute skillRoute = skillRouter.routeFollowUp(activationResult.command(), conversationSnapshot);
+        Skill skill = skillRoute.skill();
         System.out.println("SKILL -> " + skill.getClass().getSimpleName());
-        return execute(() -> skill.executeFollowUpTurn(activationResult.getCommand(), conversationSnapshot), skill, skillRoute);
+        return execute(() -> skill.executeFollowUpTurn(activationResult.command(), conversationSnapshot), skill, skillRoute);
     }
 
     public AssistantTurn processDirectTurn(Capability capability, Supplier<SkillExecution> execution) {
@@ -59,7 +59,7 @@ public class AssistantPipeline {
         Objects.requireNonNull(execution, "execution cannot be null");
 
         SkillRoute route = skillRouter.routeTo(capability);
-        Skill skill = route.getSkill();
+        Skill skill = route.skill();
 
         System.out.println("SKILL -> " + skill.getClass().getSimpleName() + " [DIRECT]");
 
@@ -69,13 +69,13 @@ public class AssistantPipeline {
     private AssistantTurn execute(Supplier<SkillExecution> action, Skill skill, SkillRoute skillRoute) {
         UUID executionId = UUID.randomUUID();
 
-        executionLifecycleListener.onExecutionStarted(executionId, skillRoute.getCapability());
+        executionLifecycleListener.onExecutionStarted(executionId, skillRoute.capability());
         try {
             SkillExecution execution = action.get();
             return map(execution, skill, skillRoute, executionId);
         }
         catch (RuntimeException e) {
-            executionLifecycleListener.onExecutionCompleted(executionId, skillRoute.getCapability());
+            executionLifecycleListener.onExecutionCompleted(executionId, skillRoute.capability());
             throw e;
         }
     }
@@ -83,14 +83,14 @@ public class AssistantPipeline {
     private AssistantTurn map(SkillExecution execution, Skill skill, SkillRoute route, UUID executionId) {
         return switch (execution) {
             case SkillExecution.Completed completed -> {
-                executionLifecycleListener.onExecutionCompleted(executionId, route.getCapability());
+                executionLifecycleListener.onExecutionCompleted(executionId, route.capability());
                 yield new AssistantTurn.Completed(executionResult(completed.result(), skill, route));
             }
             case SkillExecution.Async async -> new AssistantTurn.Async(async.stage().whenComplete((result, failure) ->
-                        executionLifecycleListener.onExecutionCompleted(executionId, route.getCapability()))
+                        executionLifecycleListener.onExecutionCompleted(executionId, route.capability()))
                         .thenApply(result -> executionResult(result, skill, route)));
             case SkillExecution.AwaitingInteraction<?> awaiting -> {
-                executionLifecycleListener.onExecutionCompleted(executionId, route.getCapability());
+                executionLifecycleListener.onExecutionCompleted(executionId, route.capability());
                 yield mapAwaiting(awaiting, skill, route);
             }
         };
@@ -110,14 +110,14 @@ public class AssistantPipeline {
     }
 
     private AssistantExecutionResult executionResult(AssistantResult response, Skill skill, SkillRoute route) {
-        var effectivePolicy = response.getConversationPolicyOverride() == null
+        var effectivePolicy = response.conversationPolicyOverride() == null
                 ? skill.getConversationPolicy()
-                : response.getConversationPolicyOverride();
-        return new AssistantExecutionResult(response, effectivePolicy, route.getCapability());
+                : response.conversationPolicyOverride();
+        return new AssistantExecutionResult(response, effectivePolicy, route.capability());
     }
 
     private void validateActivation(ActivationResult activationResult) {
-        if (!activationResult.isActivated()) {
+        if (!activationResult.activated()) {
             throw new IllegalArgumentException("Activation result is not activated");
         }
     }

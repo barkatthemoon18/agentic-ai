@@ -1,7 +1,6 @@
 package com.fuad.evaluation.utterance;
 
 import com.fuad.enums.UtteranceDecision;
-import lombok.Getter;
 
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -9,15 +8,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-@Getter
-public class UtteranceEvaluationReport {
-    private final List<UtteranceEvaluationResult> results;
+public record UtteranceEvaluationReport(
+        List<UtteranceEvaluationResult> results) {
 
-    public UtteranceEvaluationReport(List<UtteranceEvaluationResult> results) {
+    public UtteranceEvaluationReport {
         if (results == null || results.isEmpty()) {
             throw new IllegalArgumentException("results cannot be null or empty");
         }
-        this.results = List.copyOf(results);
+        results = List.copyOf(results);
     }
 
     public long correctCount() {
@@ -34,18 +32,18 @@ public class UtteranceEvaluationReport {
 
     public long expectedCount(UtteranceDecision decision) {
         return results.stream()
-                .filter(result -> result.getEvaluationCase().expectedDecision() == decision)
+                .filter(result -> result.evaluationCase().expectedDecision() == decision)
                 .count();
     }
 
     public long predictedCount(UtteranceDecision decision) {
-        return results.stream().filter(result -> result.getActual() == decision).count();
+        return results.stream().filter(result -> result.actual() == decision).count();
     }
 
     public long truePositiveCount(UtteranceDecision decision) {
         return results.stream()
-                .filter(result -> result.getEvaluationCase().expectedDecision() == decision)
-                .filter(result -> result.getActual() == decision)
+                .filter(result -> result.evaluationCase().expectedDecision() == decision)
+                .filter(result -> result.actual() == decision)
                 .count();
     }
 
@@ -72,24 +70,24 @@ public class UtteranceEvaluationReport {
 
     public long followUpWithoutContextCount() {
         return results.stream()
-                .filter(result -> result.getActual() == UtteranceDecision.FOLLOW_UP)
-                .filter(result -> !result.getEvaluationCase().getContextAvailable())
+                .filter(result -> result.actual() == UtteranceDecision.FOLLOW_UP)
+                .filter(result -> !result.evaluationCase().contextAvailable())
                 .count();
     }
 
     public double otherFalseActivationRate() {
         long otherCount = expectedCount(UtteranceDecision.OTHER);
         long falseActivations = results.stream()
-                .filter(result -> result.getEvaluationCase().expectedDecision() == UtteranceDecision.OTHER)
+                .filter(result -> result.evaluationCase().expectedDecision() == UtteranceDecision.OTHER)
                 .filter(UtteranceEvaluationResult::isValid)
-                .filter(result -> result.getActual() != UtteranceDecision.OTHER)
+                .filter(result -> result.actual() != UtteranceDecision.OTHER)
                 .count();
         return ratio(falseActivations, otherCount);
     }
 
     public double taggedAccuracy(String tag) {
         List<UtteranceEvaluationResult> tagged = results.stream()
-                .filter(result -> result.getEvaluationCase().hasTag(tag))
+                .filter(result -> result.evaluationCase().hasTag(tag))
                 .toList();
         if (tagged.isEmpty()) {
             return Double.NaN;
@@ -102,7 +100,7 @@ public class UtteranceEvaluationReport {
             throw new IllegalArgumentException("percentile must be between 0 and 1");
         }
         List<Long> sorted = results.stream()
-                .map(UtteranceEvaluationResult::getLatencyNanos)
+                .map(UtteranceEvaluationResult::latencyNanos)
                 .sorted()
                 .toList();
         int index = (int) Math.ceil(percentile * sorted.size()) - 1;
@@ -116,8 +114,8 @@ public class UtteranceEvaluationReport {
             for (UtteranceDecision actual : UtteranceDecision.values()) {
                 long count = results.stream()
                         .filter(UtteranceEvaluationResult::isValid)
-                        .filter(result -> result.getEvaluationCase().expectedDecision() == expected)
-                        .filter(result -> result.getActual() == actual)
+                        .filter(result -> result.evaluationCase().expectedDecision() == expected)
+                        .filter(result -> result.actual() == actual)
                         .count();
                 row.put(actual, count);
             }
@@ -146,10 +144,10 @@ public class UtteranceEvaluationReport {
         if (!failures().isEmpty()) {
             output.append("failures:").append(System.lineSeparator());
             for (UtteranceEvaluationResult result : failures()) {
-                output.append("- ").append(result.getEvaluationCase().getId())
-                        .append(" expected=").append(result.getEvaluationCase().expectedDecision())
-                        .append(" actual=").append(result.getActual())
-                        .append(result.getError() == null ? "" : " error=" + result.getError())
+                output.append("- ").append(result.evaluationCase().id())
+                        .append(" expected=").append(result.evaluationCase().expectedDecision())
+                        .append(" actual=").append(result.actual())
+                        .append(result.error() == null ? "" : " error=" + result.error())
                         .append(System.lineSeparator());
             }
         }

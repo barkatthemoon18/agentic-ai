@@ -1,7 +1,7 @@
 package com.fuad.assistant.skills.os;
 
 import com.fuad.config.AppConfig;
-import com.fuad.enums.OsAction;
+import com.fuad.pipeline.OsAction;
 import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
 import java.text.Normalizer;

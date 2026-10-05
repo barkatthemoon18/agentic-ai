@@ -13,26 +13,26 @@ class BasicSpeechSegmentValidatorTest {
         SpeechValidationResult nullSamples = validator.validate(new SpeechSegment(null, 16_000, 0));
         SpeechValidationResult emptySamples = validator.validate(new SpeechSegment(new float[0], 16_000, 0));
 
-        assertFalse(nullSamples.isValid());
-        assertEquals("empty segment", nullSamples.getReason());
-        assertFalse(emptySamples.isValid());
+        assertFalse(nullSamples.valid());
+        assertEquals("empty segment", nullSamples.reason());
+        assertFalse(emptySamples.valid());
     }
 
     @Test
     void shouldRejectSegmentThatIsTooShortBeforeOtherThresholds() {
         SpeechValidationResult result = validator.validate(segment(50, 0.5f));
 
-        assertFalse(result.isValid());
-        assertEquals("too short", result.getReason());
-        assertEquals(50.0, result.getDurationMillis());
+        assertFalse(result.valid());
+        assertEquals("too short", result.reason());
+        assertEquals(50.0, result.durationMillis());
     }
 
     @Test
     void shouldRejectLowRms() {
         SpeechValidationResult result = validator.validate(segment(100, 0.05f));
 
-        assertFalse(result.isValid());
-        assertEquals("RMS too low", result.getReason());
+        assertFalse(result.valid());
+        assertEquals("RMS too low", result.reason());
     }
 
     @Test
@@ -41,19 +41,19 @@ class BasicSpeechSegmentValidatorTest {
         java.util.Arrays.fill(samples, 0.15f);
         SpeechValidationResult result = validator.validate(new SpeechSegment(samples, 1_000, 0));
 
-        assertFalse(result.isValid());
-        assertEquals("Peak too low", result.getReason());
+        assertFalse(result.valid());
+        assertEquals("Peak too low", result.reason());
     }
 
     @Test
     void shouldAcceptValuesAtThresholdAndReportMetrics() {
         SpeechValidationResult result = validator.validate(segment(100, 0.2f));
 
-        assertTrue(result.isValid());
-        assertEquals("valid", result.getReason());
-        assertEquals(100.0, result.getDurationMillis());
-        assertEquals(0.2, result.getRms(), 1e-6);
-        assertEquals(0.2, result.getPeak(), 1e-6);
+        assertTrue(result.valid());
+        assertEquals("valid", result.reason());
+        assertEquals(100.0, result.durationMillis());
+        assertEquals(0.2, result.rms(), 1e-6);
+        assertEquals(0.2, result.peak(), 1e-6);
     }
 
     private SpeechSegment segment(int durationMillis, float amplitude) {

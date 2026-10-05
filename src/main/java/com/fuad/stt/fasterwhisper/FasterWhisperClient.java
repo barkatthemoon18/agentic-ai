@@ -64,7 +64,7 @@ public class FasterWhisperClient implements AutoCloseable {
             outputStream.writeLong(requestId);
             outputStream.flush();
             TranscriptionResult response = readTranscriptionResponse(requestId);
-            return "Working...".equals(response.getText());
+            return "Working...".equals(response.text());
         }
         catch (IOException e) {
             throw new RuntimeException("FasterWhisper ping failed", e);
@@ -107,10 +107,10 @@ public class FasterWhisperClient implements AutoCloseable {
         outputStream.writeByte(AppConfig.OP_TRANSCRIBE);
         outputStream.writeShort(0);
         outputStream.writeLong(requestId);
-        outputStream.writeLong(segment.getStartTimestampNanos());
-        outputStream.writeInt(segment.getSampleRate());
-        outputStream.writeInt(segment.getSamplesCount());
-        for (float sample : segment.getSamples()) {
+        outputStream.writeLong(segment.startTimestampNanos());
+        outputStream.writeInt(segment.sampleRate());
+        outputStream.writeInt(segment.sampleCount());
+        for (float sample : segment.samples()) {
             outputStream.writeFloat(sample);
         }
         outputStream.flush();
@@ -160,7 +160,7 @@ public class FasterWhisperClient implements AutoCloseable {
                 outputStream.writeLong(requestId);
                 outputStream.flush();
                 TranscriptionResult response = readTranscriptionResponse(requestId);
-                System.out.println("[Whisper] " + response.getText());
+                System.out.println("[Whisper] " + response.text());
             }
         }
         catch (Exception e) {

@@ -81,7 +81,7 @@ final class ApplicationRuntimeResolver {
                                      List<ApplicationDefinition> catalog) {
         if (!isCandidate(target, process)) return CandidateResult.NO_MATCH;
         if (process.creationTime().isEmpty()) return CandidateResult.UNVERIFIABLE;
-        ApplicationProcessIdentity identity = target.getProcessIdentity();
+        ApplicationProcessIdentity identity = target.processIdentity();
         boolean hasExpectedPath = !identity.executablePaths().isEmpty() || !identity.packageRoots().isEmpty();
         String command = process.executablePath().map(Path::toString).orElse("");
         boolean expectedPathMatches = matchesExpectedPath(identity, command);
@@ -103,7 +103,7 @@ final class ApplicationRuntimeResolver {
         Set<String> compatibleKeys = new HashSet<>();
         for (ApplicationDefinition definition : catalog) {
             if (!isCandidate(definition, process)) continue;
-            ApplicationProcessIdentity candidate = definition.getProcessIdentity();
+            ApplicationProcessIdentity candidate = definition.processIdentity();
             if (process.executablePath().isPresent()
                     && (!candidate.executablePaths().isEmpty() || !candidate.packageRoots().isEmpty())
                     && !matchesExpectedPath(candidate, command)) continue;
@@ -118,7 +118,7 @@ final class ApplicationRuntimeResolver {
     }
 
     private boolean hasStrongIdentity(ApplicationDefinition target, List<ApplicationDefinition> catalog) {
-        ApplicationProcessIdentity identity = target.getProcessIdentity();
+        ApplicationProcessIdentity identity = target.processIdentity();
         if (identity.executablePaths().stream().anyMatch(path -> exactPathExclusive(target, path, catalog))) return true;
         if (identity.packageRoots().stream().anyMatch(root -> packageRootExclusive(target, root, catalog))) return true;
         if (identity.trustedProcessNamesWhenPathUnavailable().stream()
@@ -132,7 +132,7 @@ final class ApplicationRuntimeResolver {
 
     private boolean hasExclusiveMatchingSignature(ApplicationDefinition target, List<String> observed,
                                                    List<ApplicationDefinition> catalog) {
-        ApplicationProcessIdentity identity = target.getProcessIdentity();
+        ApplicationProcessIdentity identity = target.processIdentity();
         return identity.exactCommandLineArgumentSets().stream()
                 .anyMatch(arguments -> arguments.equals(observed)
                         && exactSignatureExclusive(target, arguments, catalog))
@@ -150,8 +150,8 @@ final class ApplicationRuntimeResolver {
                                             List<ApplicationDefinition> catalog) {
         return catalog.stream().filter(other -> !sameCatalogIdentity(other, target))
                 .filter(other -> sharesHost(target, other))
-                .noneMatch(other -> other.getProcessIdentity().exactCommandLineArgumentSets().contains(arguments)
-                        || other.getProcessIdentity().commandLineArgumentSets().stream()
+                .noneMatch(other -> other.processIdentity().exactCommandLineArgumentSets().contains(arguments)
+                        || other.processIdentity().commandLineArgumentSets().stream()
                         .anyMatch(required -> arguments.containsAll(required)));
     }
 
@@ -160,15 +160,15 @@ final class ApplicationRuntimeResolver {
         if (arguments.isEmpty()) return false;
         return catalog.stream().filter(other -> !sameCatalogIdentity(other, target))
                 .filter(other -> sharesHost(target, other))
-                .noneMatch(other -> other.getProcessIdentity().commandLineArgumentSets().stream()
+                .noneMatch(other -> other.processIdentity().commandLineArgumentSets().stream()
                         .anyMatch(candidate -> arguments.containsAll(candidate) || candidate.containsAll(arguments))
-                        || other.getProcessIdentity().exactCommandLineArgumentSets().stream()
+                        || other.processIdentity().exactCommandLineArgumentSets().stream()
                         .anyMatch(candidate -> candidate.containsAll(arguments)));
     }
 
     private boolean matchesExclusivePath(ApplicationDefinition target, String command,
                                          List<ApplicationDefinition> catalog) {
-        ApplicationProcessIdentity identity = target.getProcessIdentity();
+        ApplicationProcessIdentity identity = target.processIdentity();
         return identity.executablePaths().stream()
                 .anyMatch(path -> samePath(path, command) && exactPathExclusive(target, path, catalog))
                 || identity.packageRoots().stream()
@@ -179,9 +179,9 @@ final class ApplicationRuntimeResolver {
                                        List<ApplicationDefinition> catalog) {
         String normalized = normalizePath(path);
         return catalog.stream().filter(other -> !sameCatalogIdentity(other, target))
-                .noneMatch(other -> other.getProcessIdentity().executablePaths().stream()
+                .noneMatch(other -> other.processIdentity().executablePaths().stream()
                                 .anyMatch(candidate -> normalizePath(candidate).equals(normalized))
-                        || other.getProcessIdentity().packageRoots().stream()
+                        || other.processIdentity().packageRoots().stream()
                                 .anyMatch(root -> withinRoot(normalized, root)));
     }
 
@@ -189,10 +189,10 @@ final class ApplicationRuntimeResolver {
                                          List<ApplicationDefinition> catalog) {
         String normalized = normalizeRoot(root);
         return catalog.stream().filter(other -> !sameCatalogIdentity(other, target))
-                .noneMatch(other -> other.getProcessIdentity().packageRoots().stream()
+                .noneMatch(other -> other.processIdentity().packageRoots().stream()
                                 .map(ApplicationRuntimeResolver::normalizeRoot)
                                 .anyMatch(candidate -> rootsOverlap(normalized, candidate))
-                        || other.getProcessIdentity().executablePaths().stream()
+                        || other.processIdentity().executablePaths().stream()
                                 .anyMatch(path -> withinRoot(path, normalized)));
     }
 
@@ -205,13 +205,13 @@ final class ApplicationRuntimeResolver {
 
     private boolean matchesExclusiveTrustedName(ApplicationDefinition target, String executableName,
                                                 List<ApplicationDefinition> catalog) {
-        return target.getProcessIdentity().trustedProcessNamesWhenPathUnavailable().stream()
+        return target.processIdentity().trustedProcessNamesWhenPathUnavailable().stream()
                 .anyMatch(name -> normalizeName(name).equals(normalizeName(executableName))
                         && trustedNameExclusive(target, name, catalog));
     }
 
     private boolean isCandidate(ApplicationDefinition definition, WindowsProcessSnapshot process) {
-        ApplicationProcessIdentity identity = definition.getProcessIdentity();
+        ApplicationProcessIdentity identity = definition.processIdentity();
         String command = process.executablePath().map(Path::toString).orElse("");
         if (!command.isBlank() && matchesExpectedPath(identity, command)) return true;
         return candidateNames(definition).contains(normalizeName(process.executableName()));
@@ -225,13 +225,13 @@ final class ApplicationRuntimeResolver {
     private boolean sharesHost(ApplicationDefinition first, ApplicationDefinition second) {
         Set<String> names = candidateNames(first);
         return candidateNames(second).stream().anyMatch(names::contains)
-                || first.getProcessIdentity().packageRoots().stream().anyMatch(firstRoot ->
-                second.getProcessIdentity().packageRoots().stream()
+                || first.processIdentity().packageRoots().stream().anyMatch(firstRoot ->
+                second.processIdentity().packageRoots().stream()
                         .anyMatch(secondRoot -> rootsOverlap(normalizeRoot(firstRoot), normalizeRoot(secondRoot))));
     }
 
     private Set<String> candidateNames(ApplicationDefinition definition) {
-        ApplicationProcessIdentity identity = definition.getProcessIdentity();
+        ApplicationProcessIdentity identity = definition.processIdentity();
         Set<String> names = new HashSet<>();
         identity.processNames().stream().map(ApplicationRuntimeResolver::normalizeName).forEach(names::add);
         identity.trustedProcessNamesWhenPathUnavailable().stream()

@@ -46,9 +46,9 @@ final class UtteranceComparison {
         }
         Map<String, Set<String>> outcomes = new LinkedHashMap<>();
         for (var report : reports) {
-            for (var result : report.getResults()) {
-                outcomes.computeIfAbsent(result.getEvaluationCase().getId(), ignored -> new HashSet<>())
-                        .add(result.isValid() ? result.getActual().name() : "ERROR");
+            for (var result : report.results()) {
+                outcomes.computeIfAbsent(result.evaluationCase().id(), ignored -> new HashSet<>())
+                        .add(result.isValid() ? result.actual().name() : "ERROR");
             }
         }
         return (double) outcomes.values().stream().filter(values -> values.size() > 1).count() / outcomes.size();
@@ -56,7 +56,7 @@ final class UtteranceComparison {
 
     static Map<String, Object> metrics(UtteranceEvaluationReport report) {
         Map<String, Object> values = new LinkedHashMap<>();
-        values.put("cases", report.getResults().size());
+        values.put("cases", report.results().size());
         values.put("accuracy", report.accuracy());
         values.put("macroF1", report.macroF1());
         values.put("errors", report.errorCount());
@@ -85,15 +85,15 @@ final class UtteranceComparison {
         UtteranceShapeDetector detector = new UtteranceShapeDetector();
         List<Map<String, Object>> cases = new ArrayList<>();
         Map<String, List<UtteranceEvaluationResult>> groups = new LinkedHashMap<>();
-        for (var result : report.getResults()) {
-            String route = mode == Mode.HYBRID && detector.classify(result.getEvaluationCase()
+        for (var result : report.results()) {
+            String route = mode == Mode.HYBRID && detector.classify(result.evaluationCase()
                     .toClassificationRequest()).isPresent() ? "rules" : "model";
             groups.computeIfAbsent(route, ignored -> new ArrayList<>()).add(result);
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("id", result.getEvaluationCase().getId());
-            row.put("expected", result.getEvaluationCase().expectedDecision());
-            row.put("actual", result.getActual());
-            row.put("error", result.getError());
+            row.put("id", result.evaluationCase().id());
+            row.put("expected", result.evaluationCase().expectedDecision());
+            row.put("actual", result.actual());
+            row.put("error", result.error());
             row.put("route", route);
             row.put("latencyMillis", result.latencyMillis());
             cases.add(row);

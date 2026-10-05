@@ -2,7 +2,7 @@ package com.fuad.assistant.skills;
 
 import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.session.ConversationSnapshot;
-import com.fuad.enums.ConversationPolicy;
+import com.fuad.pipeline.ConversationPolicy;
 
 public interface Skill {
     AssistantResult execute(String command);
@@ -20,7 +20,7 @@ public interface Skill {
     }
 
     default AssistantResult executeFollowUp(String command, ConversationSnapshot conversationSnapshot) {
-        return execute(command, conversationSnapshot == null ? null : conversationSnapshot.getContinuationToken());
+        return execute(command, conversationSnapshot == null ? null : conversationSnapshot.continuationToken());
     }
 
     default SkillExecution executeFollowUpTurn(String command, ConversationSnapshot conversationSnapshot) {

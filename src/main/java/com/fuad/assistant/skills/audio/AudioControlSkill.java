@@ -4,8 +4,8 @@ import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.skills.Skill;
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.audio.AudioControlIntent;
-import com.fuad.enums.AudioAction;
-import com.fuad.enums.AudioScope;
+import com.fuad.audio.AudioAction;
+import com.fuad.audio.AudioScope;
 
 import java.util.Objects;
 
@@ -21,16 +21,16 @@ public class AudioControlSkill implements Skill {
     @Override
     public AssistantResult execute(String command) {
         AudioControlIntent intent = Objects.requireNonNull(parser.parse(command), "parser result");
-        if (intent.getAudioAction() == AudioAction.UNSUPPORTED) {
+        if (intent.audioAction() == AudioAction.UNSUPPORTED) {
             return new AssistantResult("No interpreté ese control de audio.");
         }
-        if (intent.getAudioScope() != AudioScope.ASSISTANT) {
-            return unsupportedScope(intent.getAudioScope());
+        if (intent.audioScope() != AudioScope.ASSISTANT) {
+            return unsupportedScope(intent.audioScope());
         }
-        return switch (intent.getAudioAction()) {
-            case SET_VOLUME -> setVolume(intent.getValue());
-            case INCREASE_VOLUME -> increaseVolume(intent.getValue());
-            case DECREASE_VOLUME -> decreaseVolume(intent.getValue());
+        return switch (intent.audioAction()) {
+            case SET_VOLUME -> setVolume(intent.value());
+            case INCREASE_VOLUME -> increaseVolume(intent.value());
+            case DECREASE_VOLUME -> decreaseVolume(intent.value());
             case MUTE -> {
                 assistantAudioController.mute();
                 yield new AssistantResult("Mi voz quedó silenciada.");

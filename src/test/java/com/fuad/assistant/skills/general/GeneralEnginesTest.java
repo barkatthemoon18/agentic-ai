@@ -55,10 +55,10 @@ class GeneralEnginesTest {
         GeneralEngineResult result = engine.respond(new GeneralRequest(
                 "profundiza", "instrucciones", 300, branch));
 
-        assertTrue(captured.get().getCommand().contains("pregunta anterior"));
-        assertTrue(captured.get().getCommand().contains("respuesta anterior"));
-        assertTrue(captured.get().getCommand().contains("profundiza"));
-        assertNull(captured.get().getContinuationToken());
+        assertTrue(captured.get().command().contains("pregunta anterior"));
+        assertTrue(captured.get().command().contains("respuesta anterior"));
+        assertTrue(captured.get().command().contains("profundiza"));
+        assertNull(captured.get().continuationToken());
         assertEquals("gpt-next", result.continuation().continuationToken());
     }
 }

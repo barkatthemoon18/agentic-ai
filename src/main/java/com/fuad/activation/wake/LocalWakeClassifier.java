@@ -1,7 +1,7 @@
 package com.fuad.activation.wake;
 
 import com.fuad.config.AppConfig;
-import com.fuad.enums.WakeResolution;
+import com.fuad.vad.WakeResolution;
 import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;

@@ -30,7 +30,7 @@ public class GptWebResearchEngine implements QuickResearchEngine {
         AssistantResult result = assistantEngine.process(new AssistantRequest(
                 command, request.instructions(), request.maxOutputTokens(),
                 request.continuation().continuationToken(), request.depth()));
-        return new ResearchEngineResult(result.getText(),
-                new ResearchBranchState(result.getContinuationToken(), request.previousMessages()));
+        return new ResearchEngineResult(result.text(),
+                new ResearchBranchState(result.continuationToken(), request.previousMessages()));
     }
 }

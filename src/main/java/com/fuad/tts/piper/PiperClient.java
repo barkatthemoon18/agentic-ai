@@ -71,7 +71,7 @@ public class PiperClient implements AutoCloseable {
             long requestId = requestCounter.incrementAndGet();
             writeAudioRequest(requestId, OP_PING, new byte[0]);
             PiperResponse response = readResponse(requestId);
-            return response.getStatus() == STATUS_OK && "Working...".equals(response.getMessage());
+            return response.status() == STATUS_OK && "Working...".equals(response.message());
         }
         catch (IOException e) {
             return false;
@@ -88,8 +88,8 @@ public class PiperClient implements AutoCloseable {
                 long requestId = requestCounter.incrementAndGet();
                 writeAudioRequest(requestId, OP_SHUTDOWN, new byte[0]);
                 PiperResponse response = readResponse(requestId);
-                if (response.getStatus() != STATUS_OK) {
-                    throw new RuntimeException("Piper shutdown failed: " + response.getMessage());
+                if (response.status() != STATUS_OK) {
+                    throw new RuntimeException("Piper shutdown failed: " + response.message());
                 }
             }
         }
@@ -134,16 +134,16 @@ public class PiperClient implements AutoCloseable {
 
     private TtsAudio readAudioResponse(long requestId) throws IOException {
         PiperResponse response = readResponse(requestId);
-        if (response.getStatus() != STATUS_OK) {
-            throw new RuntimeException("Piper error: " + response.getMessage());
+        if (response.status() != STATUS_OK) {
+            throw new RuntimeException("Piper error: " + response.message());
         }
-        if (response.getSampleRate() <= 0) {
-            throw new RuntimeException("Invalid Piper sample rate: " + response.getSampleRate());
+        if (response.sampleRate() <= 0) {
+            throw new RuntimeException("Invalid Piper sample rate: " + response.sampleRate());
         }
-        if (response.getSampleCount() == 0) {
+        if (response.sampleCount() == 0) {
             throw new RuntimeException("Piper returned empty audio");
         }
-        return new TtsAudio(response.getSamples(), response.getSampleRate());
+        return new TtsAudio(response.samples(), response.sampleRate());
     }
 
     private PiperResponse readResponse(long expectedRequestId) throws IOException {

@@ -1,4 +1,4 @@
-package com.fuad.enums;
+package com.fuad.vad;
 
 public enum WakeMatchStatus {
     MATCH,

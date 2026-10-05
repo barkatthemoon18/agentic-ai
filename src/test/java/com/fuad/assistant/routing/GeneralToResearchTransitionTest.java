@@ -11,9 +11,9 @@ import com.fuad.assistant.skills.research.ResearchBackend;
 import com.fuad.assistant.skills.research.ResearchBranchState;
 import com.fuad.assistant.skills.research.ResearchEngineResult;
 import com.fuad.assistant.skills.research.ResearchRequest;
-import com.fuad.enums.ActivationType;
+import com.fuad.activation.ActivationType;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ResearchDepth;
+import com.fuad.assistant.skills.research.ResearchDepth;
 import com.fuad.pipeline.AssistantPipeline;
 import org.junit.jupiter.api.Test;
 
@@ -54,9 +54,9 @@ class GeneralToResearchTransitionTest {
                 new ActivationResult(true, ActivationType.CONTEXTUAL,
                         "Ahora búscalo en Internet y dime qué fuentes encuentras"), snapshot);
 
-        assertEquals(Capability.CURRENT_RESEARCH, result.getCapability());
+        assertEquals(Capability.CURRENT_RESEARCH, result.capability());
         assertEquals(ResearchBackend.GPT_WEB,
-                result.getResponse().getResearchConversationState().getActiveBackend().orElseThrow());
+                result.response().researchConversationState().getActiveBackend().orElseThrow());
         assertNull(captured.get().continuation().continuationToken());
         assertEquals(2, captured.get().previousMessages().size());
         assertEquals("¿Quién fue Alan Turing?", captured.get().previousMessages().getFirst().content());
@@ -70,7 +70,7 @@ class GeneralToResearchTransitionTest {
                 "¿Quién fue Alan Turing?", "Fue un matemático.", null);
 
         assertEquals(Capability.GENERAL,
-                router.routeFollowUp("No lo busques en Internet, dime qué recuerdas", snapshot).getCapability());
+                router.routeFollowUp("No lo busques en Internet, dime qué recuerdas", snapshot).capability());
     }
 
     @Test
@@ -81,7 +81,7 @@ class GeneralToResearchTransitionTest {
                 "Explícame RSA", "RSA es un sistema criptográfico.", null);
 
         assertEquals(Capability.GENERAL,
-                router.routeFollowUp("Ahora profundiza usando GPT", snapshot).getCapability());
+                router.routeFollowUp("Ahora profundiza usando GPT", snapshot).capability());
     }
 
     @Test
@@ -92,7 +92,7 @@ class GeneralToResearchTransitionTest {
                 "Busca las noticias recientes", "Encontré dos anuncios.", "research-token");
 
         assertEquals(Capability.CURRENT_RESEARCH,
-                router.routeFollowUp("Explícame el segundo", snapshot).getCapability());
+                router.routeFollowUp("Explícame el segundo", snapshot).capability());
     }
 
     private AiSkillRouter router(Skill general, Skill research) {

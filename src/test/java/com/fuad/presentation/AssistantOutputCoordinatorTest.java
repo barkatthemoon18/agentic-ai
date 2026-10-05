@@ -9,14 +9,21 @@ import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.audio.output.MediaExclusiveAudioDetector;
+import com.fuad.audio.output.AudioDeliveryState;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.tts.TtsAudio;
 import com.fuad.tts.TtsEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,12 +31,16 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class AssistantOutputCoordinatorTest {
     private AssistantAudioController audioController;
     private TrackingAudioPipeline audioPipeline;
     private TrackingVisualOutput visualOutput;
     private AssistantOutputCoordinator coordinator;
+    private MediaExclusiveAudioDetector exclusiveAudioDetector;
     private final List<String> events = new ArrayList<>();
 
     @BeforeEach
@@ -39,11 +50,176 @@ class AssistantOutputCoordinatorTest {
         visualOutput = new TrackingVisualOutput();
         audioPipeline.events = events;
         visualOutput.events = events;
+        exclusiveAudioDetector = mock(MediaExclusiveAudioDetector.class);
         coordinator = new AssistantOutputCoordinator(
                 audioController,
                 new OutputPresentationPolicy(20),
                 audioPipeline,
-                visualOutput, new MediaExclusiveAudioDetector());
+                visualOutput, exclusiveAudioDetector);
+    }
+
+    @ParameterizedTest
+    @MethodSource("reservedPayloadCases")
+    void reservedPayloadShouldKeepVisualContentWithoutSpeech(AssistantResult result, int volume) {
+        audioController.setVolume(volume);
+        when(exclusiveAudioDetector.isOutputReserved()).thenReturn(true);
+        var snapshot = audioController.getSnapshot();
+
+        coordinator.present(result);
+
+        assertEquals(0, audioPipeline.speakCalls);
+        assertEquals(0, visualOutput.hideCalls);
+        assertEquals(1, visualOutput.showCalls);
+        assertSame(result.payload(), visualOutput.lastMessage.payload());
+        assertEquals(result.text(), visualOutput.lastMessage.text());
+        assertEquals(snapshot.volume(), visualOutput.lastMessage.audioSnapshot().volume());
+        assertEquals(snapshot.muted(), visualOutput.lastMessage.audioSnapshot().muted());
+        assertEquals(snapshot.gain(), visualOutput.lastMessage.audioSnapshot().gain());
+        assertEquals(AudioDeliveryState.OUTPUT_RESERVED, visualOutput.lastMessage.audioDeliveryState());
+    }
+
+    @ParameterizedTest
+    @MethodSource("silentPayloadCases")
+    void silentPayloadShouldNotConsultReservation(AssistantResult result, int volume, boolean muted) {
+        audioController.setVolume(volume);
+        if (muted) audioController.mute();
+
+        coordinator.present(result);
+
+        verifyNoInteractions(exclusiveAudioDetector);
+        assertEquals(0, audioPipeline.speakCalls);
+        assertEquals(0, visualOutput.hideCalls);
+        assertEquals(1, visualOutput.showCalls);
+        assertSame(result.payload(), visualOutput.lastMessage.payload());
+        assertEquals(AudioDeliveryState.NORMAL, visualOutput.lastMessage.audioDeliveryState());
+    }
+
+    @ParameterizedTest
+    @MethodSource("applicationResults")
+    void reservedPayloadShouldRemainSilentWhenVisualOutputFails(AssistantResult result) {
+        audioController.setVolume(40);
+        when(exclusiveAudioDetector.isOutputReserved()).thenReturn(true);
+        visualOutput.failOnShow = true;
+
+        assertDoesNotThrow(() -> coordinator.present(result));
+
+        assertEquals(0, audioPipeline.speakCalls);
+        assertEquals(0, visualOutput.hideCalls);
+        assertEquals(1, visualOutput.showCalls);
+    }
+
+    @ParameterizedTest
+    @MethodSource("applicationResults")
+    void payloadSpeechShouldResumeAfterReservationEnds(AssistantResult result) {
+        audioController.setVolume(40);
+        when(exclusiveAudioDetector.isOutputReserved()).thenReturn(true, false);
+
+        coordinator.present(result);
+        assertEquals(0, audioPipeline.speakCalls);
+        assertEquals(AudioDeliveryState.OUTPUT_RESERVED, visualOutput.lastMessage.audioDeliveryState());
+
+        coordinator.present(result);
+
+        assertEquals(1, audioPipeline.speakCalls);
+        assertEquals(result.text(), audioPipeline.spokenText);
+        boolean forceVisual = result.payload() instanceof ApplicationCatalogPayload
+                || ((OpenApplicationsPayload) result.payload()).items().size() > 5;
+        assertEquals(forceVisual ? List.of("show", "show", "speak") : List.of("show", "hide", "speak"), events);
+        if (forceVisual) {
+            assertSame(result.payload(), visualOutput.lastMessage.payload());
+            assertEquals(AudioDeliveryState.NORMAL, visualOutput.lastMessage.audioDeliveryState());
+        }
+    }
+
+    private static Stream<Arguments> reservedPayloadCases() {
+        return Stream.of(19, 20, 40).flatMap(volume -> applicationResults()
+                .map(result -> Arguments.of(result, volume)));
+    }
+
+    private static Stream<Arguments> silentPayloadCases() {
+        return Stream.concat(applicationResults().map(result -> Arguments.of(result, 0, false)),
+                applicationResults().map(result -> Arguments.of(result, 40, true)));
+    }
+
+    private static Stream<AssistantResult> applicationResults() {
+        ApplicationCatalogPayload catalog = new ApplicationCatalogPayload(UUID.randomUUID(), "", 0, 20,
+                1, 1, List.of(new ApplicationListItem("idea", "IntelliJ IDEA")));
+        return Stream.concat(Stream.of(AssistantResult.catalog("Catálogo de aplicaciones", catalog)),
+                Stream.of(0, 1, 5, 6).map(count -> AssistantResult.openApplications("Aplicaciones abiertas",
+                        new OpenApplicationsPayload(java.util.stream.IntStream.range(0, count)
+                                .mapToObj(i -> new OpenApplicationItem("app-" + i, "App " + i)).toList(), 0))));
+    }
+
+    @Test
+    void reservedOutputShouldResumeSpeechAfterReservationEnds() {
+        when(exclusiveAudioDetector.isOutputReserved()).thenReturn(true, false);
+        audioController.setVolume(40);
+
+        coordinator.present("Solo pantalla");
+        assertEquals(AudioDeliveryState.OUTPUT_RESERVED, visualOutput.lastMessage.audioDeliveryState());
+        assertEquals(0, audioPipeline.speakCalls);
+
+        coordinator.present("Audio disponible");
+        assertEquals(List.of("show", "hide", "speak"), events);
+        assertEquals("Audio disponible", audioPipeline.spokenText);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {19, 20, 40})
+    void reservedOutputShouldRedirectRequestedVoiceToScreen(int volume) {
+        audioController.setVolume(volume);
+        when(exclusiveAudioDetector.isOutputReserved()).thenReturn(true);
+
+        coordinator.present("Respuesta reservada");
+
+        assertEquals(0, audioPipeline.speakCalls);
+        assertEquals(0, visualOutput.hideCalls);
+        assertEquals(1, visualOutput.showCalls);
+        assertEquals("Respuesta reservada", visualOutput.lastMessage.text());
+        assertEquals(AudioDeliveryState.OUTPUT_RESERVED, visualOutput.lastMessage.audioDeliveryState());
+        assertEquals(volume, visualOutput.lastMessage.audioSnapshot().volume());
+    }
+
+    @Test
+    void mutedOutputShouldNotConsultReservationOrAttemptSpeech() {
+        audioController.mute();
+        coordinator.present("Silencio");
+        verifyNoInteractions(exclusiveAudioDetector);
+        assertEquals(0, audioPipeline.speakCalls);
+        assertEquals(1, visualOutput.showCalls);
+    }
+
+    @Test
+    void reservedOutputShouldRemainSilentEvenWhenShowingTextFails() {
+        when(exclusiveAudioDetector.isOutputReserved()).thenReturn(true);
+        visualOutput.failOnShow = true;
+
+        assertDoesNotThrow(() -> coordinator.present("Respuesta"));
+
+        assertEquals(0, audioPipeline.speakCalls);
+        assertEquals(1, visualOutput.showCalls);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,40,false", "1,40,false", "5,40,false", "6,40,false",
+            "0,10,false", "1,10,false", "5,10,false", "6,10,false",
+            "0,0,false", "1,0,false", "5,0,false", "6,0,false",
+            "0,40,true", "1,40,true", "5,40,true", "6,40,true"})
+    void openApplicationsShouldRespectListSizeAndAudioPolicy(int count, int volume, boolean muted) {
+        audioController.setVolume(volume);
+        if (muted) audioController.mute();
+        OpenApplicationsPayload payload = new OpenApplicationsPayload(
+                java.util.stream.IntStream.range(0, count)
+                        .mapToObj(i -> new OpenApplicationItem("app-" + i, "App " + i)).toList(), 0);
+
+        coordinator.present(AssistantResult.openApplications("Aplicaciones abiertas", payload));
+
+        boolean silent = muted || volume == 0;
+        boolean visual = silent || volume < 20 || count > 5;
+        assertEquals(silent ? 0 : 1, audioPipeline.speakCalls);
+        assertEquals(visual ? 1 : 0, visualOutput.showCalls);
+        assertEquals(visual ? 0 : 1, visualOutput.hideCalls);
+        if (visual) assertSame(payload, visualOutput.lastMessage.payload());
     }
 
     @Test
@@ -66,8 +242,8 @@ class AssistantOutputCoordinatorTest {
 
         assertEquals(1, visualOutput.showCalls);
         assertNotNull(visualOutput.lastMessage);
-        assertEquals("Respuesta con volumen bajo", visualOutput.lastMessage.getText());
-        assertEquals(19, visualOutput.lastMessage.getAudioSnapshot().getVolume());
+        assertEquals("Respuesta con volumen bajo", visualOutput.lastMessage.text());
+        assertEquals(19, visualOutput.lastMessage.audioSnapshot().volume());
         assertEquals(1, audioPipeline.speakCalls);
         assertEquals("Respuesta con volumen bajo", audioPipeline.spokenText);
     }
@@ -80,7 +256,7 @@ class AssistantOutputCoordinatorTest {
         coordinator.present("Respuesta silenciada");
 
         assertEquals(1, visualOutput.showCalls);
-        assertTrue(visualOutput.lastMessage.getAudioSnapshot().isMuted());
+        assertTrue(visualOutput.lastMessage.audioSnapshot().muted());
         assertEquals(0, audioPipeline.speakCalls);
         assertEquals(0, visualOutput.hideCalls);
     }
@@ -187,7 +363,7 @@ class AssistantOutputCoordinatorTest {
         coordinator.present(AssistantResult.catalog("Encontré una aplicación; te la muestro en pantalla.", payload));
 
         assertEquals(1, visualOutput.showCalls);
-        assertSame(payload, visualOutput.lastMessage.getPayload());
+        assertSame(payload, visualOutput.lastMessage.payload());
         assertEquals(1, audioPipeline.speakCalls);
     }
 
@@ -197,7 +373,7 @@ class AssistantOutputCoordinatorTest {
         audioController.setVolume(0);
         coordinator.present("Cero");
         assertEquals(0, audioPipeline.speakCalls);
-        assertEquals(0, visualOutput.lastMessage.getAudioSnapshot().getVolume());
+        assertEquals(0, visualOutput.lastMessage.audioSnapshot().volume());
 
         audioController.unmute();
         coordinator.present("Recuperado");
@@ -230,7 +406,7 @@ class AssistantOutputCoordinatorTest {
 
         assertEquals(1, audioPipeline.speakCalls);
         assertEquals(1, visualOutput.showCalls);
-        assertSame(payload, visualOutput.lastMessage.getPayload());
+        assertSame(payload, visualOutput.lastMessage.payload());
     }
 
     @Test

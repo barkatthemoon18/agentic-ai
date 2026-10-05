@@ -1,8 +1,7 @@
 package com.fuad.pipeline;
 
 import com.fuad.audio.AudioFrame;
-import com.fuad.enums.AudioState;
-import com.fuad.enums.VoiceState;
+import com.fuad.stt.VoiceState;
 import com.fuad.speech.SpeechBuffer;
 import com.fuad.speech.SpeechSegment;
 import com.fuad.speech.SpeechSegmentListener;
@@ -91,7 +90,7 @@ public class VoicePipeline {
 
     private void processIdle(AudioFrame frame, VadResult result) {
         updatePreRoll(frame);
-        if (result.isSpeech()) {
+        if (result.speech()) {
             speechFrames++;
             if (speechFrames >= SPEECH_START_FRAMES) {
                 startSpeech();
@@ -118,7 +117,7 @@ public class VoicePipeline {
 
     private void processSpeaking(AudioFrame frame, VadResult result) {
         speechBuffer.add(frame);
-        if (result.isSpeech()) {
+        if (result.speech()) {
             silenceFrames = 0;
         }
         else {
@@ -160,7 +159,7 @@ public class VoicePipeline {
     }
 
     private static VoiceSignalSnapshot createSignalSnapshot(AudioFrame frame, VadResult result) {
-        float[] samples = frame.getSamples();
+        float[] samples = frame.samples();
 
         if (samples.length == 0) {
             return VoiceSignalSnapshot.silence();
@@ -177,6 +176,6 @@ public class VoicePipeline {
 
         double rms = Math.sqrt(sumSquares / samples.length);
 
-        return new VoiceSignalSnapshot(samples, rms, peak, result.getProbability());
+        return new VoiceSignalSnapshot(samples, rms, peak, result.probability());
     }
 }

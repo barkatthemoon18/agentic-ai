@@ -1,7 +1,5 @@
 package com.fuad.assistant.skills.research;
 
-import com.fuad.enums.ResearchDepth;
-
 import java.util.List;
 import java.util.Objects;
 

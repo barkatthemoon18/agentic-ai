@@ -5,7 +5,7 @@ import com.fuad.assistant.local.LocalQwenException;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.assistant.skills.GeneralSkill;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ConversationPolicy;
+import com.fuad.pipeline.ConversationPolicy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -133,13 +133,13 @@ class GeneralBackendRoutingTest {
 
         AssistantResult result = skill.execute("Explica RSA");
 
-        assertEquals("respuesta GPT", result.getText());
+        assertEquals("respuesta GPT", result.text());
         assertEquals(GeneralBackend.GPT,
-                result.getGeneralConversationState().getActiveBackend().orElseThrow());
+                result.generalConversationState().getActiveBackend().orElseThrow());
         assertEquals(SelectionOrigin.AUTOMATIC,
-                result.getGeneralConversationState().getSelectionOrigin().orElseThrow());
-        assertFalse(result.getGeneralConversationState().getBranch(GeneralBackend.QWEN_LOCAL).isPresent());
-        assertEquals("gpt-1", result.getContinuationToken());
+                result.generalConversationState().getSelectionOrigin().orElseThrow());
+        assertFalse(result.generalConversationState().getBranch(GeneralBackend.QWEN_LOCAL).isPresent());
+        assertEquals("gpt-1", result.continuationToken());
     }
 
     @Test
@@ -157,9 +157,9 @@ class GeneralBackendRoutingTest {
 
         AssistantResult result = skill.executeFollowUp("Vuelve a Qwen", snapshot);
 
-        assertEquals(ConversationPolicy.PRESERVE, result.getConversationPolicyOverride());
-        assertNull(result.getGeneralConversationState());
-        assertSame(state, snapshot.getGeneralConversationState());
+        assertEquals(ConversationPolicy.PRESERVE, result.conversationPolicyOverride());
+        assertNull(result.generalConversationState());
+        assertSame(state, snapshot.generalConversationState());
     }
 
     @Test
@@ -194,9 +194,9 @@ class GeneralBackendRoutingTest {
 
         assertThrows(IllegalStateException.class,
                 () -> skill.executeFollowUp("Explícalo mejor", snapshot));
-        assertSame(state, snapshot.getGeneralConversationState());
+        assertSame(state, snapshot.generalConversationState());
         assertEquals(GeneralBackend.QWEN_LOCAL,
-                snapshot.getGeneralConversationState().getActiveBackend().orElseThrow());
+                snapshot.generalConversationState().getActiveBackend().orElseThrow());
     }
 
     @Test
@@ -221,8 +221,8 @@ class GeneralBackendRoutingTest {
         AssistantResult result = skill.executeFollowUp("Vuelve a Qwen", snapshot);
 
         assertEquals(GeneralBackend.QWEN_LOCAL,
-                result.getGeneralConversationState().getActiveBackend().orElseThrow());
-        assertSame(qwenBranch, result.getGeneralConversationState()
+                result.generalConversationState().getActiveBackend().orElseThrow());
+        assertSame(qwenBranch, result.generalConversationState()
                 .getBranch(GeneralBackend.QWEN_LOCAL).orElseThrow());
     }
 

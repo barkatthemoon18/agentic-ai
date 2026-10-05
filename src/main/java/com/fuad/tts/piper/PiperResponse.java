@@ -1,17 +1,13 @@
 package com.fuad.tts.piper;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
+/** Samples are an owned, read-only-by-convention buffer; construction and access are zero-copy. */
+public record PiperResponse(
+        int status,
+        int sampleRate,
+        float[] samples,
+        String message) {
 
-@Getter
-@AllArgsConstructor
-public class PiperResponse {
-    private final int status;
-    private final int sampleRate;
-    private final float[] samples;
-    private final String message;
-
-    public int getSampleCount() {
+    public int sampleCount() {
         return samples.length;
     }
 }

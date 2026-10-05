@@ -8,7 +8,7 @@ public class AudioCaptureService {
     private volatile boolean running;
 
     public void start(AudioDeviceInfo device, AudioFrameListener listener) throws LineUnavailableException {
-        Mixer mixer = AudioSystem.getMixer(device.getInfo());
+        Mixer mixer = AudioSystem.getMixer(device.info());
         AudioFormat format = new AudioFormat(16000, 16, 2, true, false);
         DataLine.Info lineInfo = new DataLine.Info(TargetDataLine.class, format);
         line = (TargetDataLine) mixer.getLine(lineInfo);

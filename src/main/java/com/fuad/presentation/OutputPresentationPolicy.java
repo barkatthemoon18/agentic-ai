@@ -1,13 +1,10 @@
 package com.fuad.presentation;
 
 import com.fuad.audio.AssistantAudioSnapshot;
-import com.fuad.enums.PresentationMode;
-import lombok.Getter;
 
 import java.util.Objects;
 
-@Getter
-public class OutputPresentationPolicy {
+public final class OutputPresentationPolicy {
     private final int textUiVolumeThreshold;
 
     public OutputPresentationPolicy(int textUiVolumeThreshold) {
@@ -19,12 +16,16 @@ public class OutputPresentationPolicy {
 
     public PresentationMode resolve(AssistantAudioSnapshot audioSnapshot) {
         Objects.requireNonNull(audioSnapshot, "audioSnapshot");
-        if (audioSnapshot.isMuted() || audioSnapshot.getVolume() == 0) {
+        if (audioSnapshot.muted() || audioSnapshot.volume() == 0) {
             return PresentationMode.TEXT_ONLY;
         }
-        if (audioSnapshot.getVolume() < textUiVolumeThreshold) {
+        if (audioSnapshot.volume() < textUiVolumeThreshold) {
             return PresentationMode.AUDIO_AND_TEXT;
         }
         return PresentationMode.AUDIO_ONLY;
+    }
+
+    public int textUiVolumeThreshold() {
+        return textUiVolumeThreshold;
     }
 }

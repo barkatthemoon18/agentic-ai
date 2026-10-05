@@ -2,8 +2,8 @@ package com.fuad.assistant.skills.audio;
 
 import com.fuad.audio.AudioControlIntent;
 import com.fuad.config.AppConfig;
-import com.fuad.enums.AudioAction;
-import com.fuad.enums.AudioScope;
+import com.fuad.audio.AudioAction;
+import com.fuad.audio.AudioScope;
 import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;

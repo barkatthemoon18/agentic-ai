@@ -15,8 +15,8 @@ class UtteranceClassificationRequestTest {
     void withoutContextShouldNormalizeTextAndExposeNoPreviousTurn() {
         UtteranceClassificationRequest request = UtteranceClassificationRequest.withoutContext("  Que hora es?  ");
 
-        assertEquals("Que hora es?", request.getCurrentText());
-        assertTrue(request.getPreviousTurn().isEmpty());
+        assertEquals("Que hora es?", request.currentText());
+        assertTrue(request.previousTurn().isEmpty());
     }
 
     @Test
@@ -27,7 +27,7 @@ class UtteranceClassificationRequestTest {
         UtteranceClassificationRequest request =
                 UtteranceClassificationRequest.withContext("Y para que sirve?", snapshot);
 
-        assertSame(snapshot, request.getPreviousTurn().orElseThrow());
+        assertSame(snapshot, request.previousTurn().orElseThrow());
     }
 
     @Test

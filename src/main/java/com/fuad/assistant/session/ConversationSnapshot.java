@@ -4,23 +4,25 @@ import com.fuad.assistant.skills.general.GeneralConversationState;
 import com.fuad.assistant.skills.research.ResearchConversationState;
 import com.fuad.assistant.skills.os.OsConversationState;
 import com.fuad.enums.Capability;
-import lombok.Getter;
-import lombok.NonNull;
 
 import java.util.Objects;
 
-@Getter
-public class ConversationSnapshot {
-    @NonNull
-    private final Capability owner;
-    @NonNull
-    private final String previousUserText;
-    @NonNull
-    private final String previousAssistantText;
-    private final String continuationToken;
-    private final ResearchConversationState researchConversationState;
-    private final GeneralConversationState generalConversationState;
-    private final OsConversationState osConversationState;
+public record ConversationSnapshot(
+        Capability owner,
+        String previousUserText,
+        String previousAssistantText,
+        String continuationToken,
+        ResearchConversationState researchConversationState,
+        GeneralConversationState generalConversationState,
+        OsConversationState osConversationState) {
+
+    public ConversationSnapshot {
+        owner = Objects.requireNonNull(owner, "owner cannot be null");
+        previousUserText = Objects.requireNonNull(previousUserText,
+                "previousUserText cannot be null");
+        previousAssistantText = Objects.requireNonNull(previousAssistantText,
+                "previousAssistantText cannot be null");
+    }
 
     public ConversationSnapshot(Capability owner, String previousUserText, String previousAssistantText) {
         this(owner, previousUserText, previousAssistantText, null, null, null, null);
@@ -46,19 +48,4 @@ public class ConversationSnapshot {
                 researchConversationState, generalConversationState, null);
     }
 
-    public ConversationSnapshot(Capability owner, String previousUserText, String previousAssistantText,
-                                String continuationToken,
-                                ResearchConversationState researchConversationState,
-                                GeneralConversationState generalConversationState,
-                                OsConversationState osConversationState) {
-        this.owner = Objects.requireNonNull(owner, "owner cannot be null");
-        this.previousUserText = Objects.requireNonNull(previousUserText,
-                "previousUserText cannot be null");
-        this.previousAssistantText = Objects.requireNonNull(previousAssistantText,
-                "previousAssistantText cannot be null");
-        this.continuationToken = continuationToken;
-        this.researchConversationState = researchConversationState;
-        this.generalConversationState = generalConversationState;
-        this.osConversationState = osConversationState;
-    }
 }

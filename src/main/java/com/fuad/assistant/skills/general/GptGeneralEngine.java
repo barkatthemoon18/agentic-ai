@@ -27,9 +27,9 @@ public class GptGeneralEngine implements GeneralEngine {
 
         List<GeneralMessage> messages = new ArrayList<>(branch.messages());
         messages.add(new GeneralMessage(GeneralMessage.Role.USER, request.command()));
-        messages.add(new GeneralMessage(GeneralMessage.Role.ASSISTANT, result.getText()));
-        return new GeneralEngineResult(result.getText(),
-                new GeneralBranchState(result.getContinuationToken(), messages));
+        messages.add(new GeneralMessage(GeneralMessage.Role.ASSISTANT, result.text()));
+        return new GeneralEngineResult(result.text(),
+                new GeneralBranchState(result.continuationToken(), messages));
     }
 
     private String contextualCommand(List<GeneralMessage> messages, String command) {

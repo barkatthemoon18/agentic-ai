@@ -13,9 +13,9 @@ import com.fuad.assistant.skills.SkillRouter;
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.audio.output.MediaExclusiveAudioDetector;
-import com.fuad.enums.ActivationType;
+import com.fuad.activation.ActivationType;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ConversationPolicy;
+import com.fuad.pipeline.ConversationPolicy;
 import com.fuad.enums.UtteranceDecision;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
@@ -104,9 +104,9 @@ class SpeechProcessingServiceTest {
         assertFalse(utteranceClassifierCalled.get());
         assertTrue(session.isActive());
         ConversationSnapshot snapshot = session.getSnapshot().orElseThrow();
-        assertEquals(Capability.GENERAL, snapshot.getOwner());
-        assertEquals("responde", snapshot.getPreviousUserText());
-        assertEquals("respuesta", snapshot.getPreviousAssistantText());
+        assertEquals(Capability.GENERAL, snapshot.owner());
+        assertEquals("responde", snapshot.previousUserText());
+        assertEquals("respuesta", snapshot.previousAssistantText());
     }
 
     @Test
@@ -129,10 +129,10 @@ class SpeechProcessingServiceTest {
         }
 
         assertEquals(1, classifications.get());
-        assertEquals("Que hora es?", requestSeen.get().getCurrentText());
-        assertTrue(requestSeen.get().getPreviousTurn().isEmpty());
-        assertEquals(ActivationType.SEMANTIC_INTENT, assistant.activation.get().getType());
-        assertEquals("Que hora es?", assistant.activation.get().getCommand());
+        assertEquals("Que hora es?", requestSeen.get().currentText());
+        assertTrue(requestSeen.get().previousTurn().isEmpty());
+        assertEquals(ActivationType.SEMANTIC_INTENT, assistant.activation.get().type());
+        assertEquals("Que hora es?", assistant.activation.get().command());
         assertEquals(1, assistant.normalCalls.get());
         assertEquals(0, assistant.followUpCalls.get());
         assertEquals("son las diez", audio.spokenText.get());
@@ -157,9 +157,9 @@ class SpeechProcessingServiceTest {
             assertTrue(audio.awaitFinished());
         }
 
-        assertSame(previousTurn, requestSeen.get().getPreviousTurn().orElseThrow());
-        assertEquals(ActivationType.SEMANTIC_INTENT, assistant.activation.get().getType());
-        assertEquals("Explicame AES", assistant.activation.get().getCommand());
+        assertSame(previousTurn, requestSeen.get().previousTurn().orElseThrow());
+        assertEquals(ActivationType.SEMANTIC_INTENT, assistant.activation.get().type());
+        assertEquals("Explicame AES", assistant.activation.get().command());
         assertEquals(1, assistant.normalCalls.get());
         assertEquals(0, assistant.followUpCalls.get());
     }
@@ -300,9 +300,9 @@ class SpeechProcessingServiceTest {
         assertTrue(session.isActive());
         assertTrue(activeUntil(session) > originalDeadline);
         ConversationSnapshot snapshot = session.getSnapshot().orElseThrow();
-        assertEquals(Capability.CURRENT_RESEARCH, snapshot.getOwner());
-        assertEquals("explica RSA", snapshot.getPreviousUserText());
-        assertEquals("respuesta", snapshot.getPreviousAssistantText());
+        assertEquals(Capability.CURRENT_RESEARCH, snapshot.owner());
+        assertEquals("explica RSA", snapshot.previousUserText());
+        assertEquals("respuesta", snapshot.previousAssistantText());
     }
 
     @Test
@@ -370,9 +370,9 @@ class SpeechProcessingServiceTest {
         }
 
         assertNotNull(contextRequest.get());
-        assertSame(previousTurn, contextRequest.get().getPreviousTurn().orElseThrow());
-        assertEquals("¿y por qué?", contextRequest.get().getCurrentText());
-        assertEquals(ActivationType.CONTEXTUAL, assistant.activation.get().getType());
+        assertSame(previousTurn, contextRequest.get().previousTurn().orElseThrow());
+        assertEquals("¿y por qué?", contextRequest.get().currentText());
+        assertEquals(ActivationType.CONTEXTUAL, assistant.activation.get().type());
         assertEquals(0, assistant.normalCalls.get());
         assertEquals(1, assistant.followUpCalls.get());
         assertEquals(Capability.GENERAL, assistant.followUpOwner.get());
@@ -418,9 +418,9 @@ class SpeechProcessingServiceTest {
 
         assertEquals("token-anterior", receivedToken.get());
         ConversationSnapshot updated = session.getSnapshot().orElseThrow();
-        assertEquals("token-siguiente", updated.getContinuationToken());
-        assertEquals("Y para que sirve?", updated.getPreviousUserText());
-        assertEquals("respuesta siguiente", updated.getPreviousAssistantText());
+        assertEquals("token-siguiente", updated.continuationToken());
+        assertEquals("Y para que sirve?", updated.previousUserText());
+        assertEquals("respuesta siguiente", updated.previousAssistantText());
     }
 
     @Test
@@ -460,8 +460,8 @@ class SpeechProcessingServiceTest {
 
         assertNull(receivedToken.get());
         ConversationSnapshot updated = session.getSnapshot().orElseThrow();
-        assertEquals("token-aes", updated.getContinuationToken());
-        assertEquals("Explica AES", updated.getPreviousUserText());
+        assertEquals("token-aes", updated.continuationToken());
+        assertEquals("Explica AES", updated.previousUserText());
     }
 
     @Test
@@ -489,8 +489,8 @@ class SpeechProcessingServiceTest {
         }
 
         assertNotNull(contextRequest.get());
-        assertSame(previousTurn, contextRequest.get().getPreviousTurn().orElseThrow());
-        assertEquals("está lloviendo afuera", contextRequest.get().getCurrentText());
+        assertSame(previousTurn, contextRequest.get().previousTurn().orElseThrow());
+        assertEquals("está lloviendo afuera", contextRequest.get().currentText());
         assertFalse(assistantCalled.get());
         assertNull(audio.spokenText.get());
         assertEquals(originalDeadline, activeUntil(session));
@@ -570,7 +570,7 @@ class SpeechProcessingServiceTest {
                 new AssistantPipeline(staticRouter(Capability.GENERAL, cmd -> new AssistantResult("ok"))),
                 ignored -> ActivationResult.none(), new ConversationSession(), audio, valid(true),
                 request -> UtteranceDecision.OTHER,
-                new AssistantOutputCoordinator(controller, new OutputPresentationPolicy(20), audio, visual, new MediaExclusiveAudioDetector()));
+                new AssistantOutputCoordinator(controller, new OutputPresentationPolicy(20), audio, visual, org.mockito.Mockito.mock(MediaExclusiveAudioDetector.class)));
         service.close();
 
         assertDoesNotThrow(() -> service.onSpeechSegment(segment));
@@ -598,7 +598,7 @@ class SpeechProcessingServiceTest {
                 new VisualOutput() {
                     @Override public void show(VisualMessage visualMessage) { }
                     @Override public void hide() { }
-                }, new MediaExclusiveAudioDetector());
+                }, org.mockito.Mockito.mock(MediaExclusiveAudioDetector.class));
     }
 
     private SttEngine stt(java.util.function.Function<SpeechSegment, TranscriptionResult> function) {
@@ -678,8 +678,8 @@ class SpeechProcessingServiceTest {
                 ActivationResult activationResult,
                 ConversationSnapshot conversationSnapshot) {
             activation.set(activationResult);
-            followUpOwner.set(conversationSnapshot.getOwner());
-            followUpToken.set(conversationSnapshot.getContinuationToken());
+            followUpOwner.set(conversationSnapshot.owner());
+            followUpToken.set(conversationSnapshot.continuationToken());
             followUpCalls.incrementAndGet();
             return super.processFollowUpTurn(activationResult, conversationSnapshot);
         }

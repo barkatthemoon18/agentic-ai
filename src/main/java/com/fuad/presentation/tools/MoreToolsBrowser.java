@@ -1,6 +1,6 @@
 package com.fuad.presentation.tools;
 
-import com.fuad.enums.OsAction;
+import com.fuad.pipeline.OsAction;
 import com.fuad.interaction.*;
 
 import java.util.*;

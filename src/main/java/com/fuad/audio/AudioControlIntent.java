@@ -1,22 +1,16 @@
 package com.fuad.audio;
 
-import com.fuad.enums.AudioAction;
-import com.fuad.enums.AudioScope;
-import lombok.Getter;
-
 import java.util.Objects;
 
-@Getter
-public class AudioControlIntent {
-    private final AudioAction audioAction;
-    private final AudioScope audioScope;
-    private final Integer value;
+public record AudioControlIntent(
+        AudioAction audioAction,
+        AudioScope audioScope,
+        Integer value) {
 
-    public AudioControlIntent(AudioAction audioAction, AudioScope audioScope, Integer value) {
-        this.audioAction = Objects.requireNonNull(audioAction, "audioAction");
-        this.audioScope = Objects.requireNonNull(audioScope, "audioScope");
+    public AudioControlIntent {
+        audioAction = Objects.requireNonNull(audioAction, "audioAction");
+        audioScope = Objects.requireNonNull(audioScope, "audioScope");
         validateValue(audioAction, value);
-        this.value = value;
     }
 
     public static AudioControlIntent unsupported(AudioScope audioScope) {

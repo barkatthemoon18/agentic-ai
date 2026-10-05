@@ -20,11 +20,11 @@ public final class JavaFxVisualOutputDemo {
     public static void main(String[] args) {
         try (PiperClient client = new PiperClient()) {
             AudioDeviceInfo output = new AudioDeviceManager().getOutputDevices().stream()
-                    .filter(device -> device.getName().contains("Altavoces")
-                            && device.getName().contains("Focusrite"))
+                    .filter(device -> device.name().contains("Altavoces")
+                            && device.name().contains("Focusrite"))
                     .findFirst()
                     .orElseThrow(() -> new IllegalStateException("No se encontró la salida Altavoces Focusrite"));
-            System.out.println("Salida: " + output.getName());
+            System.out.println("Salida: " + output.name());
             client.start();
             AssistantAudioController controller = new AssistantAudioController();
             OutputPresentationPolicy policy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
@@ -91,7 +91,7 @@ public final class JavaFxVisualOutputDemo {
                     present(controller, policy, coordinator, "Recuperé el último volumen audible: cuarenta por ciento.");
                 }
                 case "5" -> {
-                    controller.setVolume(policy.getTextUiVolumeThreshold());
+                    controller.setVolume(policy.textUiVolumeThreshold());
                     present(controller, policy, coordinator, "En el umbral configurado, respondo solo por audio.");
                 }
                 case "6", "7", "8" -> {

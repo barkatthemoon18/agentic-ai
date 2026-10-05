@@ -1,23 +1,17 @@
 package com.fuad.evaluation.utterance;
 
 import com.fuad.enums.UtteranceDecision;
-import lombok.Getter;
 
 import java.util.Objects;
 
-@Getter
-public class UtteranceEvaluationResult {
-    private final UtteranceEvaluationCase evaluationCase;
-    private final UtteranceDecision actual;
-    private final String error;
-    private final long latencyNanos;
+public record UtteranceEvaluationResult(
+        UtteranceEvaluationCase evaluationCase,
+        UtteranceDecision actual,
+        String error,
+        long latencyNanos) {
 
-    private UtteranceEvaluationResult(UtteranceEvaluationCase evaluationCase, UtteranceDecision actual,
-                                      String error, long latencyNanos) {
-        this.evaluationCase = Objects.requireNonNull(evaluationCase, "evaluationCase cannot be null");
-        this.actual = actual;
-        this.error = error;
-        this.latencyNanos = latencyNanos;
+    public UtteranceEvaluationResult {
+        evaluationCase = Objects.requireNonNull(evaluationCase, "evaluationCase cannot be null");
     }
 
     public static UtteranceEvaluationResult success(UtteranceEvaluationCase evaluationCase,

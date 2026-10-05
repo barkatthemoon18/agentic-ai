@@ -80,10 +80,10 @@ class LocalStructuredClassifiersBenchmarkTest {
     }
 
     private static String formatOs(com.fuad.assistant.skills.os.OsCommandIntent value) {
-        return value.getAction() + "|" + value.getTarget().toLowerCase(Locale.ROOT);
+        return value.action() + "|" + value.target().toLowerCase(Locale.ROOT);
     }
     private static String formatAudio(AudioControlIntent value) {
-        return value.getAudioAction() + "|" + value.getAudioScope() + "|" + value.getValue();
+        return value.audioAction() + "|" + value.audioScope() + "|" + value.value();
     }
     private double percentile(List<Long> sorted, double percentile) {
         return sorted.get(Math.max((int) Math.ceil(percentile * sorted.size()) - 1, 0)) / 1_000_000.0;

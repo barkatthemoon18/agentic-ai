@@ -3,7 +3,6 @@ package com.fuad.assistant.skills.research;
 import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ResearchDepth;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -73,8 +72,8 @@ class ResearchBackendRoutingTest {
                 snapshot("Busca globalmente quien fue Alan Turing", first));
 
         assertEquals(ResearchBackend.QWEN_LOCAL,
-                second.getResearchConversationState().getActiveBackend().orElseThrow());
-        assertEquals("gpt-1", second.getResearchConversationState()
+                second.researchConversationState().getActiveBackend().orElseThrow());
+        assertEquals("gpt-1", second.researchConversationState()
                 .getBranch(ResearchBackend.GPT_WEB).orElseThrow().continuationToken());
         assertEquals(2, localRequest.get().previousMessages().size());
         assertEquals("respuesta global", localRequest.get().previousMessages().get(1).content());
@@ -83,7 +82,7 @@ class ResearchBackendRoutingTest {
                 snapshot("Ahora buscalo localmente", second));
         assertEquals(4, localRequest.get().previousMessages().size());
         assertEquals(ResearchBackend.QWEN_LOCAL,
-                third.getResearchConversationState().getActiveBackend().orElseThrow());
+                third.researchConversationState().getActiveBackend().orElseThrow());
 
         skill.executeFollowUp("Vuelve a buscarlo globalmente", snapshot("Explicame mas", third));
         assertEquals("gpt-1", globalRequest.get().continuation().continuationToken());
@@ -92,7 +91,7 @@ class ResearchBackendRoutingTest {
     }
 
     private ConversationSnapshot snapshot(String userText, AssistantResult result) {
-        return new ConversationSnapshot(Capability.CURRENT_RESEARCH, userText, result.getText(),
-                result.getContinuationToken(), result.getResearchConversationState());
+        return new ConversationSnapshot(Capability.CURRENT_RESEARCH, userText, result.text(),
+                result.continuationToken(), result.researchConversationState());
     }
 }

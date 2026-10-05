@@ -57,7 +57,7 @@ public class UtteranceShapeDetector {
             "\\b\\p{Lu}[\\p{Ll}áéíóúüñ]+\\s+\\p{Lu}[\\p{Ll}áéíóúüñ]+\\b");
 
     public Optional<UtteranceDecision> classify(UtteranceClassificationRequest request) {
-        String text = normalize(request.getCurrentText());
+        String text = normalize(request.currentText());
 
         // Attribution changes the addressee: an embedded command or question is
         // not a request to Ares, even when its inner clause looks imperative.
@@ -73,14 +73,14 @@ public class UtteranceShapeDetector {
         }
 
         if (CLEAR_CONTEXTUAL_REQUEST.matcher(text).matches()) {
-            return Optional.of(request.getPreviousTurn().isPresent()
+            return Optional.of(request.previousTurn().isPresent()
                     ? UtteranceDecision.FOLLOW_UP
                     : UtteranceDecision.OTHER);
         }
 
         if (CATALOG_FOLLOW_UP.matcher(text).matches()) {
-            return Optional.of(request.getPreviousTurn()
-                    .filter(snapshot -> snapshot.getOsConversationState() != null)
+            return Optional.of(request.previousTurn()
+                    .filter(snapshot -> snapshot.osConversationState() != null)
                     .map(ignored -> UtteranceDecision.FOLLOW_UP)
                     .orElse(UtteranceDecision.OTHER));
         }
@@ -90,7 +90,7 @@ public class UtteranceShapeDetector {
                 || ASSISTANT_AUDIO_COMMAND.matcher(text).matches()
                 || DIRECT_REQUEST.matcher(text).matches()
                 || (EXPLICIT_QUESTION.matcher(text).matches()
-                    && containsNamedPerson(request.getCurrentText()))) {
+                    && containsNamedPerson(request.currentText()))) {
             return Optional.of(UtteranceDecision.NEW_REQUEST);
         }
 
@@ -98,7 +98,7 @@ public class UtteranceShapeDetector {
             return Optional.of(UtteranceDecision.OTHER);
         }
 
-        if (SOURCE_FOLLOW_UP.matcher(text).matches() && request.getPreviousTurn().isPresent()) {
+        if (SOURCE_FOLLOW_UP.matcher(text).matches() && request.previousTurn().isPresent()) {
             return Optional.of(UtteranceDecision.FOLLOW_UP);
         }
 
@@ -106,14 +106,14 @@ public class UtteranceShapeDetector {
     }
 
     private boolean hasNamedPersonAntecedent(UtteranceClassificationRequest request) {
-        return request.getPreviousTurn()
+        return request.previousTurn()
                 .map(this::containsNamedPerson)
                 .orElse(false);
     }
 
     private boolean containsNamedPerson(ConversationSnapshot snapshot) {
-        return containsNamedPerson(snapshot.getPreviousUserText())
-                || containsNamedPerson(snapshot.getPreviousAssistantText());
+        return containsNamedPerson(snapshot.previousUserText())
+                || containsNamedPerson(snapshot.previousAssistantText());
     }
 
     private boolean containsNamedPerson(String text) {

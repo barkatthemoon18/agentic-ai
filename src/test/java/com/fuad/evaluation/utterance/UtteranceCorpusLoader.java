@@ -58,8 +58,8 @@ public class UtteranceCorpusLoader {
                 }
                 UtteranceEvaluationCase evaluationCase = parse(line, source, lineNumber);
                 validate(evaluationCase, source, lineNumber);
-                if (!identifiers.add(evaluationCase.getId())) {
-                    throw invalid(source, lineNumber, "duplicate id '" + evaluationCase.getId() + "'");
+                if (!identifiers.add(evaluationCase.id())) {
+                    throw invalid(source, lineNumber, "duplicate id '" + evaluationCase.id() + "'");
                 }
                 cases.add(evaluationCase);
             }
@@ -81,20 +81,20 @@ public class UtteranceCorpusLoader {
     }
 
     private void validate(UtteranceEvaluationCase evaluationCase, String source, int lineNumber) {
-        requireField(evaluationCase.getId(), "id", source, lineNumber);
-        requireField(evaluationCase.getCurrentText(), "currentText", source, lineNumber);
-        requireField(evaluationCase.getExpected(), "expected", source, lineNumber);
-        requireField(evaluationCase.getRationale(), "rationale", source, lineNumber);
-        if (evaluationCase.getContextAvailable() == null) {
+        requireField(evaluationCase.id(), "id", source, lineNumber);
+        requireField(evaluationCase.currentText(), "currentText", source, lineNumber);
+        requireField(evaluationCase.expected(), "expected", source, lineNumber);
+        requireField(evaluationCase.rationale(), "rationale", source, lineNumber);
+        if (evaluationCase.contextAvailable() == null) {
             throw invalid(source, lineNumber, "contextAvailable is required");
         }
         validateExpected(evaluationCase, source, lineNumber);
         validateTags(evaluationCase, source, lineNumber);
-        if (evaluationCase.getContextAvailable()) {
-            requireField(evaluationCase.getPreviousUserText(), "previousUserText", source, lineNumber);
-            requireField(evaluationCase.getPreviousAssistantText(), "previousAssistantText", source, lineNumber);
-            requireField(evaluationCase.getOwner(), "owner", source, lineNumber);
-            validateOwner(evaluationCase.getOwner(), source, lineNumber);
+        if (evaluationCase.contextAvailable()) {
+            requireField(evaluationCase.previousUserText(), "previousUserText", source, lineNumber);
+            requireField(evaluationCase.previousAssistantText(), "previousAssistantText", source, lineNumber);
+            requireField(evaluationCase.owner(), "owner", source, lineNumber);
+            validateOwner(evaluationCase.owner(), source, lineNumber);
         } else {
             rejectUnexpectedContext(evaluationCase, source, lineNumber);
         }
@@ -105,18 +105,18 @@ public class UtteranceCorpusLoader {
         try {
             expected = evaluationCase.expectedDecision();
         } catch (IllegalArgumentException exception) {
-            throw invalid(source, lineNumber, "unknown expected label '" + evaluationCase.getExpected() + "'");
+            throw invalid(source, lineNumber, "unknown expected label '" + evaluationCase.expected() + "'");
         }
-        if (expected == UtteranceDecision.FOLLOW_UP && !evaluationCase.getContextAvailable()) {
+        if (expected == UtteranceDecision.FOLLOW_UP && !evaluationCase.contextAvailable()) {
             throw invalid(source, lineNumber, "FOLLOW_UP requires contextAvailable=true");
         }
     }
 
     private void validateTags(UtteranceEvaluationCase evaluationCase, String source, int lineNumber) {
-        if (evaluationCase.getTags() == null) {
+        if (evaluationCase.tags() == null) {
             throw invalid(source, lineNumber, "tags cannot be null");
         }
-        for (String tag : evaluationCase.getTags()) {
+        for (String tag : evaluationCase.tags()) {
             if (tag == null || tag.isBlank()) {
                 throw invalid(source, lineNumber, "tags cannot contain blank values");
             }
@@ -136,8 +136,8 @@ public class UtteranceCorpusLoader {
     }
 
     private void rejectUnexpectedContext(UtteranceEvaluationCase evaluationCase, String source, int lineNumber) {
-        if (hasText(evaluationCase.getPreviousUserText()) || hasText(evaluationCase.getPreviousAssistantText())
-                || hasText(evaluationCase.getOwner())) {
+        if (hasText(evaluationCase.previousUserText()) || hasText(evaluationCase.previousAssistantText())
+                || hasText(evaluationCase.owner())) {
             throw invalid(source, lineNumber, "context fields require contextAvailable=true");
         }
     }

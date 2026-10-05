@@ -5,8 +5,7 @@ import com.fuad.assistant.local.LocalQwenException;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.assistant.skills.Skill;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ConversationPolicy;
-import com.fuad.enums.ResearchDepth;
+import com.fuad.pipeline.ConversationPolicy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -105,13 +104,13 @@ public class CurrentResearchSkill implements Skill {
     }
 
     private ResearchConversationState stateFrom(ConversationSnapshot snapshot) {
-        if (snapshot == null || snapshot.getOwner() != Capability.CURRENT_RESEARCH) {
+        if (snapshot == null || snapshot.owner() != Capability.CURRENT_RESEARCH) {
             return ResearchConversationState.empty();
         }
-        if (snapshot.getResearchConversationState() != null) {
-            return snapshot.getResearchConversationState();
+        if (snapshot.researchConversationState() != null) {
+            return snapshot.researchConversationState();
         }
-        String token = snapshot.getContinuationToken();
+        String token = snapshot.continuationToken();
         if (token != null && !token.isBlank()) {
             return new ResearchConversationState(ResearchBackend.GPT_WEB, Map.of(
                     ResearchBackend.GPT_WEB, new ResearchBranchState(token, List.of())));
@@ -124,8 +123,8 @@ public class CurrentResearchSkill implements Skill {
             return ResearchBranchState.empty();
         }
         List<ResearchMessage> messages = new ArrayList<>();
-        messages.add(new ResearchMessage(ResearchMessage.Role.USER, snapshot.getPreviousUserText()));
-        messages.add(new ResearchMessage(ResearchMessage.Role.ASSISTANT, snapshot.getPreviousAssistantText()));
+        messages.add(new ResearchMessage(ResearchMessage.Role.USER, snapshot.previousUserText()));
+        messages.add(new ResearchMessage(ResearchMessage.Role.ASSISTANT, snapshot.previousAssistantText()));
         return new ResearchBranchState(null, messages);
     }
 

@@ -11,7 +11,7 @@ public class ConversationSession {
     private ConversationSnapshot conversationSnapshot;
 
     public Optional<Capability> getOwner() {
-        return getSnapshot().map(ConversationSnapshot::getOwner);
+        return getSnapshot().map(ConversationSnapshot::owner);
     }
 
     public void openOrRefresh(ConversationSnapshot conversationSnapshot) {

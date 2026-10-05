@@ -1,7 +1,7 @@
 package com.fuad.assistant.skills.os;
 
 import com.fuad.assistant.AssistantResult;
-import com.fuad.enums.OsAction;
+import com.fuad.pipeline.OsAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +28,7 @@ class OsCommandSkillTest {
 
         AssistantResult result = skill.execute("mañana cierra Spotify");
 
-        assertEquals("No interpreté eso como una orden inmediata.", result.getText());
+        assertEquals("No interpreté eso como una orden inmediata.", result.text());
         assertFalse(parser.called);
         assertFalse(controller.called);
     }
@@ -38,7 +38,7 @@ class OsCommandSkillTest {
         AssistantResult result = skill(command -> OsCommandIntent.unsupported(), guard(true))
                 .execute("haz algo");
 
-        assertEquals("Ese comando del sistema todavía no está soportado", result.getText());
+        assertEquals("Ese comando del sistema todavía no está soportado", result.text());
     }
 
     @Test
@@ -47,7 +47,7 @@ class OsCommandSkillTest {
             throw new InvalidOsCommandOutputException("invalid", null);
         }, guard(true)).execute("abre Spotify");
 
-        assertEquals("No pude interpretar el comando del sistema.", result.getText());
+        assertEquals("No pude interpretar el comando del sistema.", result.text());
         assertFalse(controller.called);
     }
 
@@ -57,7 +57,7 @@ class OsCommandSkillTest {
                 command -> new OsCommandIntent(OsAction.OPEN_APPLICATION, "firefox"), guard(true))
                 .execute("abre Firefox");
 
-        assertEquals("No tengo registrada esa aplicación", result.getText());
+        assertEquals("No tengo registrada esa aplicación", result.text());
         assertFalse(controller.called);
     }
 
@@ -67,7 +67,7 @@ class OsCommandSkillTest {
                 command -> new OsCommandIntent(OsAction.OPEN_APPLICATION, "spotify"), guard(true))
                 .execute("abre Spotify");
 
-        assertEquals("Abriendo: Spotify.", result.getText());
+        assertEquals("Abriendo: Spotify.", result.text());
         assertSame(spotify, controller.application);
     }
 
@@ -79,7 +79,7 @@ class OsCommandSkillTest {
                 command -> new OsCommandIntent(OsAction.CLOSE_APPLICATION, "spotify"), guard(true))
                 .execute("cierra Spotify");
 
-        assertEquals("Cerrando: Spotify.", result.getText());
+        assertEquals("Cerrando: Spotify.", result.text());
     }
 
     @Test
@@ -90,7 +90,7 @@ class OsCommandSkillTest {
                 command -> new OsCommandIntent(OsAction.CLOSE_APPLICATION, "spotify"), guard(true))
                 .execute("cierra Spotify");
 
-        assertEquals("Spotify no está abierto", result.getText());
+        assertEquals("Spotify no está abierto", result.text());
     }
 
     @Test
@@ -101,7 +101,7 @@ class OsCommandSkillTest {
                 command -> new OsCommandIntent(OsAction.OPEN_APPLICATION, "spotify"), guard(true))
                 .execute("abre Spotify");
 
-        assertEquals("No pude ejecutar esa acción", result.getText());
+        assertEquals("No pude ejecutar esa acción", result.text());
     }
 
     @Test
@@ -111,7 +111,7 @@ class OsCommandSkillTest {
                 command -> new OsCommandIntent(OsAction.FOCUS_APPLICATION, "spotify"), guard(true))
                 .execute("enfoca Spotify");
 
-        assertEquals("Enfocando: Spotify.", result.getText());
+        assertEquals("Enfocando: Spotify.", result.text());
     }
 
     private OsCommandSkill skill(OsCommandParser parser, OsCommandSafetyGuard guard) {

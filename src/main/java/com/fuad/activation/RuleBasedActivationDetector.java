@@ -3,9 +3,8 @@ package com.fuad.activation;
 import com.fuad.activation.wake.WakeClassifier;
 import com.fuad.activation.wake.WakeWordMatch;
 import com.fuad.activation.wake.WakeWordMatcher;
-import com.fuad.enums.ActivationType;
-import com.fuad.enums.WakeMatchStatus;
-import com.fuad.enums.WakeResolution;
+import com.fuad.vad.WakeMatchStatus;
+import com.fuad.vad.WakeResolution;
 import com.fuad.stt.TranscriptionResult;
 
 import java.util.List;
@@ -26,26 +25,26 @@ public class RuleBasedActivationDetector implements ActivationDetector {
 
     @Override
     public ActivationResult detect(TranscriptionResult transcriptionResult) {
-        String original = transcriptionResult.getText() != null ? transcriptionResult.getText().trim() : "";
+        String original = transcriptionResult.text() != null ? transcriptionResult.text().trim() : "";
         if (original.isEmpty()) {
             return ActivationResult.none();
         }
         String normalized = original.toLowerCase(Locale.ROOT);
         WakeWordMatch wakeWordMatch = wakeWordMatcher.match(original);
-        if (wakeWordMatch.getStatus() == WakeMatchStatus.MATCH) {
-            System.out.printf("WAKE -> MATCH | %.2f | candidate='%s'%n", wakeWordMatch.getSimilarity(), wakeWordMatch.getCandidate());
-            return new ActivationResult(true, ActivationType.WAKE_WORD, wakeWordMatch.getCommand());
+        if (wakeWordMatch.status() == WakeMatchStatus.MATCH) {
+            System.out.printf("WAKE -> MATCH | %.2f | candidate='%s'%n", wakeWordMatch.similarity(), wakeWordMatch.candidate());
+            return new ActivationResult(true, ActivationType.WAKE_WORD, wakeWordMatch.command());
         }
-        if (wakeWordMatch.getStatus() == WakeMatchStatus.AMBIGUOUS) {
-            System.out.printf("WAKE -> AMBIGUOUS | %.2f | candidate='%s'%n", wakeWordMatch.getSimilarity(), wakeWordMatch.getCandidate());
-            WakeResolution resolution = wakeClassifier.classify(wakeWordMatch.getCandidate(), wakeWordMatch.getCommand());
+        if (wakeWordMatch.status() == WakeMatchStatus.AMBIGUOUS) {
+            System.out.printf("WAKE -> AMBIGUOUS | %.2f | candidate='%s'%n", wakeWordMatch.similarity(), wakeWordMatch.candidate());
+            WakeResolution resolution = wakeClassifier.classify(wakeWordMatch.candidate(), wakeWordMatch.command());
             System.out.println("WAKE AI -> " + resolution);
             if (resolution == WakeResolution.WAKE) {
                 if (looksLikeMisheardOpenCommand(wakeWordMatch)) {
                     System.out.println("WAKE -> REJECTED AMBIGUOUS ACTION");
                     return ActivationResult.none();
                 }
-                return new ActivationResult(true, ActivationType.WAKE_WORD, wakeWordMatch.getCommand());
+                return new ActivationResult(true, ActivationType.WAKE_WORD, wakeWordMatch.command());
             }
             if (resolution == WakeResolution.SEMANTIC_INTENT) {
                 return new ActivationResult(true, ActivationType.SEMANTIC_INTENT, original);
@@ -61,8 +60,8 @@ public class RuleBasedActivationDetector implements ActivationDetector {
     }
 
     private boolean looksLikeMisheardOpenCommand(WakeWordMatch match) {
-        String candidate = normalize(match.getCandidate());
-        String command = match.getCommand().trim();
+        String candidate = normalize(match.candidate());
+        String command = match.command().trim();
         return candidate.matches("avr?es?|abr?es?")
                 && command.matches("(?U)[\\p{L}\\p{N}._-]+");
     }

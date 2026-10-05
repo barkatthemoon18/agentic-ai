@@ -187,15 +187,15 @@ public class LocalUtteranceClassifier implements UtteranceClassifier {
             case "other"  -> UtteranceDecision.OTHER;
             default -> throw new IllegalStateException("Unknown utterance classification: " + result);
         };
-        return decision == UtteranceDecision.FOLLOW_UP && request.getPreviousTurn().isEmpty()
+        return decision == UtteranceDecision.FOLLOW_UP && request.previousTurn().isEmpty()
                 ? UtteranceDecision.OTHER
                 : decision;
     }
 
     private String buildInput(UtteranceClassificationRequest request) {
-        return request.getPreviousTurn().map(conversationSnapshot ->
-                buildContextualInput(request.getCurrentText(), conversationSnapshot))
-                .orElseGet(() -> buildContextFreeInput(request.getCurrentText()));
+        return request.previousTurn().map(conversationSnapshot ->
+                buildContextualInput(request.currentText(), conversationSnapshot))
+                .orElseGet(() -> buildContextFreeInput(request.currentText()));
     }
 
     private String buildContextualInput(String text, ConversationSnapshot conversationSnapshot) {
@@ -213,7 +213,7 @@ public class LocalUtteranceClassifier implements UtteranceClassifier {
                 <current_utterance>
                 %s
                 </current_utterance>
-                """.formatted(conversationSnapshot.getPreviousUserText(), conversationSnapshot.getPreviousAssistantText(),
+                """.formatted(conversationSnapshot.previousUserText(), conversationSnapshot.previousAssistantText(),
                 text);
     }
 

@@ -42,7 +42,7 @@ public class SileroVadEngine implements VadEngine {
         validate(frame);
         float[][] input = new float[1][CONTEXT_SIZE + FRAME_SIZE];
         System.arraycopy(context, 0, input[0], 0, CONTEXT_SIZE);
-        System.arraycopy(frame.getSamples(), 0, input[0], CONTEXT_SIZE, FRAME_SIZE);
+        System.arraycopy(frame.samples(), 0, input[0], CONTEXT_SIZE, FRAME_SIZE);
         try (OnnxTensor inputTensor = OnnxTensor.createTensor(environment, input);
              OnnxTensor stateTensor = OnnxTensor.createTensor(environment, state);
              OnnxTensor srTensor = OnnxTensor.createTensor(environment, (long) SAMPLE_RATE)) {
@@ -57,7 +57,7 @@ public class SileroVadEngine implements VadEngine {
                 float probability = output[0][0];
                 OnnxTensor newStateTensor = (OnnxTensor) result.get("stateN").orElseThrow();
                 state = (float[][][]) newStateTensor.getValue();
-                System.arraycopy(frame.getSamples(), FRAME_SIZE - CONTEXT_SIZE, context, 0, CONTEXT_SIZE);
+                System.arraycopy(frame.samples(), FRAME_SIZE - CONTEXT_SIZE, context, 0, CONTEXT_SIZE);
                 boolean speech = probability >= threshold;
                 return new VadResult(probability, speech);
             }
@@ -84,10 +84,10 @@ public class SileroVadEngine implements VadEngine {
     }
 
     private void validate(AudioFrame frame) {
-        if (frame.getSampleRate() != SAMPLE_RATE) {
+        if (frame.sampleRate() != SAMPLE_RATE) {
             throw new IllegalArgumentException("Silero requires 16Khz");
         }
-        if (frame.getSamples().length != FRAME_SIZE) {
+        if (frame.samples().length != FRAME_SIZE) {
             throw new IllegalArgumentException("Silero requires exactly " + FRAME_SIZE + " samples");
         }
     }

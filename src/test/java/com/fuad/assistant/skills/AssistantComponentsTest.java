@@ -8,10 +8,10 @@ import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.AssistantTurn;
 import com.fuad.assistant.routing.AiSkillRouter;
 import com.fuad.assistant.session.ConversationSnapshot;
-import com.fuad.enums.ActivationType;
+import com.fuad.activation.ActivationType;
 import com.fuad.enums.Capability;
-import com.fuad.enums.ConversationPolicy;
-import com.fuad.enums.ResearchDepth;
+import com.fuad.pipeline.ConversationPolicy;
+import com.fuad.assistant.skills.research.ResearchDepth;
 import com.fuad.pipeline.AssistantPipeline;
 import org.junit.jupiter.api.Test;
 
@@ -69,8 +69,8 @@ class AssistantComponentsTest {
 
         SkillRoute route = router.route("hola");
 
-        assertEquals(Capability.GENERAL, route.getCapability());
-        assertSame(expected, route.getSkill());
+        assertEquals(Capability.GENERAL, route.capability());
+        assertSame(expected, route.skill());
     }
 
     @Test
@@ -86,8 +86,8 @@ class AssistantComponentsTest {
         SkillRoute route = router.routeTo(Capability.CURRENT_RESEARCH);
 
         assertEquals(0, classifications.get());
-        assertEquals(Capability.CURRENT_RESEARCH, route.getCapability());
-        assertSame(researchSkill, route.getSkill());
+        assertEquals(Capability.CURRENT_RESEARCH, route.capability());
+        assertSame(researchSkill, route.skill());
     }
 
     @Test
@@ -106,9 +106,9 @@ class AssistantComponentsTest {
                 "Ahora búscalo en Internet y dime qué fuentes encuentras", general);
         SkillRoute preserved = router.routeFollowUp("¿Qué inventos hizo?", general);
 
-        assertEquals(Capability.CURRENT_RESEARCH, escalated.getCapability());
-        assertSame(researchSkill, escalated.getSkill());
-        assertEquals(Capability.GENERAL, preserved.getCapability());
+        assertEquals(Capability.CURRENT_RESEARCH, escalated.capability());
+        assertSame(researchSkill, escalated.skill());
+        assertEquals(Capability.GENERAL, preserved.capability());
         assertEquals(0, classifications.get());
     }
 
@@ -140,9 +140,9 @@ class AssistantComponentsTest {
         assertEquals(1, router.normalRoutes.get());
         assertEquals(0, router.ownerRoutes.get());
         assertEquals("comando", executed.get());
-        assertEquals("respuesta", result.getResponse().getText());
-        assertEquals(ConversationPolicy.KEEP_OPEN, result.getConversationPolicy());
-        assertEquals(Capability.GENERAL, result.getCapability());
+        assertEquals("respuesta", result.response().text());
+        assertEquals(ConversationPolicy.KEEP_OPEN, result.conversationPolicy());
+        assertEquals(Capability.GENERAL, result.capability());
     }
 
     @Test
@@ -164,7 +164,7 @@ class AssistantComponentsTest {
         AssistantExecutionResult result = pipeline.process(
                 new ActivationResult(true, ActivationType.WAKE_WORD, "usa Qwen"));
 
-        assertEquals(ConversationPolicy.PRESERVE, result.getConversationPolicy());
+        assertEquals(ConversationPolicy.PRESERVE, result.conversationPolicy());
     }
 
     @Test
@@ -209,8 +209,8 @@ class AssistantComponentsTest {
         assertEquals(Capability.CURRENT_RESEARCH, router.requestedOwner.get());
         assertEquals("¿Y cuándo ocurrió?", executed.get());
         assertEquals("token-anterior", receivedToken.get());
-        assertEquals("token-nuevo", result.getResponse().getContinuationToken());
-        assertEquals(Capability.CURRENT_RESEARCH, result.getCapability());
+        assertEquals("token-nuevo", result.response().continuationToken());
+        assertEquals(Capability.CURRENT_RESEARCH, result.capability());
     }
 
     @Test
@@ -228,12 +228,12 @@ class AssistantComponentsTest {
 
         AssistantResult result = skill.execute("explica RSA");
 
-        assertEquals("respuesta", result.getText());
-        assertEquals("explica RSA", captured.get().getCommand());
-        assertEquals(300, captured.get().getMaxOutputTokens());
-        assertNull(captured.get().getContinuationToken());
-        assertEquals(ResearchDepth.NONE, captured.get().getResearchDepth());
-        assertFalse(captured.get().getInstructions().isBlank());
+        assertEquals("respuesta", result.text());
+        assertEquals("explica RSA", captured.get().command());
+        assertEquals(300, captured.get().maxOutputTokens());
+        assertNull(captured.get().continuationToken());
+        assertEquals(ResearchDepth.NONE, captured.get().researchDepth());
+        assertFalse(captured.get().instructions().isBlank());
         assertEquals(ConversationPolicy.KEEP_OPEN, skill.getConversationPolicy());
     }
 
@@ -248,15 +248,15 @@ class AssistantComponentsTest {
 
         AssistantResult result = skill.execute("continúa", "token-sesion");
 
-        assertEquals("token-sesion", captured.get().getContinuationToken());
-        assertEquals("token-siguiente", result.getContinuationToken());
+        assertEquals("token-sesion", captured.get().continuationToken());
+        assertEquals("token-siguiente", result.continuationToken());
     }
 
     @Test
     void sharedStatelessEngineShouldReceiveTheTokenFromEachConversationSnapshot() {
         List<String> receivedTokens = new ArrayList<>();
         AssistantEngine sharedEngine = request -> {
-            receivedTokens.add(request.getContinuationToken());
+            receivedTokens.add(request.continuationToken());
             return new AssistantResult("respuesta", "siguiente-" + receivedTokens.size());
         };
         GeneralSkill sharedSkill = new GeneralSkill(sharedEngine);
@@ -276,9 +276,9 @@ class AssistantComponentsTest {
 
     @Test
     void basicSkillsShouldReturnStableUserFacingResponses() {
-        assertTrue(new SystemTimeSkill().execute("").getText().matches("Son las \\d{2}:\\d{2} horas\\."));
+        assertTrue(new SystemTimeSkill().execute("").text().matches("Son las \\d{2}:\\d{2} horas\\."));
         assertEquals("La capacidad AUDIO_CONTROL todavía no está implementada",
-                new UnsupportedSkill(Capability.AUDIO_CONTROL).execute("").getText());
+                new UnsupportedSkill(Capability.AUDIO_CONTROL).execute("").text());
     }
 
     private Skill keepOpenSkill(AtomicReference<String> executed) {

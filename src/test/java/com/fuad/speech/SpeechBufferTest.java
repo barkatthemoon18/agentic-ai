@@ -24,9 +24,9 @@ class SpeechBufferTest {
 
         SpeechSegment segment = buffer.toSegment();
 
-        assertArrayEquals(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f}, segment.getSamples());
-        assertEquals(1_000, segment.getSampleRate());
-        assertEquals(100L, segment.getStartTimestampNanos());
+        assertArrayEquals(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f}, segment.samples());
+        assertEquals(1_000, segment.sampleRate());
+        assertEquals(100L, segment.startTimestampNanos());
         assertEquals(2, buffer.frameCount());
         assertEquals(5, buffer.durationMillis());
     }

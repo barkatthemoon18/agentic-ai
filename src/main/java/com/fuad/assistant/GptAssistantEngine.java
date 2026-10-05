@@ -1,6 +1,6 @@
 package com.fuad.assistant;
 
-import com.fuad.enums.ResearchDepth;
+import com.fuad.assistant.skills.research.ResearchDepth;
 import com.openai.client.OpenAIClient;
 import com.openai.models.ChatModel;
 import com.openai.models.Reasoning;
@@ -21,11 +21,11 @@ public class GptAssistantEngine implements AssistantEngine {
     @Override
     public AssistantResult process(AssistantRequest request) {
         ResponseCreateParams.Builder builder = ResponseCreateParams.builder().model(ChatModel.GPT_5_6_LUNA)
-                .input(request.getCommand())
-                .instructions(request.getInstructions())
-                .maxOutputTokens(request.getMaxOutputTokens());
-        configureResearch(builder, request.getResearchDepth());
-        String continuationToken = request.getContinuationToken();
+                .input(request.command())
+                .instructions(request.instructions())
+                .maxOutputTokens(request.maxOutputTokens());
+        configureResearch(builder, request.researchDepth());
+        String continuationToken = request.continuationToken();
         if (continuationToken != null && !continuationToken.isBlank()) {
             builder.previousResponseId(continuationToken);
         }

@@ -41,11 +41,11 @@ public class AiSkillRouter implements SkillRouter {
 
     @Override
     public SkillRoute routeFollowUp(String command, ConversationSnapshot snapshot) {
-        if (snapshot.getOwner() == Capability.GENERAL
+        if (snapshot.owner() == Capability.GENERAL
                 && researchEscalationDetector.shouldEscalate(command)) {
             System.out.println("CAPABILITY TRANSITION -> CURRENT_RESEARCH");
             return routeTo(Capability.CURRENT_RESEARCH);
         }
-        return routeTo(snapshot.getOwner());
+        return routeTo(snapshot.owner());
     }
 }

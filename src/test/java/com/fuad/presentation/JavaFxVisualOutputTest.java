@@ -22,7 +22,7 @@ class JavaFxVisualOutputTest {
         AssistantAudioSnapshot snapshot = new AssistantAudioSnapshot(40, true);
         VisualMessage visualMessage = new VisualMessage("", snapshot, null, AudioDeliveryState.NORMAL);
 
-        assertEquals("\u25CF  MUTED", JavaFxVisualOutput.buildStatusText(snapshot, visualMessage.getAudioDeliveryState()));
+        assertEquals("\u25CF  MUTED", JavaFxVisualOutput.buildStatusText(snapshot, visualMessage.audioDeliveryState()));
     }
 
     @Test
@@ -30,7 +30,7 @@ class JavaFxVisualOutputTest {
         AssistantAudioSnapshot snapshot = new AssistantAudioSnapshot(10, false);
         VisualMessage visualMessage = new VisualMessage("Testing exclusive mode", snapshot, null, AudioDeliveryState.NORMAL);
 
-        assertEquals("\u25CF  VOL 10%", JavaFxVisualOutput.buildStatusText(snapshot, visualMessage.getAudioDeliveryState()));
+        assertEquals("\u25CF  VOL 10%", JavaFxVisualOutput.buildStatusText(snapshot, visualMessage.audioDeliveryState()));
     }
 
     @Test
@@ -38,14 +38,14 @@ class JavaFxVisualOutputTest {
         AssistantAudioSnapshot snapshot = new AssistantAudioSnapshot(40, true);
         VisualMessage visualMessage = new VisualMessage("Testing exclusive mode", snapshot, null, AudioDeliveryState.OUTPUT_RESERVED);
 
-        assertEquals("\u25CF AUDIO // TIDAL EXCLUSIVE", JavaFxVisualOutput.buildStatusText(snapshot, visualMessage.getAudioDeliveryState()));
+        assertEquals("\u25CF AUDIO // TIDAL EXCLUSIVE", JavaFxVisualOutput.buildStatusText(snapshot, visualMessage.audioDeliveryState()));
     }
 
     @Test
     void shouldRejectNullStatusSnapshot() {
         VisualMessage visualMessage = new VisualMessage("Testing exclusive mode", new AssistantAudioSnapshot(100, false), null, AudioDeliveryState.NORMAL);
 
-        assertThrows(NullPointerException.class, () -> JavaFxVisualOutput.buildStatusText(null, visualMessage.getAudioDeliveryState()));
+        assertThrows(NullPointerException.class, () -> JavaFxVisualOutput.buildStatusText(null, visualMessage.audioDeliveryState()));
     }
 
     @ParameterizedTest

@@ -2,7 +2,7 @@ package com.fuad.evaluation.model;
 
 import com.fuad.assistant.skills.research.LocalResearchDepthClassifier;
 import com.fuad.config.AppConfig;
-import com.fuad.enums.ResearchDepth;
+import com.fuad.assistant.skills.research.ResearchDepth;
 import com.fuad.evaluation.classification.DecisionCorpusEvaluator;
 import com.fuad.evaluation.classification.DecisionCorpusLoader;
 import com.fuad.evaluation.classification.DecisionEvaluationReport;

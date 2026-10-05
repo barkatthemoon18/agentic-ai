@@ -2,8 +2,7 @@ package com.fuad.activation;
 
 import com.fuad.activation.wake.WakeClassifier;
 import com.fuad.activation.wake.WakeWordMatcher;
-import com.fuad.enums.ActivationType;
-import com.fuad.enums.WakeResolution;
+import com.fuad.vad.WakeResolution;
 import com.fuad.stt.TranscriptionResult;
 import org.junit.jupiter.api.Test;
 
@@ -28,8 +27,8 @@ class RuleBasedActivationDetectorTest {
         ActivationResult nullText = detector.detect(new TranscriptionResult(null, "es", 0));
         ActivationResult blankText = detector.detect(new TranscriptionResult("   ", "es", 0));
 
-        assertFalse(nullText.isActivated());
-        assertFalse(blankText.isActivated());
+        assertFalse(nullText.activated());
+        assertFalse(blankText.activated());
         assertFalse(called.get());
     }
 
@@ -42,9 +41,9 @@ class RuleBasedActivationDetectorTest {
             return WakeResolution.NONE;
         }).detect(transcription("Ares, abre Spotify"));
 
-        assertTrue(result.isActivated());
-        assertEquals(ActivationType.WAKE_WORD, result.getType());
-        assertEquals("abre Spotify", result.getCommand());
+        assertTrue(result.activated());
+        assertEquals(ActivationType.WAKE_WORD, result.type());
+        assertEquals("abre Spotify", result.command());
         assertFalse(called.get());
     }
 
@@ -53,9 +52,9 @@ class RuleBasedActivationDetectorTest {
         ActivationResult result = detector((candidate, command) -> WakeResolution.WAKE)
                 .detect(transcription("Eres abre Spotify"));
 
-        assertTrue(result.isActivated());
-        assertEquals(ActivationType.WAKE_WORD, result.getType());
-        assertEquals("abre Spotify", result.getCommand());
+        assertTrue(result.activated());
+        assertEquals(ActivationType.WAKE_WORD, result.type());
+        assertEquals("abre Spotify", result.command());
     }
 
     @Test
@@ -63,9 +62,9 @@ class RuleBasedActivationDetectorTest {
         ActivationResult result = detector((candidate, command) -> WakeResolution.SEMANTIC_INTENT)
                 .detect(transcription("Eres abre Spotify"));
 
-        assertTrue(result.isActivated());
-        assertEquals(ActivationType.SEMANTIC_INTENT, result.getType());
-        assertEquals("Eres abre Spotify", result.getCommand());
+        assertTrue(result.activated());
+        assertEquals(ActivationType.SEMANTIC_INTENT, result.type());
+        assertEquals("Eres abre Spotify", result.command());
     }
 
     @Test
@@ -73,8 +72,8 @@ class RuleBasedActivationDetectorTest {
         ActivationResult result = detector((candidate, command) -> WakeResolution.WAKE)
                 .detect(transcription("Avres Spotify"));
 
-        assertFalse(result.isActivated());
-        assertEquals(ActivationType.NONE, result.getType());
+        assertFalse(result.activated());
+        assertEquals(ActivationType.NONE, result.type());
     }
 
     @Test
@@ -82,8 +81,8 @@ class RuleBasedActivationDetectorTest {
         ActivationResult result = detector((candidate, command) -> WakeResolution.NONE)
                 .detect(transcription("NECESITO QUE revises esto"));
 
-        assertTrue(result.isActivated());
-        assertEquals(ActivationType.INTENT_PHRASE, result.getType());
+        assertTrue(result.activated());
+        assertEquals(ActivationType.INTENT_PHRASE, result.type());
     }
 
     @Test
@@ -91,8 +90,8 @@ class RuleBasedActivationDetectorTest {
         ActivationResult result = detector((candidate, command) -> WakeResolution.NONE)
                 .detect(transcription("Que hora es?"));
 
-        assertFalse(result.isActivated());
-        assertEquals(ActivationType.NONE, result.getType());
+        assertFalse(result.activated());
+        assertEquals(ActivationType.NONE, result.type());
     }
 
     private RuleBasedActivationDetector detector(WakeClassifier wakeClassifier) {

@@ -1,7 +1,5 @@
 package com.fuad.audio;
 
-import com.fuad.enums.AudioAction;
-import com.fuad.enums.AudioScope;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -30,8 +28,8 @@ class AudioControlIntentTest {
     void unsupportedFactoryShouldPreserveScope() {
         AudioControlIntent intent = AudioControlIntent.unsupported(AudioScope.APPLICATION);
 
-        assertEquals(AudioAction.UNSUPPORTED, intent.getAudioAction());
-        assertEquals(AudioScope.APPLICATION, intent.getAudioScope());
-        assertEquals(null, intent.getValue());
+        assertEquals(AudioAction.UNSUPPORTED, intent.audioAction());
+        assertEquals(AudioScope.APPLICATION, intent.audioScope());
+        assertEquals(null, intent.value());
     }
 }
