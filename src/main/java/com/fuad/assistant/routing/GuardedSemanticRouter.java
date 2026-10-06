@@ -65,9 +65,15 @@ public class GuardedSemanticRouter implements SemanticRouter {
             return Capability.CURRENT_RESEARCH;
         }
 
-        Capability modelDecision = Objects.requireNonNull(
-                delegate.classify(command), "semantic router result cannot be null");
-        return isCompatible(modelDecision, normalized) ? modelDecision : Capability.GENERAL;
+        try {
+            Capability modelDecision = Objects.requireNonNull(
+                    delegate.classify(command), "semantic router result cannot be null");
+            return isCompatible(modelDecision, normalized) ? modelDecision : Capability.GENERAL;
+        }
+        catch (InvalidSemanticClassificationException e) {
+            System.err.println("Semantic classification failed: defaulting to GENERAL: " + e.getMessage());
+            return Capability.GENERAL;
+        }
     }
 
     private boolean isCompatible(Capability decision, String command) {
