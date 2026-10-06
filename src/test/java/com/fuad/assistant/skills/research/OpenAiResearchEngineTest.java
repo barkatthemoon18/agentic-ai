@@ -27,11 +27,12 @@ class OpenAiResearchEngineTest {
     @ValueSource(strings = " ")
     void missingUsableTokenShouldSeedVisibleHistoryAndPreserveDepth(String token) {
         ResearchEngineResult result = engine.research(new ResearchRequest("current query", "instructions", 1200,
-                ResearchDepth.DEEP, new ResearchBranchState(token, history)));
+                ResearchAccess.WEB_REQUIRED, ResearchDepth.DEEP, new ResearchBranchState(token, history)));
         assertTrue(captured.get().command().contains("Usuario: previous question"));
         assertTrue(captured.get().command().contains("Asistente: previous answer"));
         assertTrue(captured.get().command().endsWith("Consulta actual: current query"));
         assertEquals(ResearchDepth.DEEP, captured.get().researchDepth());
+        assertEquals(ResearchAccess.WEB_REQUIRED, captured.get().researchAccess());
         assertEquals("instructions", captured.get().instructions());
         assertEquals(1200, captured.get().maxOutputTokens());
         assertEquals("research answer", result.text());
@@ -41,7 +42,7 @@ class OpenAiResearchEngineTest {
     @Test
     void continuationTokenShouldAvoidReplayingVisibleHistory() {
         engine.research(new ResearchRequest("current query", "instructions", 500,
-                ResearchDepth.QUICK, new ResearchBranchState("previous-token", history)));
+                ResearchAccess.WEB_REQUIRED, ResearchDepth.QUICK, new ResearchBranchState("previous-token", history)));
         assertEquals("current query", captured.get().command());
         assertEquals("previous-token", captured.get().continuationToken());
         assertEquals(ResearchDepth.QUICK, captured.get().researchDepth());
@@ -49,7 +50,8 @@ class OpenAiResearchEngineTest {
 
     @Test
     void newResearchWithoutHistoryShouldSendOnlyCurrentQuery() {
-        engine.research(new ResearchRequest("current query", "instructions", 500, ResearchDepth.QUICK, null));
+        engine.research(new ResearchRequest("current query", "instructions", 500,
+                ResearchAccess.MODEL_KNOWLEDGE, ResearchDepth.QUICK, null));
         assertEquals("current query", captured.get().command());
         assertNull(captured.get().continuationToken());
     }

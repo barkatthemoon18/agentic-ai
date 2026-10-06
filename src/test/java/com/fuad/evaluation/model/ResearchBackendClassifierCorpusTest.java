@@ -1,7 +1,9 @@
 package com.fuad.evaluation.model;
 
-import com.fuad.assistant.skills.research.DefaultResearchBackendClassifier;
-import com.fuad.assistant.skills.research.ResearchBackend;
+import com.fuad.assistant.skills.research.LocalResearchPlanClassifier;
+import com.fuad.assistant.skills.research.ResearchAccess;
+import com.fuad.config.AppConfig;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.fuad.evaluation.classification.DecisionCorpusEvaluator;
 import com.fuad.evaluation.classification.DecisionCorpusLoader;
 import com.fuad.evaluation.classification.DecisionEvaluationReport;
@@ -21,14 +23,17 @@ class ResearchBackendClassifierCorpusTest {
     @Test
     void classifierShouldMeetCorpusThreshold() {
         String corpus = corpus();
-        DefaultResearchBackendClassifier classifier = new DefaultResearchBackendClassifier();
+        LocalResearchPlanClassifier classifier = new LocalResearchPlanClassifier(
+                OpenAIOkHttpClient.builder()
+                        .baseUrl(System.getProperty("evaluation.base-url", AppConfig.LOCAL_AI_BASE_URL))
+                        .apiKey(System.getProperty("evaluation.api-key", AppConfig.LOCAL_AI_API_KEY)).build(),
+                System.getProperty("evaluation.model", AppConfig.LOCAL_MODEL_ID));
         DecisionEvaluationReport report = new DecisionCorpusEvaluator().evaluate(
                 new DecisionCorpusLoader().loadResource(
                         "evaluation/research-backend-" + corpus + ".jsonl",
                         Set.copyOf(LABELS), Set.copyOf(LABELS)),
-                LABELS, testCase -> label(classifier.classify(testCase.query(),
-                        inherited(testCase.normalizedInheritedBackend()))));
-        String formatted = report.format("Research backend corpus evaluation", "corpus=" + corpus);
+                LABELS, testCase -> label(classifier.classify(testCase.query()).access()));
+        String formatted = report.format("Research backend corpus evaluation", "corpus=" + corpus + " projection=access inheritedBackend-not-an-input");
         System.out.println(formatted);
         if (!Boolean.getBoolean("evaluation.report-only")) {
             assertEquals(0, report.errorCount(), formatted);
@@ -37,15 +42,8 @@ class ResearchBackendClassifierCorpusTest {
         }
     }
 
-    private ResearchBackend inherited(String label) {
-        if (label == null) {
-            return null;
-        }
-        return label.equals("qwen_local") ? ResearchBackend.QWEN_LOCAL : ResearchBackend.GPT_API;
-    }
-
-    private String label(ResearchBackend backend) {
-        return backend == ResearchBackend.QWEN_LOCAL ? "qwen_local" : "gpt_web";
+    private String label(ResearchAccess access) {
+        return access == ResearchAccess.MODEL_KNOWLEDGE ? "qwen_local" : "gpt_web";
     }
 
     private String corpus() {

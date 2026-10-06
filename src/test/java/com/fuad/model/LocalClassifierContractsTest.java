@@ -34,7 +34,8 @@ class LocalClassifierContractsTest {
         assertEquals(Optional.of(0.0), params.temperature());
         assertEquals(Optional.of(8L), params.maxCompletionTokens());
         assertEquals(2, params.messages().size());
-        assertEquals("abre Firefox", params.messages().getLast().asUser().content().asText());
+        assertTrue(params.messages().getLast().asUser().content().asText()
+                .contains("<query>\nabre Firefox\n</query>"));
     }
 
     @ParameterizedTest

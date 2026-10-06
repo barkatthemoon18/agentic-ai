@@ -30,8 +30,13 @@ class DecisionCorpusResourcesTest {
         Set<String> general = Set.of("qwen_local", "gpt");
         Set<String> researchBackend = Set.of("qwen_local", "gpt_web");
         Set<String> depth = Set.of("quick", "deep");
+        Set<String> plan = Set.of("knowledge_quick", "knowledge_deep", "web_quick", "web_deep");
         return Stream.of(
-                Arguments.of("evaluation/general-backend-development.jsonl", general, Set.of(), 15),
+                Arguments.of("evaluation/general-backend-development.jsonl", general, Set.of(), 17),
+                Arguments.of("evaluation/general-backend-boundary-regression.jsonl", general, Set.of(), 2),
+                Arguments.of("evaluation/research-plan-development.jsonl", plan, Set.of(), 3),
+                Arguments.of("evaluation/research-plan-regression.jsonl", plan, Set.of(), 5),
+                Arguments.of("evaluation/research-plan-diagnostic.jsonl", plan, Set.of(), 1),
                 Arguments.of("evaluation/general-backend-holdout-v1.jsonl", general, Set.of(), 10),
                 Arguments.of("evaluation/general-backend-holdout-v2.jsonl", general, Set.of(), 10),
                 Arguments.of("evaluation/research-backend-development.jsonl",

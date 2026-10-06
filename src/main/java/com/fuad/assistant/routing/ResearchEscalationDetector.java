@@ -6,6 +6,11 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 public class ResearchEscalationDetector {
+    private static final Pattern NEGATED_WEB_SIGNAL = Pattern.compile(
+            "\\b(?:sin\\s+(?:(?:buscar|consultar|usar|utilizar|navegar|salir)\\s+"
+                    + "(?:(?:en|a)\\s+)?)?(?:internet|(?:la\\s+)?web|online)"
+                    + "|(?:no|nunca)\\s+(?:lo\\s+)?(?:busques?|consultes?|uses?|utilices?|navegues?)"
+                    + "\\s+(?:(?:en|a)\\s+)?(?:internet|(?:la\\s+)?web|online))\\b");
     private static final Pattern NEGATED_RESEARCH = Pattern.compile(
             "^(?:(?:por favor|porfa),?\\s+)?(?:no|nunca)\\s+(?:lo\\s+)?"
                     + "(?:busques?|investigues?|consultes?|verifiques?|compruebes?)\\b.*"
@@ -46,8 +51,8 @@ public class ResearchEscalationDetector {
     }
 
     public boolean shouldEscalate(String command) {
-        String normalized = normalize(command);
-        if (NEGATED_RESEARCH.matcher(normalized).matches()) {
+        String normalized = withoutNegatedWebSignals(command);
+        if (normalized.isBlank() || NEGATED_RESEARCH.matcher(normalized).matches()) {
             return false;
         }
         return EXPLICIT_RESEARCH.matcher(normalized).matches()
@@ -57,6 +62,13 @@ public class ResearchEscalationDetector {
                 || TODAY.matcher(normalized).matches()
                 || CURRENT_VALUE.matcher(normalized).matches()
                 || LATEST_NEWS.matcher(normalized).matches();
+    }
+
+    // This copy is only for deterministic signals; callers keep the original model input.
+    String withoutNegatedWebSignals(String command) {
+        return NEGATED_WEB_SIGNAL.matcher(normalize(command)).replaceAll(" ")
+                .replaceAll("^[\\s,;]+|[\\s,;]+$", "")
+                .replaceAll("\\s+", " ");
     }
 
     private String normalize(String command) {

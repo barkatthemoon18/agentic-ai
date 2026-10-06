@@ -24,7 +24,7 @@ class CurrentResearchSkillTest {
                     new ResearchBranchState("token-nuevo", request.previousMessages()));
         };
         CurrentResearchSkill skill = new CurrentResearchSkill(engine, engine,
-                query -> ResearchDepth.QUICK, new DefaultResearchBackendClassifier());
+                query -> new ResearchPlan(ResearchAccess.WEB_REQUIRED, ResearchDepth.QUICK));
 
         AssistantResult result = skill.execute("precio actual de Bitcoin");
 
@@ -32,7 +32,8 @@ class CurrentResearchSkillTest {
         assertEquals("token-nuevo", result.continuationToken());
         assertEquals("precio actual de Bitcoin", captured.get().query());
         assertEquals(ResearchDepth.QUICK, captured.get().depth());
-        assertEquals(500, captured.get().maxOutputTokens());
+        assertEquals(1500, captured.get().maxOutputTokens());
+        assertEquals(ResearchAccess.WEB_REQUIRED, captured.get().access());
         assertNull(captured.get().continuation().continuationToken());
         assertTrue(captured.get().instructions().contains("1 a 3 frases"));
         assertEquals(ConversationPolicy.KEEP_OPEN, skill.getConversationPolicy());
@@ -47,13 +48,13 @@ class CurrentResearchSkillTest {
                     new ResearchBranchState("token-siguiente", request.previousMessages()));
         };
         CurrentResearchSkill skill = new CurrentResearchSkill(engine, engine,
-                query -> ResearchDepth.DEEP, new DefaultResearchBackendClassifier());
+                query -> new ResearchPlan(ResearchAccess.WEB_REQUIRED, ResearchDepth.DEEP));
 
         AssistantResult result = skill.execute("compara las noticias", "token-anterior");
 
         assertEquals("analisis", result.text());
         assertEquals(ResearchDepth.DEEP, captured.get().depth());
-        assertEquals(1200, captured.get().maxOutputTokens());
+        assertEquals(4000, captured.get().maxOutputTokens());
         assertEquals("token-anterior", captured.get().continuation().continuationToken());
         assertTrue(captured.get().instructions().contains("Contrasta varias fuentes"));
     }
@@ -67,7 +68,7 @@ class CurrentResearchSkillTest {
                     new ResearchBranchState("research-token", request.previousMessages()));
         };
         CurrentResearchSkill skill = new CurrentResearchSkill(engine, engine,
-                query -> ResearchDepth.QUICK, (query, inherited) -> ResearchBackend.GPT_API);
+                query -> new ResearchPlan(ResearchAccess.WEB_REQUIRED, ResearchDepth.QUICK));
         ConversationSnapshot generalSnapshot = new ConversationSnapshot(
                 Capability.GENERAL, "¿Quién fue Alan Turing?", "Fue un matemático.",
                 "general-gpt-token");
@@ -88,8 +89,7 @@ class CurrentResearchSkillTest {
         CurrentResearchSkill skill = new CurrentResearchSkill(
                 request -> { throw new AssertionError("web engine must not be used"); },
                 unavailable,
-                query -> ResearchDepth.QUICK,
-                (query, inherited) -> ResearchBackend.QWEN_LOCAL);
+                query -> new ResearchPlan(ResearchAccess.MODEL_KNOWLEDGE, ResearchDepth.QUICK));
 
         AssistantResult result = skill.execute("investiga localmente");
 

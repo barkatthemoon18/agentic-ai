@@ -49,4 +49,22 @@ class ResearchEscalationDetectorTest {
         assertTrue(detector.isExplicitlyNegated(command));
         assertFalse(detector.shouldEscalate(command));
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Explícame AES sin buscar en Internet", "Sin buscar en Internet, explícame AES",
+            "Profundiza en AES sin consultar la web", "Sin consultar la web, profundiza en AES"
+    })
+    void negatedWebMustNotEscalateAGeneralFollowUp(String command) {
+        assertFalse(detector.shouldEscalate(command));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Investiga AES sin buscar en Internet", "Sin buscar en Internet, investiga AES",
+            "Sin web, investiga AES", "Investiga AES sin web"
+    })
+    void explicitResearchMustEscalateDespiteWebNegation(String command) {
+        assertTrue(detector.shouldEscalate(command));
+    }
 }

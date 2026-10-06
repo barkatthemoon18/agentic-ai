@@ -6,6 +6,7 @@ import com.fuad.enums.Capability;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -14,40 +15,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ResearchBackendRoutingTest {
-    private final DefaultResearchBackendClassifier classifier = new DefaultResearchBackendClassifier();
-
-    @Test
-    void classifierShouldHonorScopeAndRouteFreshInformationToWeb() {
-        assertEquals(ResearchBackend.GPT_API,
-                classifier.classify("Busca globalmente quien fue Alan Turing", null));
-        assertEquals(ResearchBackend.QWEN_LOCAL,
-                classifier.classify("Busca localmente quien fue Alan Turing", ResearchBackend.GPT_API));
-        assertEquals(ResearchBackend.GPT_API,
-                classifier.classify("Que ocurrio hoy con NVIDIA", ResearchBackend.QWEN_LOCAL));
-        assertEquals(ResearchBackend.QWEN_LOCAL,
-                classifier.classify("Busca informacion sobre Alan Turing", null));
-        assertEquals(ResearchBackend.QWEN_LOCAL,
-                classifier.classify("Explicame mas", ResearchBackend.QWEN_LOCAL));
-        assertEquals(ResearchBackend.GPT_API,
-                classifier.classify("Dame las fuentes que encontraste", ResearchBackend.QWEN_LOCAL));
-        assertEquals(ResearchBackend.GPT_API,
-                classifier.classify("Verifica si eso sigue siendo cierto", ResearchBackend.QWEN_LOCAL));
-        assertEquals(ResearchBackend.GPT_API,
-                classifier.classify("Dame las fuentes", ResearchBackend.QWEN_LOCAL));
-        assertEquals(ResearchBackend.GPT_API,
-                classifier.classify("Verifica si sigue siendo cierto", ResearchBackend.QWEN_LOCAL));
-    }
-
-    @Test
-    void nowAloneShouldInheritTheResearchBackendOrDefaultToLocal() {
-        assertEquals(ResearchBackend.QWEN_LOCAL,
-                classifier.classify("Ahora profundiza", ResearchBackend.QWEN_LOCAL));
-        assertEquals(ResearchBackend.GPT_API,
-                classifier.classify("Ahora profundiza", ResearchBackend.GPT_API));
-        assertEquals(ResearchBackend.QWEN_LOCAL,
-                classifier.classify("Ahora profundiza", null));
-    }
-
     @Test
     void switchingBackendsShouldPreserveIndependentBranches() {
         AtomicReference<ResearchRequest> globalRequest = new AtomicReference<>();
@@ -64,8 +31,13 @@ class ResearchBackendRoutingTest {
             messages.add(new ResearchMessage(ResearchMessage.Role.ASSISTANT, "respuesta local"));
             return new ResearchEngineResult("respuesta local", new ResearchBranchState(null, messages));
         };
+        ArrayDeque<ResearchPlan> plans = new ArrayDeque<>(List.of(
+                new ResearchPlan(ResearchAccess.WEB_REQUIRED, ResearchDepth.QUICK),
+                new ResearchPlan(ResearchAccess.MODEL_KNOWLEDGE, ResearchDepth.QUICK),
+                new ResearchPlan(ResearchAccess.MODEL_KNOWLEDGE, ResearchDepth.QUICK),
+                new ResearchPlan(ResearchAccess.WEB_REQUIRED, ResearchDepth.QUICK)));
         CurrentResearchSkill skill = new CurrentResearchSkill(
-                global, local, ignored -> ResearchDepth.QUICK, classifier);
+                global, local, ignored -> plans.removeFirst());
 
         AssistantResult first = skill.execute("Busca globalmente quien fue Alan Turing");
         AssistantResult second = skill.executeFollowUp("Ahora buscalo localmente",

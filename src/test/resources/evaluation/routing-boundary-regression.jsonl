@@ -1,0 +1,10 @@
+{"id":"route-explain-suffix","query":"Explícame brevemente qué es AES-GCM, sin buscar en Internet","expected":"general","tags":["negated-web","explanation"],"rationale":"Explicación sin señal Web positiva"}
+{"id":"route-explain-prefix","query":"Sin buscar en Internet, explícame brevemente qué es AES-GCM","expected":"general","tags":["negated-web","explanation"],"rationale":"La posición de la negación no cambia la intención"}
+{"id":"route-deepen-suffix","query":"Profundiza en cómo funciona AES-GCM, sin buscar en Internet","expected":"general","tags":["negated-web","explanation"],"rationale":"Profundización expositiva permanece General"}
+{"id":"route-deepen-prefix","query":"Sin buscar en Internet, profundiza en cómo funciona AES-GCM","expected":"general","tags":["negated-web","explanation"],"rationale":"Negación inicial no impone Research"}
+{"id":"route-research-suffix","query":"Investiga AES-GCM sin buscar en Internet","expected":"current-research","tags":["negated-web","research-explicit"],"rationale":"Investigación explícita independiente de acceso Web"}
+{"id":"route-research-prefix","query":"Sin buscar en Internet, investiga AES-GCM","expected":"current-research","tags":["negated-web","research-explicit"],"rationale":"Investigación explícita tras negación Web"}
+{"id":"route-positive-web","query":"Busca AES-GCM en Internet","expected":"current-research","tags":["web-explicit"],"rationale":"Búsqueda Web positiva"}
+{"id":"route-current-verification","query":"Verifica si esto sigue vigente","expected":"current-research","tags":["verification"],"rationale":"Verificación externa vigente"}
+{"id":"route-no-web-suffix","query":"Explícame AES sin web","expected":"general","tags":["negated-web"],"rationale":"Negación directa de Web con explicación"}
+{"id":"route-no-web-prefix","query":"Sin web, explícame AES","expected":"general","tags":["negated-web"],"rationale":"Negación directa inicial con explicación"}

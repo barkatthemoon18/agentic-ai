@@ -107,6 +107,8 @@ public class GuardedSemanticRouter implements SemanticRouter {
     }
 
     private boolean isCurrentResearchRequest(String command) {
+        command = researchEscalationDetector.withoutNegatedWebSignals(command);
+        if (command.isBlank()) return false;
         if (researchEscalationDetector.isExplicitlyNegated(command)) {
             return false;
         }

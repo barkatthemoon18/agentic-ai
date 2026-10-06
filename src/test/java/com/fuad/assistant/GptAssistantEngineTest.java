@@ -7,6 +7,7 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import com.fuad.assistant.skills.research.ResearchDepth;
+import com.fuad.assistant.skills.research.ResearchAccess;
 import com.openai.client.OpenAIClient;
 import com.openai.models.ChatModel;
 import com.openai.models.ReasoningEffort;
@@ -64,7 +65,8 @@ class GptAssistantEngineTest {
     void researchShouldRequireWebSearchWithDepthSpecificBudgets(ResearchDepth depth) {
         Response response = response("token", List.of(message("research")));
         when(client.responses().create(any(ResponseCreateParams.class))).thenReturn(response);
-        engine.process(new AssistantRequest("query", "instructions", 1200, "previous", depth));
+        engine.process(new AssistantRequest("query", "instructions", 1200, "previous", depth,
+                ResearchAccess.WEB_REQUIRED));
         ArgumentCaptor<ResponseCreateParams> params = ArgumentCaptor.forClass(ResponseCreateParams.class);
         verify(client.responses()).create(params.capture());
         boolean deep = depth == ResearchDepth.DEEP;

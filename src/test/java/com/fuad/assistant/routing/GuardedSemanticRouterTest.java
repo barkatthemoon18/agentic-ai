@@ -60,4 +60,38 @@ class GuardedSemanticRouterTest {
 
         assertEquals(Capability.GENERAL, router.classify(command));
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Explícame brevemente qué es AES-GCM, sin buscar en Internet",
+            "Sin buscar en Internet, explícame brevemente qué es AES-GCM",
+            "Profundiza en cómo funciona AES-GCM, sin buscar en Internet",
+            "Sin buscar en Internet, profundiza en cómo funciona AES-GCM",
+            "Explícame AES sin web", "Sin web, explícame AES",
+            "Explícame AES y no lo busques en Internet", "No lo busques en Internet, explícame AES"
+    })
+    void negatedWebSignalsMustNotRouteExplanationToResearchOrRewriteModelInput(String command) {
+        AtomicBoolean called = new AtomicBoolean();
+        GuardedSemanticRouter router = new GuardedSemanticRouter(original -> {
+            called.set(true);
+            assertEquals(command, original);
+            return Capability.CURRENT_RESEARCH;
+        });
+        assertEquals(Capability.GENERAL, router.classify(command));
+        org.junit.jupiter.api.Assertions.assertTrue(called.get());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Investiga AES-GCM sin buscar en Internet",
+            "Sin buscar en Internet, investiga AES-GCM",
+            "Investiga AES-GCM sin web", "Sin web, investiga AES-GCM",
+            "Busca AES-GCM en Internet", "Verifica si esto sigue vigente"
+    })
+    void remainingResearchIntentMustSurviveWebNegation(String command) {
+        GuardedSemanticRouter router = new GuardedSemanticRouter(ignored -> {
+            throw new AssertionError("Strong research intent must be deterministic");
+        });
+        assertEquals(Capability.CURRENT_RESEARCH, router.classify(command));
+    }
 }

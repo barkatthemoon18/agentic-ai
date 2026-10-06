@@ -130,7 +130,7 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
     private Optional<MediaPlaybackState> currentMediaPlaybackState() {
         try {
             Optional<MediaPlaybackState> state = provider.playbackState("TIDAL");
-            System.out.println("MEDIA -> TIDAL playback state: " + state.map(Enum::name).orElse("UNAVAILABLE"));
+            /* System.out.println("MEDIA -> TIDAL playback state: " + state.map(Enum::name).orElse("UNAVAILABLE")); */
             return state;
         }
         catch (RuntimeException e) {
