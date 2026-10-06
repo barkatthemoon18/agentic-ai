@@ -121,7 +121,7 @@ class LocalQwenChatClientTest {
     void shouldRejectRequestBeforeHttpWhenRuntimeSnapshotIsUnavailable() {
         LocalQwenChatClient client = new LocalQwenChatClient(
                 "http://127.0.0.1:" + server.getAddress().getPort(),
-                "test-token", "qwen-main", () -> false);
+                "test-token", "qwen-main", LocalQwenReadiness.alwaysReady());
 
         LocalQwenException exception = assertThrows(LocalQwenException.class,
                 () -> client.chat("prompt", List.of(userMessage()), 100));

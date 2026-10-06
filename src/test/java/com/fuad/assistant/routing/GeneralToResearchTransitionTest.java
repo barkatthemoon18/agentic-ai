@@ -33,7 +33,7 @@ class GeneralToResearchTransitionTest {
                     new ResearchBranchState("web-1", request.previousMessages()));
         }, request -> {
             throw new AssertionError("local research must not be called");
-        }, query -> ResearchDepth.QUICK, (query, inherited) -> ResearchBackend.GPT_WEB);
+        }, query -> ResearchDepth.QUICK, (query, inherited) -> ResearchBackend.GPT_API);
         Skill general = command -> new AssistantResult("general");
         EnumMap<Capability, Skill> skills = new EnumMap<>(Capability.class);
         for (Capability capability : Capability.values()) {
@@ -55,7 +55,7 @@ class GeneralToResearchTransitionTest {
                         "Ahora búscalo en Internet y dime qué fuentes encuentras"), snapshot);
 
         assertEquals(Capability.CURRENT_RESEARCH, result.capability());
-        assertEquals(ResearchBackend.GPT_WEB,
+        assertEquals(ResearchBackend.GPT_API,
                 result.response().researchConversationState().getActiveBackend().orElseThrow());
         assertNull(captured.get().continuation().continuationToken());
         assertEquals(2, captured.get().previousMessages().size());

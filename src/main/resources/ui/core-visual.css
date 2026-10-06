@@ -1416,6 +1416,10 @@
     -fx-text-fill: #7699a7;
 }
 
+.runtime-state:standby {
+    -fx-text-fill: #7699a7;
+}
+
 .runtime-state:ready,
 .runtime-state:active {
     -fx-text-fill: #39d5ff;

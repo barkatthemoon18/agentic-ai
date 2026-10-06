@@ -67,7 +67,7 @@ class CurrentResearchSkillTest {
                     new ResearchBranchState("research-token", request.previousMessages()));
         };
         CurrentResearchSkill skill = new CurrentResearchSkill(engine, engine,
-                query -> ResearchDepth.QUICK, (query, inherited) -> ResearchBackend.GPT_WEB);
+                query -> ResearchDepth.QUICK, (query, inherited) -> ResearchBackend.GPT_API);
         ConversationSnapshot generalSnapshot = new ConversationSnapshot(
                 Capability.GENERAL, "¿Quién fue Alan Turing?", "Fue un matemático.",
                 "general-gpt-token");

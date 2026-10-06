@@ -67,6 +67,7 @@ public final class RuntimeStatusCoordinator {
             return RuntimeVisualState.OFFLINE;
         }
         return switch (snapshot.state()) {
+            case STANDBY -> RuntimeVisualState.STANDBY;
             case CHECKING -> RuntimeVisualState.CHECKING;
             case LOADING -> RuntimeVisualState.LOADING;
             case READY -> RuntimeVisualState.READY;

@@ -370,7 +370,10 @@ public class JavaFxVisualOutput implements VisualOutput {
         infrastructurePane.getChildren().clear();
 
         if (status.snapshot().state() == RuntimeState.READY) {
-            Label ready = new Label("phi-router y qwen-main están activos");
+            ComponentSnapshot qwen = status.snapshot().component(RuntimeComponent.QWEN_MAIN);
+            String message = qwen != null && qwen.state() == ComponentState.STANDBY ?
+                    "phi-router activo · qwen-main bajo demanda" : "phi-router y qwen-main activos";
+            Label ready = new Label(message);
             ready.getStyleClass().add("ares-message");
             infrastructurePane.getChildren().add(ready);
             pendingInfrastructureStatus = null;

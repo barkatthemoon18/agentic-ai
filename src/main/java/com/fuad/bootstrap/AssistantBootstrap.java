@@ -36,11 +36,9 @@ import com.fuad.assistant.skills.os.OsCommandSkill;
 import com.fuad.assistant.skills.os.WindowsApplicationController;
 import com.fuad.assistant.skills.os.WindowsApplicationDiscovery;
 import com.fuad.assistant.skills.research.CurrentResearchSkill;
-import com.fuad.assistant.skills.research.DefaultResearchBackendClassifier;
-import com.fuad.assistant.skills.research.GptWebResearchEngine;
-import com.fuad.assistant.skills.research.LocalResearchDepthClassifier;
+import com.fuad.assistant.skills.research.LocalResearchPlanClassifier;
+import com.fuad.assistant.skills.research.OpenAiResearchEngine;
 import com.fuad.assistant.skills.research.QwenLocalResearchEngine;
-import com.fuad.assistant.skills.research.ResearchDepthClassifier;
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
@@ -92,19 +90,15 @@ final class AssistantBootstrap {
                 AppConfig.LOCAL_QWEN_BASE_URL,
                 AppConfig.LOCAL_AI_API_KEY,
                 AppConfig.LOCAL_QWEN_MODEL_ID,
-                modelRuntime::isQwenUsable);
+                modelRuntime::ensureQwenReady);
         GeneralSkill generalSkill = new GeneralSkill(
                 new GptGeneralEngine(assistantEngine),
                 new QwenGeneralEngine(localQwenChatClient),
                 new DefaultGeneralBackendSelector(
                         new LocalGeneralComplexityClassifier(localAiClient)));
         AudioControlSkill audioControlSkill = new AudioControlSkill(new LocalAudioControlParser(localAiClient), audioController);
-        ResearchDepthClassifier researchDepthClassifier = new LocalResearchDepthClassifier(localAiClient);
-        CurrentResearchSkill currentResearchSkill = new CurrentResearchSkill(
-                new GptWebResearchEngine(assistantEngine),
-                new QwenLocalResearchEngine(localQwenChatClient),
-                researchDepthClassifier,
-                new DefaultResearchBackendClassifier());
+        CurrentResearchSkill currentResearchSkill = new CurrentResearchSkill(new OpenAiResearchEngine(assistantEngine),
+                new QwenLocalResearchEngine(localQwenChatClient), new LocalResearchPlanClassifier(localAiClient));
         SkillRegistry skillRegistry = new SkillRegistry(Map.of(
                 Capability.SYSTEM_TIME, systemTimeSkill,
                 Capability.GENERAL, generalSkill,

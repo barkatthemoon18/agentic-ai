@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 
 public class LocalQwenChatClient {
     private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(2);
@@ -28,33 +27,32 @@ public class LocalQwenChatClient {
     private final URI chatEndpoint;
     private final String apiKey;
     private final String model;
-    private final BooleanSupplier available;
+    private final LocalQwenReadiness readiness;
+
+    public LocalQwenChatClient(String baseUrl, String apiKey, String model, LocalQwenReadiness readiness) {
+        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(), new ObjectMapper(), baseUrl, apiKey,
+                model, readiness);
+    }
 
     public LocalQwenChatClient(String baseUrl, String apiKey, String model) {
         this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(),
-                new ObjectMapper(), baseUrl, apiKey, model, () -> true);
-    }
-
-    public LocalQwenChatClient(String baseUrl, String apiKey, String model,
-                               BooleanSupplier available) {
-        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(),
-                new ObjectMapper(), baseUrl, apiKey, model, available);
+                new ObjectMapper(), baseUrl, apiKey, model, LocalQwenReadiness.alwaysReady());
     }
 
     LocalQwenChatClient(HttpClient httpClient, ObjectMapper objectMapper,
                         String baseUrl, String apiKey, String model) {
-        this(httpClient, objectMapper, baseUrl, apiKey, model, () -> true);
+        this(httpClient, objectMapper, baseUrl, apiKey, model, LocalQwenReadiness.alwaysReady());
     }
 
     LocalQwenChatClient(HttpClient httpClient, ObjectMapper objectMapper,
                         String baseUrl, String apiKey, String model,
-                        BooleanSupplier available) {
+                        LocalQwenReadiness readiness) {
         this.httpClient = Objects.requireNonNull(httpClient, "httpClient cannot be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper cannot be null");
         this.chatEndpoint = chatEndpoint(baseUrl);
         this.apiKey = apiKey == null ? "" : apiKey.trim();
         this.model = requireText(model, "model");
-        this.available = Objects.requireNonNull(available, "available cannot be null");
+        this.readiness = Objects.requireNonNull(readiness, "readiness cannot be null");
     }
 
     public String chat(String systemPrompt, List<Message> messages, int maxOutputTokens) {
@@ -67,10 +65,7 @@ public class LocalQwenChatClient {
         if (maxOutputTokens <= 0) {
             throw new IllegalArgumentException("maxOutputTokens must be positive");
         }
-        if (!available.getAsBoolean()) {
-            throw new LocalQwenException(LocalQwenException.Kind.UNAVAILABLE,
-                    "Local Qwen is not ready");
-        }
+        ensureReady();
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", model);
@@ -109,6 +104,18 @@ public class LocalQwenChatClient {
         catch (IOException e) {
             throw new LocalQwenException(LocalQwenException.Kind.UNAVAILABLE,
                     "Local Qwen is unavailable", e);
+        }
+    }
+
+    private void ensureReady() {
+        try {
+            readiness.ensureReady();
+        }
+        catch (LocalQwenException e) {
+            throw e;
+        }
+        catch (RuntimeException e) {
+            throw new LocalQwenException(LocalQwenException.Kind.UNAVAILABLE, "Local Qwen could not become ready", e);
         }
     }
 

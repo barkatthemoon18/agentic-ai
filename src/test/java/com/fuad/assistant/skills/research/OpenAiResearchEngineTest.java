@@ -12,9 +12,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class GptWebResearchEngineTest {
+class OpenAiResearchEngineTest {
     private final AtomicReference<AssistantRequest> captured = new AtomicReference<>();
-    private final GptWebResearchEngine engine = new GptWebResearchEngine(request -> {
+    private final OpenAiResearchEngine engine = new OpenAiResearchEngine(request -> {
         captured.set(request);
         return new AssistantResult("research answer", "next-token");
     });

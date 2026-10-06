@@ -337,6 +337,13 @@ public class LocalSemanticRouter implements SemanticRouter {
         No inventes categorías.
         Devuelve únicamente el identificador de la categoría.
         """;
+    private static final String RETRY_INSTRUCTION =
+            """
+            Tu salida anterior incumplió el contrato.
+            Clasifica la solicitud original sin responderla.
+            Devuelve exclusivamente una etiqueta:
+            system-time, audio-control, os-command, current-research o general.
+            """;
     private final OpenAIClient client;
     private final String model;
 
@@ -351,17 +358,59 @@ public class LocalSemanticRouter implements SemanticRouter {
 
     @Override
     public Capability classify(String command) {
-        ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
+        String query = Objects.requireNonNull(command, "command cannot be null").trim();
+
+        if (query.isEmpty()) {
+            throw new IllegalArgumentException("Query cannot be empty");
+        }
+        String firstOutput = infer(query, false, null);
+        try {
+            return parseOutput(firstOutput);
+        }
+        catch (IllegalStateException invalid) {
+            System.err.printf("Invalid semantic classification, retrying once [model=%s]: %s%n", model, invalid.getMessage());
+            String retryOutput = infer(query, true, firstOutput);
+            try {
+                return parseOutput(retryOutput);
+            }
+            catch (IllegalStateException e) {
+                throw new InvalidSemanticClassificationException("Semantic classification remained invalid after retry: "
+                        + e.getMessage(), e);
+            }
+        }
+    }
+
+    private String infer(String command, boolean retry, String previous) {
+        ChatCompletionCreateParams.Builder builder = ChatCompletionCreateParams.builder()
                 .model(model)
                 .addSystemMessage(SYSTEM_PROMPT)
-                .addUserMessage(command)
+                .addUserMessage("""
+                        Clasifica la siguiente solicitud.
+                        No respondas su contenido.
+                        Devuelve únicamente system-time, audio-control, os-command, current-research o general.
+                        <query>
+                        %s
+                        </query>
+                        """.formatted(command))
                 .temperature(0.0)
-                .maxCompletionTokens(8)
-                .build();
-        ChatCompletion completion = client.chat().completions().create(params);
-        String output = completion.choices().getFirst().message().content().orElseThrow(() ->
-                new IllegalStateException("Local model returned no semantic classification"));
-        String result = LocalModelOutput.extractLeadingLabel(output, LABELS, "semantic classification");
-        return Capability.fromValue(result);
+                .maxCompletionTokens(8);
+        if (retry) {
+            if (previous != null && !previous.isBlank()) {
+                builder.addAssistantMessage(previous);
+            }
+            builder.addUserMessage(RETRY_INSTRUCTION);
+        }
+        ChatCompletion completion = client.chat().completions().create(builder.build());
+        if (completion.choices().isEmpty()) {
+            return null;
+        }
+        return completion.choices().getFirst().message().content().orElse(null);
+    }
+
+    private static Capability parseOutput(String output) {
+        if (output == null || output.isBlank()) {
+            throw new IllegalStateException("Local model returned no semantic classification");
+        }
+        return Capability.fromValue(LocalModelOutput.extractLeadingLabel(output, LABELS, "semantic classification"));
     }
 }

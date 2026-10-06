@@ -9,6 +9,7 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.*;
 
 public class RuntimePanel extends VBox {
+    private static final PseudoClass STANDBY = PseudoClass.getPseudoClass("standby");
     private static final PseudoClass READY = PseudoClass.getPseudoClass("ready");
     private static final PseudoClass ACTIVE = PseudoClass.getPseudoClass("active");
     private static final PseudoClass LOADING = PseudoClass.getPseudoClass("loading");
@@ -87,6 +88,7 @@ public class RuntimePanel extends VBox {
         clearStatePseudoClasses(label);
 
         switch (state) {
+            case STANDBY -> label.pseudoClassStateChanged(STANDBY, true);
             case READY -> label.pseudoClassStateChanged(READY, true);
             case CHECKING,
                  LOADING -> label.pseudoClassStateChanged(LOADING, true);
@@ -98,6 +100,7 @@ public class RuntimePanel extends VBox {
     }
 
     private static void clearStatePseudoClasses(Label label) {
+        label.pseudoClassStateChanged(STANDBY, false);
         label.pseudoClassStateChanged(READY, false);
         label.pseudoClassStateChanged(ACTIVE, false);
         label.pseudoClassStateChanged(LOADING, false);

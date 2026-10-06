@@ -45,18 +45,15 @@ public class CurrentResearchSkill implements Skill {
             Si la consulta requiere informacion actual que no puedes verificar, dilo claramente.
             """;
 
-    private final QuickResearchEngine globalEngine;
-    private final QuickResearchEngine localEngine;
-    private final ResearchDepthClassifier depthClassifier;
-    private final ResearchBackendClassifier backendClassifier;
+    private final QuickResearchEngine gptEngine;
+    private final QuickResearchEngine qwenEngine;
+    private final ResearchPlanClassifier planClassifier;
 
-    public CurrentResearchSkill(QuickResearchEngine globalEngine, QuickResearchEngine localEngine,
-                                ResearchDepthClassifier depthClassifier,
-                                ResearchBackendClassifier backendClassifier) {
-        this.globalEngine = Objects.requireNonNull(globalEngine, "globalEngine cannot be null");
-        this.localEngine = Objects.requireNonNull(localEngine, "localEngine cannot be null");
-        this.depthClassifier = Objects.requireNonNull(depthClassifier, "depthClassifier cannot be null");
-        this.backendClassifier = Objects.requireNonNull(backendClassifier, "backendClassifier cannot be null");
+    public CurrentResearchSkill(QuickResearchEngine gptEngine, QuickResearchEngine qwenEngine,
+                                ResearchPlanClassifier planClassifier) {
+        this.gptEngine = Objects.requireNonNull(gptEngine, "gptEngine cannot be null");
+        this.qwenEngine = Objects.requireNonNull(qwenEngine, "qwenEngine cannot be null");
+        this.planClassifier = Objects.requireNonNull(planClassifier, "planClassifier cannot be null");
     }
 
     @Override
@@ -68,8 +65,8 @@ public class CurrentResearchSkill implements Skill {
     public AssistantResult execute(String command, String continuationToken) {
         ResearchConversationState state = continuationToken == null || continuationToken.isBlank()
                 ? null
-                : new ResearchConversationState(ResearchBackend.GPT_WEB, Map.of(
-                        ResearchBackend.GPT_WEB, new ResearchBranchState(continuationToken, List.of())));
+                : new ResearchConversationState(ResearchBackend.GPT_API, Map.of(
+                        ResearchBackend.GPT_API, new ResearchBranchState(continuationToken, List.of())));
         return executeInternal(command, state == null ? null : new ConversationSnapshot(
                 Capability.CURRENT_RESEARCH, command, "Contexto anterior no disponible", continuationToken, state));
     }
@@ -81,14 +78,11 @@ public class CurrentResearchSkill implements Skill {
 
     private AssistantResult executeInternal(String command, ConversationSnapshot snapshot) {
         ResearchConversationState state = stateFrom(snapshot);
-        ResearchBackend inherited = state.getActiveBackend().orElse(null);
-        ResearchBackend backend = backendClassifier.classify(command, inherited);
-        ResearchDepth depth = depthClassifier.classify(command);
-        boolean deep = depth == ResearchDepth.DEEP;
-
+        ResearchPlan plan = planClassifier.classify(command);
+        ResearchBackend backend = backendFor(plan);
         ResearchBranchState branch = state.getBranch(backend).orElseGet(() -> seedBranch(snapshot));
-        ResearchRequest request = new ResearchRequest(command, instructions(backend, deep),
-                deep ? 1200 : 500, depth, branch);
+        ResearchRequest request = new ResearchRequest(command, instructions(plan), maxOutputTokens(plan.depth()),
+                plan.access(), plan.depth(), branch);
         ResearchEngineResult result;
         try {
             result = engine(backend).research(request);
@@ -112,8 +106,8 @@ public class CurrentResearchSkill implements Skill {
         }
         String token = snapshot.continuationToken();
         if (token != null && !token.isBlank()) {
-            return new ResearchConversationState(ResearchBackend.GPT_WEB, Map.of(
-                    ResearchBackend.GPT_WEB, new ResearchBranchState(token, List.of())));
+            return new ResearchConversationState(ResearchBackend.GPT_API, Map.of(
+                    ResearchBackend.GPT_API, new ResearchBranchState(token, List.of())));
         }
         return ResearchConversationState.empty();
     }
@@ -129,14 +123,29 @@ public class CurrentResearchSkill implements Skill {
     }
 
     private QuickResearchEngine engine(ResearchBackend backend) {
-        return backend == ResearchBackend.GPT_WEB ? globalEngine : localEngine;
+        return backend == ResearchBackend.GPT_API ? gptEngine : qwenEngine;
     }
 
-    private String instructions(ResearchBackend backend, boolean deep) {
-        if (backend == ResearchBackend.GPT_WEB) {
-            return deep ? WEB_DEEP_INSTRUCTIONS : WEB_QUICK_INSTRUCTIONS;
-        }
-        return deep ? LOCAL_DEEP_INSTRUCTIONS : LOCAL_QUICK_INSTRUCTIONS;
+    private String instructions(ResearchPlan plan) {
+        return switch (plan.access()) {
+            case MODEL_KNOWLEDGE -> plan.depth() == ResearchDepth.DEEP ? LOCAL_DEEP_INSTRUCTIONS : LOCAL_QUICK_INSTRUCTIONS;
+            case WEB_REQUIRED -> plan.depth() == ResearchDepth.DEEP ? WEB_DEEP_INSTRUCTIONS : WEB_QUICK_INSTRUCTIONS;
+        };
+    }
+
+    private ResearchBackend backendFor(ResearchPlan plan) {
+        return switch (plan.access()) {
+            case MODEL_KNOWLEDGE -> ResearchBackend.QWEN_LOCAL;
+            case WEB_REQUIRED -> ResearchBackend.GPT_API;
+        };
+    }
+
+    private int maxOutputTokens(ResearchDepth depth) {
+        return switch (depth) {
+            case QUICK -> 1500;
+            case DEEP -> 4000;
+            case NONE -> throw new IllegalArgumentException("Research cannot use NONE depth");
+        };
     }
 
     @Override
