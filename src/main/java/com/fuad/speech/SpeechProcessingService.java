@@ -3,6 +3,7 @@ package com.fuad.speech;
 import com.fuad.activation.ActivationDetector;
 import com.fuad.activation.ActivationResult;
 import com.fuad.activation.ActivationType;
+import com.fuad.activation.utterance.InvalidUtteranceClassificationException;
 import com.fuad.activation.utterance.UtteranceClassificationRequest;
 import com.fuad.activation.utterance.UtteranceClassifier;
 import com.fuad.assistant.AssistantExecutionResult;
@@ -228,6 +229,10 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                 turn = assistantPipeline.processTurn(activationResult);
             }
             advanceTurn(turn, activationResult.command());
+        }
+        catch (InvalidUtteranceClassificationException e) {
+            System.err.printf("Utterance classification failed [model=%s, attempts=%d]%n", e.model(), e.attempts());
+            presentProcessingFailure(e);
         }
         catch (Exception e) {
             System.err.println("Error processing speech segment: " + e.getMessage());

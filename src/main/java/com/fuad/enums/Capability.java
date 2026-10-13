@@ -3,6 +3,7 @@ package com.fuad.enums;
 public enum Capability {
     SYSTEM_TIME("system-time"),
     AUDIO_CONTROL("audio-control"),
+    MEDIA_CONTROL("media-control"),
     OS_COMMAND("os-command"),
     CURRENT_RESEARCH("current-research"),
     GENERAL("general");

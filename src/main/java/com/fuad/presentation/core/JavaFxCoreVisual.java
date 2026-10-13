@@ -7,7 +7,7 @@ import com.fuad.pipeline.AssistantExecutionLifecycleListener;
 import com.fuad.pipeline.VoiceInputController;
 import com.fuad.pipeline.VoiceSignalSnapshot;
 import com.fuad.presentation.JavaFxRuntime;
-import com.fuad.presentation.media.MediaActionHandler;
+import com.fuad.media.control.MediaActionHandler;
 import com.fuad.presentation.media.MediaWorkspaceSnapshot;
 import com.fuad.presentation.tools.MoreToolsHandler;
 import com.fuad.presentation.tools.ToolsActionHandler;

@@ -1,4 +1,4 @@
-package com.fuad.presentation.media;
+package com.fuad.media.control;
 
 @FunctionalInterface
 public interface MediaActionHandler {

@@ -5,6 +5,8 @@ import com.fuad.assistant.skills.os.OsConversationState;
 import com.fuad.enums.Capability;
 import com.fuad.enums.UtteranceDecision;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -14,6 +16,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UtteranceShapeDetectorTest {
     private final UtteranceShapeDetector detector = new UtteranceShapeDetector();
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Siguiente canción.", "Pon la siguiente canción.", "Salta esta canción", "Canción anterior",
+            "Pausa la música", "Pausa TIDAL", "Continúa la música", "Reanuda la reproducción"
+    })
+    void explicitMediaControlsShouldBeIndependentRequestsEvenWithUnrelatedContext(String command) {
+        assertDecision(UtteranceDecision.NEW_REQUEST, UtteranceClassificationRequest.withoutContext(command));
+        assertDecision(UtteranceDecision.NEW_REQUEST, withContext(command, "Explícame RSA", "RSA usa dos claves."));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Mi hermana dijo pausa la música", "Mañana voy a pausar TIDAL"})
+    void attributionAndFuturePlansShouldNotActivateEmbeddedMediaCommands(String command) {
+        assertDecision(UtteranceDecision.OTHER, UtteranceClassificationRequest.withoutContext(command));
+    }
 
     @Test
     void shouldRecognizeIndependentDatePersonAndAudioRequests() {

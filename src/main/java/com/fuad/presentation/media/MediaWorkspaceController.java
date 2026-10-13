@@ -5,6 +5,8 @@ import com.fuad.audio.output.AudioOutputSnapshot;
 import com.fuad.media.MediaPlaybackState;
 import com.fuad.media.MediaSessionProvider;
 import com.fuad.media.MediaSessionSnapshot;
+import com.fuad.media.control.MediaAction;
+import com.fuad.media.control.MediaActionHandler;
 import com.fuad.media.enrichment.MediaEnrichmentProvider;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot;
 
@@ -70,6 +72,16 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
     private void execute(MediaAction action) {
         switch (action) {
             case PREVIOUS -> provider.previous();
+            case PAUSE -> {
+                if (current.get().playbackState() == MediaPlaybackState.PLAYING) {
+                    provider.playPause();
+                }
+            }
+            case RESUME -> {
+                if (current.get().playbackState() == MediaPlaybackState.PAUSED) {
+                    provider.playPause();
+                }
+            }
             case PLAY_PAUSE -> provider.playPause();
             case NEXT -> provider.next();
         }
@@ -130,7 +142,7 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
     private Optional<MediaPlaybackState> currentMediaPlaybackState() {
         try {
             Optional<MediaPlaybackState> state = provider.playbackState("TIDAL");
-            System.out.println("MEDIA -> TIDAL playback state: " + state.map(Enum::name).orElse("UNAVAILABLE"));
+            // System.out.println("MEDIA -> TIDAL playback state: " + state.map(Enum::name).orElse("UNAVAILABLE"));
             return state;
         }
         catch (RuntimeException e) {

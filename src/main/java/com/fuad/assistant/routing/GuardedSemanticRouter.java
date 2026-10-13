@@ -1,6 +1,7 @@
 package com.fuad.assistant.routing;
 
 import com.fuad.enums.Capability;
+import com.fuad.media.control.MediaControlCommandDetector;
 
 import java.text.Normalizer;
 import java.util.Locale;
@@ -37,6 +38,7 @@ public class GuardedSemanticRouter implements SemanticRouter {
 
     private final SemanticRouter delegate;
     private final ResearchEscalationDetector researchEscalationDetector;
+    private final MediaControlCommandDetector mediaControlDetector = new MediaControlCommandDetector();
 
     public GuardedSemanticRouter(SemanticRouter delegate) {
         this(delegate, new ResearchEscalationDetector());
@@ -57,6 +59,9 @@ public class GuardedSemanticRouter implements SemanticRouter {
         }
         if (isAudioMutation(normalized)) {
             return Capability.AUDIO_CONTROL;
+        }
+        if (mediaControlDetector.detect(command).isPresent()) {
+            return Capability.MEDIA_CONTROL;
         }
         if (isLocalRequest(normalized)) {
             return Capability.OS_COMMAND;
@@ -80,6 +85,7 @@ public class GuardedSemanticRouter implements SemanticRouter {
         return switch (decision) {
             case SYSTEM_TIME -> isCurrentTimeRequest(command);
             case AUDIO_CONTROL -> isAudioMutation(command);
+            case MEDIA_CONTROL -> !mediaControlDetector.definitelyNotMediaControl(command);
             case OS_COMMAND -> isLocalRequest(command);
             case CURRENT_RESEARCH -> isCurrentResearchRequest(command);
             case GENERAL -> true;

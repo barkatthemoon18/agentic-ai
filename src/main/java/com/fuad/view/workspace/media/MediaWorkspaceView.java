@@ -2,8 +2,8 @@ package com.fuad.view.workspace.media;
 
 import com.fuad.media.MediaTrack;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot.MediaQueueItem;
-import com.fuad.presentation.media.MediaAction;
-import com.fuad.presentation.media.MediaActionHandler;
+import com.fuad.media.control.MediaAction;
+import com.fuad.media.control.MediaActionHandler;
 import com.fuad.presentation.media.MediaWorkspaceSnapshot;
 import com.fuad.view.icon.HudIcon;
 import com.fuad.view.icon.HudIconView;

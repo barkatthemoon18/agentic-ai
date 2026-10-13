@@ -6,7 +6,7 @@ import com.fuad.presentation.core.AssistantVisualState;
 import com.fuad.presentation.core.AssistantVisualStateCoordinator;
 import com.fuad.presentation.core.CoreVisualSnapshot;
 import com.fuad.presentation.core.WorkspaceType;
-import com.fuad.presentation.media.MediaActionHandler;
+import com.fuad.media.control.MediaActionHandler;
 import com.fuad.presentation.media.MediaWorkspaceSnapshot;
 import com.fuad.presentation.tools.MoreToolsHandler;
 import com.fuad.presentation.tools.ToolsActionHandler;

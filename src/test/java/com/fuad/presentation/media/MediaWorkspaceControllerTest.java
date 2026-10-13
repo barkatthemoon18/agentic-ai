@@ -2,17 +2,26 @@ package com.fuad.presentation.media;
 
 import com.fuad.audio.output.AudioOutputProvider;
 import com.fuad.audio.output.AudioOutputSnapshot;
+import com.fuad.assistant.skills.media.LocalMediaControlParser;
+import com.fuad.assistant.skills.media.MediaControlSkill;
 import com.fuad.media.*;
+import com.fuad.media.control.MediaAction;
 import com.fuad.media.enrichment.MediaEnrichmentProvider;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot.MediaQueueItem;
+import com.openai.client.OpenAIClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.fuad.testsupport.Await.until;
 import static org.junit.jupiter.api.Assertions.*;
@@ -55,7 +64,7 @@ class MediaWorkspaceControllerTest {
     }
 
     @ParameterizedTest
-    @EnumSource(MediaAction.class)
+    @EnumSource(value = MediaAction.class, names = {"NEXT", "PREVIOUS", "PLAY_PAUSE"})
     void actionsShouldDelegateAndRefreshEvenWhenTransportReturnsFalse(MediaAction action) throws Exception {
         try (MediaWorkspaceController controller = controller()) {
             assertTrue(controller.submit(action));
@@ -67,6 +76,74 @@ class MediaWorkspaceControllerTest {
             }
             verify(media).current();
             verify(media).playbackState("TIDAL");
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "PAUSE, PLAYING, PAUSED, 1",
+            "PAUSE, PAUSED, PAUSED, 0",
+            "PAUSE, STOPPED, STOPPED, 0",
+            "PAUSE, UNKNOWN, UNKNOWN, 0",
+            "RESUME, PAUSED, PLAYING, 1",
+            "RESUME, PLAYING, PLAYING, 0",
+            "RESUME, STOPPED, STOPPED, 0",
+            "RESUME, UNKNOWN, UNKNOWN, 0"
+    })
+    void pauseAndResumeShouldRespectPlaybackStateAndBeIdempotent(MediaAction action,
+                                                               MediaPlaybackState initialState,
+                                                               MediaPlaybackState expectedState,
+                                                               int expectedToggles) throws Exception {
+        try (MediaWorkspaceController controller = controller()) {
+            AtomicReference<MediaSessionSnapshot> session = new AtomicReference<>(
+                    new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, initialState));
+            when(media.current()).thenAnswer(invocation -> session.get());
+            assertTrue(controller.submit(MediaAction.NEXT));
+            until(() -> controller.current().available());
+
+            // Each submitted action refreshes the session after executing its transport command.
+            CountDownLatch refreshed = new CountDownLatch(2);
+            when(media.current()).thenAnswer(invocation -> {
+                MediaSessionSnapshot snapshot = session.get();
+                refreshed.countDown();
+                return snapshot;
+            });
+            doAnswer(invocation -> {
+                session.set(new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, expectedState));
+                return true;
+            }).when(media).playPause();
+
+            assertTrue(controller.submit(action));
+            assertTrue(controller.submit(action));
+
+            assertTrue(refreshed.await(3, TimeUnit.SECONDS), "Both actions should finish and refresh the session");
+            until(() -> controller.current().playbackState() == expectedState);
+            verify(media, times(expectedToggles)).playPause();
+            verify(media, times(3)).current();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Pausa la música", "Pausa TIDAL"})
+    void aPlayerNameInTheCommandShouldStillPauseTheActiveSpotifySession(String command) throws Exception {
+        OpenAIClient client = mock(OpenAIClient.class);
+        try (MediaWorkspaceController controller = controller()) {
+            assertTrue(controller.submit(MediaAction.NEXT));
+            until(() -> controller.current().available());
+            CountDownLatch refreshed = new CountDownLatch(1);
+            when(media.current()).thenAnswer(invocation -> {
+                refreshed.countDown();
+                return new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, MediaPlaybackState.PAUSED);
+            });
+            MediaControlSkill skill = new MediaControlSkill(new LocalMediaControlParser(client, "model"), controller);
+
+            assertEquals("Reproducción pausada.", skill.execute(command).text());
+
+            assertTrue(refreshed.await(3, TimeUnit.SECONDS));
+            until(() -> controller.current().playbackState() == MediaPlaybackState.PAUSED);
+            assertEquals("Spotify", controller.current().sourceApplication());
+            verify(media).playPause();
+            verifyNoInteractions(client);
         }
     }
 

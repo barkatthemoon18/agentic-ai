@@ -2,6 +2,7 @@ package com.fuad.activation.utterance;
 
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.UtteranceDecision;
+import com.fuad.media.control.MediaControlCommandDetector;
 
 import java.text.Normalizer;
 import java.util.Locale;
@@ -13,6 +14,7 @@ import java.util.regex.Pattern;
  * probabilistic language interpretation. Ambiguous input is left to the LLM.
  */
 public class UtteranceShapeDetector {
+    private final MediaControlCommandDetector mediaControlDetector = new MediaControlCommandDetector();
     private static final Pattern DATE_REQUEST = Pattern.compile(
             "^¿?(?:en )?que (?:fecha|dia) (?:es|estamos|cae)\\b.*\\??$");
     private static final Pattern EXPLICIT_PERSON_QUESTION = Pattern.compile(
@@ -63,6 +65,10 @@ public class UtteranceShapeDetector {
         // not a request to Ares, even when its inner clause looks imperative.
         if (REPORTED_SPEECH.matcher(text).matches() || FIRST_PERSON_TEMPORAL_EVENT.matcher(text).matches()) {
             return Optional.of(UtteranceDecision.OTHER);
+        }
+
+        if (mediaControlDetector.detect(request.currentText()).isPresent()) {
+            return Optional.of(UtteranceDecision.NEW_REQUEST);
         }
 
         // Compatibility rules must run before the generic contextual shape.

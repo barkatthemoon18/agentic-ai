@@ -48,7 +48,7 @@ public final class AresApplication {
             AssistantVisualStateStore activity = new AssistantVisualStateStore();
             RuntimeStatusCoordinator status = new RuntimeStatusCoordinator(activity::setDegraded);
             presentation.startCore(visuals, status, activity, cleanup);
-            var assistantComponents = assistant.create(os, modelRuntime, audioResources.controller(),
+            var assistantComponents = assistant.create(os, modelRuntime, audioResources.controller(), mediaController,
                     visuals.executionLifecycleListener());
             var voice = audio.createVoice(cleanup, audioResources, assistantComponents, visuals, interaction,
                     mediaController, activity);

@@ -24,6 +24,8 @@ import com.fuad.assistant.skills.general.DefaultGeneralBackendSelector;
 import com.fuad.assistant.skills.general.GptGeneralEngine;
 import com.fuad.assistant.skills.general.LocalGeneralComplexityClassifier;
 import com.fuad.assistant.skills.general.QwenGeneralEngine;
+import com.fuad.assistant.skills.media.LocalMediaControlParser;
+import com.fuad.assistant.skills.media.MediaControlSkill;
 import com.fuad.assistant.skills.os.ApplicationAliasConfigLoader;
 import com.fuad.assistant.skills.os.ApplicationCatalog;
 import com.fuad.assistant.skills.os.ApplicationController;
@@ -42,6 +44,7 @@ import com.fuad.assistant.skills.research.QwenLocalResearchEngine;
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
+import com.fuad.media.control.MediaActionHandler;
 import com.fuad.model.runtime.LmStudioStartupCoordinator;
 import com.fuad.pipeline.AssistantExecutionLifecycleListener;
 import com.fuad.pipeline.AssistantPipeline;
@@ -78,7 +81,7 @@ final class AssistantBootstrap {
     }
 
     AssistantComponents create(OsComponents os, LmStudioStartupCoordinator modelRuntime,
-                               AssistantAudioController audioController,
+                               AssistantAudioController audioController, MediaActionHandler mediaControl,
                                AssistantExecutionLifecycleListener executionListener) {
         OpenAIClient localAiClient = os.localClient();
         OsCommandSkill osCommandSkill = os.skill();
@@ -97,12 +100,14 @@ final class AssistantBootstrap {
                 new DefaultGeneralBackendSelector(
                         new LocalGeneralComplexityClassifier(localAiClient)));
         AudioControlSkill audioControlSkill = new AudioControlSkill(new LocalAudioControlParser(localAiClient), audioController);
+        MediaControlSkill mediaControlSkill = new MediaControlSkill(new LocalMediaControlParser(localAiClient), mediaControl);
         CurrentResearchSkill currentResearchSkill = new CurrentResearchSkill(new OpenAiResearchEngine(assistantEngine),
                 new QwenLocalResearchEngine(localQwenChatClient), new LocalResearchPlanClassifier(localAiClient));
         SkillRegistry skillRegistry = new SkillRegistry(Map.of(
                 Capability.SYSTEM_TIME, systemTimeSkill,
                 Capability.GENERAL, generalSkill,
                 Capability.AUDIO_CONTROL, audioControlSkill,
+                Capability.MEDIA_CONTROL, mediaControlSkill,
                 Capability.OS_COMMAND, osCommandSkill,
                 Capability.CURRENT_RESEARCH, currentResearchSkill));
         SkillRouter skillRouter = new AiSkillRouter(semanticRouter, skillRegistry);

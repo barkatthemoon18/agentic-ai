@@ -49,6 +49,13 @@ public class LocalUtteranceClassifier implements UtteranceClassifier {
             "Abre Spotify" -> new_request
             "¿Qué es AES?" -> new_request
             "Recomiéndame una película" -> new_request
+            "Siguiente canción" -> new_request
+            "Pon la siguiente canción" -> new_request
+            "Pausa la música" -> new_request
+            "Reanuda la reproducción" -> new_request
+
+            Classify the utterance's conversational role, not its action
+            or capability. Playback requests still use new_request.
 
             ==================================================
             FOLLOW_UP
@@ -142,6 +149,11 @@ public class LocalUtteranceClassifier implements UtteranceClassifier {
             follow_up
             other
             """;
+    private static final String RETRY_INSTRUCTION = """
+            Classify the original input again using only this closed contract:
+            new_request, follow_up, other.
+            Return exactly one label without explanations or action names.
+            """;
     private final OpenAIClient openAIClient;
     private final UtteranceShapeDetector shapeDetector;
     private final String model;
@@ -170,22 +182,55 @@ public class LocalUtteranceClassifier implements UtteranceClassifier {
             return deterministicDecision;
         }
 
+        String firstOutput = infer(request, false);
+        try {
+            return classifyOutput(firstOutput, request);
+        }
+        catch (IllegalStateException invalid) {
+            System.err.printf("Invalid utterance classification, retrying once [model=%s]%n", model);
+            String retryOutput = infer(request, true);
+            try {
+                return classifyOutput(retryOutput, request);
+            }
+            catch (IllegalStateException retryInvalid) {
+                throw new InvalidUtteranceClassificationException(
+                        "Local model returned invalid utterance classifications after two attempts",
+                        model, 2, retryInvalid);
+            }
+        }
+    }
+
+    private String infer(UtteranceClassificationRequest request, boolean retry) {
         ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
                 .model(model)
-                .addSystemMessage(SYSTEM_PROMPT)
+                .addSystemMessage(retry ? SYSTEM_PROMPT + "\n" + RETRY_INSTRUCTION : SYSTEM_PROMPT)
                 .addUserMessage(buildInput(request))
                 .temperature(0.0)
                 .maxCompletionTokens(8)
                 .build();
         ChatCompletion completion = openAIClient.chat().completions().create(params);
-        String output = completion.choices().getFirst().message().content().orElseThrow(() ->
-                new IllegalStateException("Local model returned no utterance classification"));
-        String result = LocalModelOutput.extractLeadingLabel(output, LABELS, "utterance classification");
+        return completion.choices().isEmpty()
+                ? null : completion.choices().getFirst().message().content().orElse(null);
+    }
+
+    private UtteranceDecision classifyOutput(String output, UtteranceClassificationRequest request) {
+        if (output == null || output.isBlank()) {
+            throw new IllegalStateException("Local model returned no utterance classification");
+        }
+        String result;
+        try {
+            result = LocalModelOutput.extractLeadingLabel(output, LABELS, "utterance classification");
+        }
+        catch (IllegalStateException invalid) {
+            // The shared parser includes raw output in its error. Keep that text
+            // out of both the typed exception and its cause chain.
+            throw new IllegalStateException("Expected new_request, follow_up or other");
+        }
         UtteranceDecision decision = switch (result) {
             case "new_request" -> UtteranceDecision.NEW_REQUEST;
             case "follow_up" -> UtteranceDecision.FOLLOW_UP;
             case "other"  -> UtteranceDecision.OTHER;
-            default -> throw new IllegalStateException("Unknown utterance classification: " + result);
+            default -> throw new IllegalStateException("Expected new_request, follow_up or other");
         };
         return decision == UtteranceDecision.FOLLOW_UP && request.previousTurn().isEmpty()
                 ? UtteranceDecision.OTHER

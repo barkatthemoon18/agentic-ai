@@ -12,7 +12,7 @@ import java.util.Set;
 
 public class LocalSemanticRouter implements SemanticRouter {
     private static final Set<String> LABELS = Set.of(
-            "system-time", "audio-control", "os-command", "current-research", "general");
+            "system-time", "audio-control", "media-control", "os-command", "current-research", "general");
     private static final String SYSTEM_PROMPT = """
         Eres un router semántico de capacidades para un asistente llamado Ares.
 
@@ -26,6 +26,7 @@ public class LocalSemanticRouter implements SemanticRouter {
 
         system-time
         audio-control
+        media-control
         os-command
         current-research
         general
@@ -55,7 +56,7 @@ public class LocalSemanticRouter implements SemanticRouter {
         "¿Qué día fue el 11 de septiembre de 2001?" -> general
 
 
-            ==================================================
+        ==================================================
         audio-control
         ==================================================
         
@@ -124,6 +125,33 @@ public class LocalSemanticRouter implements SemanticRouter {
         "Cambia tu voz." -> general
         "¿Cómo generas tu voz?" -> general
 
+        ==================================================
+        media-control
+        ==================================================
+
+        Para solicitudes directas que modifican la reproducción multimedia.
+        
+        Incluye:
+        - siguiente pista;
+        - pista anterior;
+        - pausar;
+        - reanudar.
+        
+        Ejemplos:
+        
+        "Siguiente canción." -> media-control
+        "Cambia a la siguiente pista." -> media-control
+        "Pon la canción anterior." -> media-control
+        "Pausa la música." -> media-control
+        "Continúa la reproducción." -> media-control
+        
+        No confundir:
+        
+        "Sube el volumen de TIDAL." -> audio-control
+        "Silencia Spotify." -> audio-control
+        "Abre TIDAL." -> os-command
+        "Cierra Spotify." -> os-command
+        "¿Qué canción está sonando?" -> general
 
         ==================================================
         os-command
@@ -342,7 +370,7 @@ public class LocalSemanticRouter implements SemanticRouter {
             Tu salida anterior incumplió el contrato.
             Clasifica la solicitud original sin responderla.
             Devuelve exclusivamente una etiqueta:
-            system-time, audio-control, os-command, current-research o general.
+            system-time, audio-control, media-control, os-command, current-research o general.
             """;
     private final OpenAIClient client;
     private final String model;
@@ -387,7 +415,7 @@ public class LocalSemanticRouter implements SemanticRouter {
                 .addUserMessage("""
                         Clasifica la siguiente solicitud.
                         No respondas su contenido.
-                        Devuelve únicamente system-time, audio-control, os-command, current-research o general.
+                        Devuelve únicamente system-time, audio-control, media-control, os-command, current-research o general.
                         <query>
                         %s
                         </query>

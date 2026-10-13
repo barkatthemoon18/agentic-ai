@@ -4,12 +4,19 @@ import com.fuad.activation.ActivationDetector;
 import com.fuad.activation.ActivationResult;
 import com.fuad.activation.utterance.UtteranceClassificationRequest;
 import com.fuad.activation.utterance.UtteranceClassifier;
+import com.fuad.activation.utterance.LocalUtteranceClassifier;
+import com.fuad.assistant.routing.AiSkillRouter;
+import com.fuad.assistant.routing.GuardedSemanticRouter;
+import com.fuad.assistant.routing.LocalSemanticRouter;
 import com.fuad.assistant.*;
 import com.fuad.assistant.session.ConversationSession;
 import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.assistant.skills.Skill;
 import com.fuad.assistant.skills.SkillRoute;
 import com.fuad.assistant.skills.SkillRouter;
+import com.fuad.assistant.skills.SkillRegistry;
+import com.fuad.assistant.skills.media.LocalMediaControlParser;
+import com.fuad.assistant.skills.media.MediaControlSkill;
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.audio.output.MediaExclusiveAudioDetector;
@@ -17,6 +24,12 @@ import com.fuad.activation.ActivationType;
 import com.fuad.enums.Capability;
 import com.fuad.pipeline.ConversationPolicy;
 import com.fuad.enums.UtteranceDecision;
+import com.fuad.media.control.MediaAction;
+import com.fuad.media.control.MediaActionHandler;
+import com.openai.client.OpenAIClient;
+import com.openai.models.chat.completions.ChatCompletion;
+import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import com.openai.models.chat.completions.ChatCompletionMessage;
 import com.fuad.pipeline.AssistantPipeline;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.presentation.AssistantOutputCoordinator;
@@ -30,8 +43,14 @@ import com.fuad.stt.TranscriptionResult;
 import com.fuad.tts.TtsAudio;
 import com.fuad.tts.TtsEngine;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Field;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -39,9 +58,124 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 class SpeechProcessingServiceTest {
     private final SpeechSegment segment = new SpeechSegment(new float[]{0.2f}, 1_000, 0);
+
+    @ParameterizedTest
+    @CsvSource({
+            "Siguiente canción., false", "Siguiente canción., true",
+            "Pon la siguiente canción., false", "Pon la siguiente canción., true"
+    })
+    void explicitMediaCommandsShouldTraverseTheSpeechFlowWithoutAnyModelInference(String command,
+                                                                                 boolean withContext) throws Exception {
+        OpenAIClient utteranceClient = mock(OpenAIClient.class, RETURNS_DEEP_STUBS);
+        OpenAIClient routerClient = mock(OpenAIClient.class, RETURNS_DEEP_STUBS);
+        OpenAIClient parserClient = mock(OpenAIClient.class, RETURNS_DEEP_STUBS);
+        MediaActionHandler handler = mock(MediaActionHandler.class);
+        when(handler.submit(MediaAction.NEXT)).thenReturn(true);
+        Skill unexpectedSkill = mock(Skill.class);
+        TrackingAudioPipeline audio = new TrackingAudioPipeline();
+        ConversationSession session = new ConversationSession();
+        ConversationSnapshot previous = conversationSnapshot();
+        if (withContext) {
+            session.openOrRefresh(previous);
+        }
+        long originalDeadline = activeUntil(session);
+
+        try (SpeechProcessingService service = new SpeechProcessingService(stt(ignored -> transcription(command)),
+                mediaPipeline(routerClient, parserClient, handler, unexpectedSkill), ignored -> ActivationResult.none(),
+                session, audio, valid(true), new LocalUtteranceClassifier(utteranceClient, "model"), outputCoordinator(audio))) {
+            service.onSpeechSegment(segment);
+            assertTrue(audio.awaitFinished());
+        }
+
+        verify(handler).submit(MediaAction.NEXT);
+        verifyNoMoreInteractions(handler);
+        verifyNoInteractions(utteranceClient, routerClient, parserClient, unexpectedSkill);
+        assertEquals("Siguiente.", audio.spokenText.get());
+        assertEquals(1, audio.finishCount.get());
+        assertEquals(withContext, session.isActive());
+        assertEquals(originalDeadline, activeUntil(session));
+        if (withContext) {
+            assertSame(previous, session.getSnapshot().orElseThrow());
+        } else {
+            assertTrue(session.getSnapshot().isEmpty());
+        }
+    }
+
+    @Test
+    void aNonDeterministicMediaParaphraseShouldTraverseAllThreeSemanticStages() throws Exception {
+        String command = "Haz que la música siga sonando.";
+        OpenAIClient utteranceClient = mock(OpenAIClient.class, RETURNS_DEEP_STUBS);
+        OpenAIClient routerClient = mock(OpenAIClient.class, RETURNS_DEEP_STUBS);
+        OpenAIClient parserClient = mock(OpenAIClient.class, RETURNS_DEEP_STUBS);
+        respond(utteranceClient, "new_request");
+        respond(routerClient, "media-control");
+        respond(parserClient, "resume");
+        MediaActionHandler handler = mock(MediaActionHandler.class);
+        when(handler.submit(MediaAction.RESUME)).thenReturn(true);
+        Skill unexpectedSkill = mock(Skill.class);
+        TrackingAudioPipeline audio = new TrackingAudioPipeline();
+        ConversationSession session = new ConversationSession();
+
+        try (SpeechProcessingService service = new SpeechProcessingService(stt(ignored -> transcription(command)),
+                mediaPipeline(routerClient, parserClient, handler, unexpectedSkill), ignored -> ActivationResult.none(),
+                session, audio, valid(true), new LocalUtteranceClassifier(utteranceClient, "model"), outputCoordinator(audio))) {
+            service.onSpeechSegment(segment);
+            assertTrue(audio.awaitFinished());
+        }
+
+        verify(handler).submit(MediaAction.RESUME);
+        verifyNoMoreInteractions(handler);
+        for (OpenAIClient client : List.of(utteranceClient, routerClient, parserClient)) {
+            verify(client.chat().completions()).create(any(ChatCompletionCreateParams.class));
+            verifyNoMoreInteractions(client.chat().completions());
+        }
+        verifyNoInteractions(unexpectedSkill);
+        assertEquals("Reproducción reanudada.", audio.spokenText.get());
+        assertFalse(session.isActive());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void invalidUtteranceClassificationShouldFailSafelyWithoutExecutingOrChangingConversation(boolean withContext)
+            throws Exception {
+        OpenAIClient client = mock(OpenAIClient.class, RETURNS_DEEP_STUBS);
+        respond(client, "next_song");
+        TrackingAudioPipeline audio = new TrackingAudioPipeline();
+        ConversationSession session = new ConversationSession();
+        ConversationSnapshot previous = conversationSnapshot();
+        if (withContext) {
+            session.openOrRefresh(previous);
+        }
+        long originalDeadline = activeUntil(session);
+        Skill unexpectedSkill = mock(Skill.class);
+        TrackingAssistantPipeline assistant = new TrackingAssistantPipeline(unexpectedSkill);
+
+        try (SpeechProcessingService service = new SpeechProcessingService(
+                stt(ignored -> transcription("Haz que la música siga sonando.")), assistant,
+                ignored -> ActivationResult.none(), session, audio, valid(true),
+                new LocalUtteranceClassifier(client, "model"), outputCoordinator(audio))) {
+            service.onSpeechSegment(segment);
+            assertTrue(audio.awaitFinished());
+        }
+
+        verify(client.chat().completions(), times(2)).create(any(ChatCompletionCreateParams.class));
+        verifyNoInteractions(unexpectedSkill);
+        assertEquals(0, assistant.normalCalls.get());
+        assertEquals(0, assistant.followUpCalls.get());
+        assertEquals("No pude completar la solicitud en este momento.", audio.spokenText.get());
+        assertEquals(1, audio.finishCount.get());
+        assertEquals(withContext, session.isActive());
+        assertEquals(originalDeadline, activeUntil(session));
+        if (withContext) {
+            assertSame(previous, session.getSnapshot().orElseThrow());
+        } else {
+            assertTrue(session.getSnapshot().isEmpty());
+        }
+    }
 
     @Test
     void invalidSegmentShouldNotBeTranscribedAndShouldReleaseAudio() throws Exception {
@@ -588,6 +722,27 @@ class SpeechProcessingServiceTest {
                 staticRouter(Capability.GENERAL, cmd -> new AssistantResult("ok")));
         return new SpeechProcessingService(stt, assistant, activationDetector, session, audio, validator,
                 utteranceClassifier, outputCoordinator(audio));
+    }
+
+    private AssistantPipeline mediaPipeline(OpenAIClient routerClient, OpenAIClient parserClient,
+                                            MediaActionHandler handler, Skill unexpectedSkill) {
+        EnumMap<Capability, Skill> skills = new EnumMap<>(Capability.class);
+        for (Capability capability : Capability.values()) {
+            skills.put(capability, unexpectedSkill);
+        }
+        skills.put(Capability.MEDIA_CONTROL, new MediaControlSkill(new LocalMediaControlParser(parserClient, "model"), handler));
+        return new AssistantPipeline(new AiSkillRouter(
+                new GuardedSemanticRouter(new LocalSemanticRouter(routerClient, "model")), new SkillRegistry(skills)));
+    }
+
+    private void respond(OpenAIClient client, String output) {
+        ChatCompletionMessage message = mock(ChatCompletionMessage.class);
+        when(message.content()).thenReturn(Optional.of(output));
+        ChatCompletion.Choice choice = mock(ChatCompletion.Choice.class);
+        when(choice.message()).thenReturn(message);
+        ChatCompletion completion = mock(ChatCompletion.class);
+        when(completion.choices()).thenReturn(List.of(choice));
+        when(client.chat().completions().create(any(ChatCompletionCreateParams.class))).thenReturn(completion);
     }
 
     private AssistantOutputCoordinator outputCoordinator(TrackingAudioPipeline audio) {

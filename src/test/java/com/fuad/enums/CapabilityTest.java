@@ -13,6 +13,8 @@ class CapabilityTest {
             "system-time, SYSTEM_TIME",
             "' SYSTEM-TIME ', SYSTEM_TIME",
             "audio-control, AUDIO_CONTROL",
+            "media-control, MEDIA_CONTROL",
+            "' MEDIA-CONTROL ', MEDIA_CONTROL",
             "os-command, OS_COMMAND",
             "current-research, CURRENT_RESEARCH",
             "general, GENERAL"

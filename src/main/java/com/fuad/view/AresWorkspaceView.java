@@ -1,7 +1,7 @@
 package com.fuad.view;
 
 import com.fuad.presentation.core.WorkspaceType;
-import com.fuad.presentation.media.MediaActionHandler;
+import com.fuad.media.control.MediaActionHandler;
 import com.fuad.presentation.media.MediaWorkspaceSnapshot;
 import com.fuad.presentation.tools.MoreToolsHandler;
 import com.fuad.presentation.tools.ToolsActionHandler;
