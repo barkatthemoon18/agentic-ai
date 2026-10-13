@@ -64,7 +64,7 @@ class MediaWorkspaceControllerTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = MediaAction.class, names = {"NEXT", "PREVIOUS", "PLAY_PAUSE"})
+    @EnumSource(MediaAction.class)
     void actionsShouldDelegateAndRefreshEvenWhenTransportReturnsFalse(MediaAction action) throws Exception {
         try (MediaWorkspaceController controller = controller()) {
             assertTrue(controller.submit(action));
@@ -73,53 +73,124 @@ class MediaWorkspaceControllerTest {
                 case NEXT -> verify(media).next();
                 case PREVIOUS -> verify(media).previous();
                 case PLAY_PAUSE -> verify(media).playPause();
+                case PAUSE -> verify(media).pause();
+                case RESUME -> verify(media).resume();
             }
             verify(media).current();
             verify(media).playbackState("TIDAL");
+            verify(output).current();
+            verify(enrichment).current();
+            if (action != MediaAction.PLAY_PAUSE) {
+                verify(media, never()).playPause();
+            }
         }
     }
 
     @ParameterizedTest
     @CsvSource({
-            "PAUSE, PLAYING, PAUSED, 1",
-            "PAUSE, PAUSED, PAUSED, 0",
-            "PAUSE, STOPPED, STOPPED, 0",
-            "PAUSE, UNKNOWN, UNKNOWN, 0",
-            "RESUME, PAUSED, PLAYING, 1",
-            "RESUME, PLAYING, PLAYING, 0",
-            "RESUME, STOPPED, STOPPED, 0",
-            "RESUME, UNKNOWN, UNKNOWN, 0"
+            "PAUSE, PLAYING, PAUSED",
+            "PAUSE, PAUSED, PAUSED",
+            "PAUSE, STOPPED, PAUSED",
+            "PAUSE, UNKNOWN, PAUSED",
+            "RESUME, PAUSED, PLAYING",
+            "RESUME, PLAYING, PLAYING",
+            "RESUME, STOPPED, PLAYING",
+            "RESUME, UNKNOWN, PLAYING"
     })
-    void pauseAndResumeShouldRespectPlaybackStateAndBeIdempotent(MediaAction action,
-                                                               MediaPlaybackState initialState,
-                                                               MediaPlaybackState expectedState,
-                                                               int expectedToggles) throws Exception {
+    void pauseAndResumeShouldDelegateRegardlessOfCachedPlaybackState(MediaAction action,
+                                                                    MediaPlaybackState cachedState,
+                                                                    MediaPlaybackState expectedState) throws Exception {
         try (MediaWorkspaceController controller = controller()) {
             AtomicReference<MediaSessionSnapshot> session = new AtomicReference<>(
-                    new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, initialState));
-            when(media.current()).thenAnswer(invocation -> session.get());
+                    new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, cachedState));
+            CountDownLatch refreshed = new CountDownLatch(3);
+            when(media.current()).thenAnswer(invocation -> {
+                refreshed.countDown();
+                return session.get();
+            });
+            if (action == MediaAction.PAUSE) {
+                when(media.pause()).thenAnswer(invocation -> {
+                    session.set(new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, expectedState));
+                    return true;
+                });
+            } else {
+                when(media.resume()).thenAnswer(invocation -> {
+                    session.set(new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, expectedState));
+                    return true;
+                });
+            }
+
+            // Publish a cached state before the active session changes independently.
             assertTrue(controller.submit(MediaAction.NEXT));
             until(() -> controller.current().available());
-
-            // Each submitted action refreshes the session after executing its transport command.
-            CountDownLatch refreshed = new CountDownLatch(2);
-            when(media.current()).thenAnswer(invocation -> {
-                MediaSessionSnapshot snapshot = session.get();
-                refreshed.countDown();
-                return snapshot;
-            });
-            doAnswer(invocation -> {
-                session.set(new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, expectedState));
-                return true;
-            }).when(media).playPause();
+            assertEquals(cachedState, controller.current().playbackState());
+            MediaPlaybackState activeState = action == MediaAction.PAUSE ? MediaPlaybackState.PLAYING : MediaPlaybackState.PAUSED;
+            session.set(new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, activeState));
 
             assertTrue(controller.submit(action));
             assertTrue(controller.submit(action));
 
             assertTrue(refreshed.await(3, TimeUnit.SECONDS), "Both actions should finish and refresh the session");
             until(() -> controller.current().playbackState() == expectedState);
-            verify(media, times(expectedToggles)).playPause();
+            if (action == MediaAction.PAUSE) {
+                verify(media, times(2)).pause();
+                verify(media, never()).resume();
+            } else {
+                verify(media, times(2)).resume();
+                verify(media, never()).pause();
+            }
+            verify(media, never()).playPause();
             verify(media, times(3)).current();
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(MediaAction.class)
+    void transportExceptionShouldRefreshAllProvidersAndAllowFollowingActions(MediaAction action) throws Exception {
+        try (MediaWorkspaceController controller = controller()) {
+            IllegalStateException failure = new IllegalStateException("transport");
+            switch (action) {
+                case NEXT -> when(media.next()).thenThrow(failure);
+                case PREVIOUS -> when(media.previous()).thenThrow(failure);
+                case PLAY_PAUSE -> when(media.playPause()).thenThrow(failure);
+                case PAUSE -> when(media.pause()).thenThrow(failure);
+                case RESUME -> when(media.resume()).thenThrow(failure);
+            }
+            when(media.current()).thenReturn(
+                    new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, MediaPlaybackState.PLAYING),
+                    new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 30, MediaPlaybackState.PLAYING));
+            CountDownLatch followingAction = new CountDownLatch(1);
+            AtomicReference<MediaWorkspaceSnapshot> refreshedAfterFailure = new AtomicReference<>();
+            var barrier = doAnswer(invocation -> {
+                refreshedAfterFailure.set(controller.current());
+                followingAction.countDown();
+                return true;
+            }).when(media);
+            MediaAction nextAction = action == MediaAction.NEXT ? MediaAction.PREVIOUS : MediaAction.NEXT;
+            if (nextAction == MediaAction.PREVIOUS) {
+                barrier.previous();
+            } else {
+                barrier.next();
+            }
+
+            assertTrue(controller.submit(action));
+            assertTrue(controller.submit(nextAction));
+
+            assertTrue(followingAction.await(3, TimeUnit.SECONDS), "The executor should continue after a transport exception");
+            MediaWorkspaceSnapshot snapshot = refreshedAfterFailure.get();
+            assertTrue(snapshot.available());
+            assertSame(track, snapshot.currentTrack().orElseThrow());
+            assertEquals(20, snapshot.positionSeconds());
+            assertEquals("Speakers", snapshot.outputDevice());
+            assertEquals(0.5, snapshot.volume().orElseThrow());
+            assertEquals("LOSSLESS", snapshot.quality());
+            assertEquals("Next song", snapshot.queue().getFirst().title());
+            assertEquals(Optional.of(MediaPlaybackState.PAUSED), snapshot.mediaPlaybackState());
+            until(() -> controller.current().positionSeconds() == 30);
+            verify(media, times(2)).current();
+            verify(media, times(2)).playbackState("TIDAL");
+            verify(output, times(2)).current();
+            verify(enrichment, times(2)).current();
         }
     }
 
@@ -142,7 +213,8 @@ class MediaWorkspaceControllerTest {
             assertTrue(refreshed.await(3, TimeUnit.SECONDS));
             until(() -> controller.current().playbackState() == MediaPlaybackState.PAUSED);
             assertEquals("Spotify", controller.current().sourceApplication());
-            verify(media).playPause();
+            verify(media).pause();
+            verify(media, never()).playPause();
             verifyNoInteractions(client);
         }
     }
