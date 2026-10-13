@@ -61,6 +61,26 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     }
 
     @Override
+    public boolean pause() {
+        return systemMediaInterface.getActiveSession()
+                .map(session -> switch (session.getControls().getPlaybackState()) {
+            case PLAYING -> session.getControls().togglePlayPause();
+            case PAUSED -> true;
+            default -> false;
+        }).orElse(false);
+    }
+
+    @Override
+    public boolean resume() {
+        return systemMediaInterface.getActiveSession()
+                .map(session -> switch (session.getControls().getPlaybackState()) {
+            case PLAYING -> true;
+            case PAUSED -> session.getControls().togglePlayPause();
+            default -> false;
+        }).orElse(false);
+    }
+
+    @Override
     public boolean next() {
         return activeControls().map(MediaTransportControls::next).orElse(false);
     }

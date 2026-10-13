@@ -70,22 +70,26 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
     }
 
     private void execute(MediaAction action) {
-        switch (action) {
-            case PREVIOUS -> provider.previous();
-            case PAUSE -> {
-                if (current.get().playbackState() == MediaPlaybackState.PLAYING) {
-                    provider.playPause();
-                }
+        boolean success;
+
+        try {
+            success = switch (action) {
+                case PREVIOUS -> provider.previous();
+                case NEXT -> provider.next();
+                case PAUSE -> provider.pause();
+                case RESUME -> provider.resume();
+                case PLAY_PAUSE -> provider.playPause();
+            };
+            if (!success) {
+                System.err.println("Media action failed: " + action);
             }
-            case RESUME -> {
-                if (current.get().playbackState() == MediaPlaybackState.PAUSED) {
-                    provider.playPause();
-                }
-            }
-            case PLAY_PAUSE -> provider.playPause();
-            case NEXT -> provider.next();
         }
-        refreshSafely();
+        catch (Exception e) {
+            System.err.printf("Media action error [%s]: %s%n", action, e.getMessage());
+        }
+        finally {
+            refreshSafely();
+        }
     }
 
     private void refreshSafely() {
