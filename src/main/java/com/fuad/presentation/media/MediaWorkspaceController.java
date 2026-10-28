@@ -18,16 +18,21 @@ import java.util.concurrent.atomic.AtomicReference;
 public class MediaWorkspaceController implements MediaActionHandler, MediaActionExecutor, AutoCloseable {
     private static final long REFRESH_MILLIS = 500L;
     private final AtomicReference<MediaWorkspaceSnapshot> current = new AtomicReference<>(MediaWorkspaceSnapshot.unavailable());
+    private final AtomicReference<Thread> mediaWorker = new AtomicReference<>();
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(runnable -> {
         Thread thread = new Thread(runnable, "ares-media-session");
         thread.setDaemon(true);
+        mediaWorker.set(thread);
         return thread;
     });
+    private final ConcurrentMap<CompletableFuture<MediaActionResult>, MediaAction> pendingActions = new ConcurrentHashMap<>();
+    private final Object lifecycleLock = new Object();
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final MediaSessionProvider provider;
     private final AudioOutputProvider audioOutputProvider;
     private final MediaEnrichmentProvider enrichmentProvider;
+    private ScheduledFuture<?> refreshTask;
 
     public MediaWorkspaceController(MediaSessionProvider provider) {
         this(provider, AudioOutputProvider.unavailable(), MediaEnrichmentProvider.unavailable());
@@ -45,13 +50,16 @@ public class MediaWorkspaceController implements MediaActionHandler, MediaAction
     }
 
     public void start() {
-        if (closed.get()) {
-            throw new IllegalStateException("Media controller is closed");
+        synchronized (lifecycleLock) {
+            if (closed.get()) {
+                throw new IllegalStateException("Media controller is closed");
+            }
+            if (started.get()) {
+                return;
+            }
+            refreshTask = executor.scheduleWithFixedDelay(this::refreshSafely, 0, REFRESH_MILLIS, TimeUnit.MILLISECONDS);
+            started.set(true);
         }
-        if (!started.compareAndSet(false, true)) {
-            return;
-        }
-        executor.scheduleWithFixedDelay(this::refreshSafely, 0, REFRESH_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     public MediaWorkspaceSnapshot current() {
@@ -73,35 +81,78 @@ public class MediaWorkspaceController implements MediaActionHandler, MediaAction
 
     @Override
     public void close() throws Exception {
-        executor.shutdownNow();
+        synchronized (lifecycleLock) {
+            if (!closed.compareAndSet(false, true)) {
+                return;
+            }
+            if (refreshTask != null) {
+                refreshTask.cancel(false);
+            }
+            executor.execute(this::closeProvider);
+            executor.shutdown();
+        }
+        pendingActions.forEach((future, action) ->
+                future.complete(new MediaActionResult(action, MediaActionStatus.CLOSED)));
+        if (Thread.currentThread() == mediaWorker.get()) {
+            return;
+        }
+        try {
+            if (!executor.awaitTermination(5L, TimeUnit.SECONDS)) {
+                System.err.println("Media executor did not terminate within timeout; provider cleanup remains queued");
+            }
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("Media shutdown interrupted");
+        }
+    }
+
+    private void closeProvider() {
         clearProvider(provider, "media provider");
         clearProvider(audioOutputProvider, "audio output provider");
         clearProvider(enrichmentProvider, "media enrichment provider");
     }
 
     private boolean enqueue(MediaAction action, CompletableFuture<MediaActionResult> result) {
+        boolean accepted = false;
+
         Objects.requireNonNull(action);
+        Objects.requireNonNull(result);
+        synchronized (lifecycleLock) {
+            if (!closed.get()) {
+                pendingActions.put(result, action);
+                result.whenComplete((value, error) -> pendingActions.remove(result));
+                try {
+                    executor.execute(() -> runAction(action, result));
+                    accepted = true;
+                }
+                catch (RejectedExecutionException e) {
+                    pendingActions.remove(result);
+                }
+            }
+        }
+        if (!accepted) {
+            result.complete(new MediaActionResult(action, MediaActionStatus.CLOSED));
+        }
+        return accepted;
+    }
+
+    private void runAction(MediaAction action, CompletableFuture<MediaActionResult> result) {
+        MediaActionResult outcome;
+
         if (closed.get()) {
             result.complete(new MediaActionResult(action, MediaActionStatus.CLOSED));
-            return false;
+            return;
         }
+        outcome = new MediaActionResult(action, MediaActionStatus.FAILED);
         try {
-            executor.execute(() -> {
-                MediaActionResult outcome;
-
-                try {
-                    outcome = performAction(action);
-                }
-                finally {
-                    refreshSafely();
-                }
-                result.complete(outcome);
-            });
-            return true;
+            outcome = performAction(action);
         }
-        catch (RejectedExecutionException e) {
-            result.complete(new MediaActionResult(action, MediaActionStatus.CLOSED));
-            return false;
+        finally {
+            result.complete(outcome);
+            if (!closed.get()) {
+                refreshSafely();
+            }
         }
     }
 
@@ -175,9 +226,7 @@ public class MediaWorkspaceController implements MediaActionHandler, MediaAction
 
     private Optional<MediaPlaybackState> currentMediaPlaybackState() {
         try {
-            Optional<MediaPlaybackState> state = provider.playbackState("TIDAL");
-            // System.out.println("MEDIA -> TIDAL playback state: " + state.map(Enum::name).orElse("UNAVAILABLE"));
-            return state;
+            return provider.playbackState("TIDAL");
         }
         catch (RuntimeException e) {
             System.err.println("Unable to resolve TIDAL playback state: " + e.getMessage());
