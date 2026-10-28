@@ -66,7 +66,7 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
                 .map(session -> switch (session.getControls().getPlaybackState()) {
             case PLAYING -> session.getControls().togglePlayPause();
             case PAUSED -> true;
-            default -> false;
+            case STOPPED, UNKNOWN -> false;
         }).orElse(false);
     }
 
@@ -76,7 +76,7 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
                 .map(session -> switch (session.getControls().getPlaybackState()) {
             case PLAYING -> true;
             case PAUSED -> session.getControls().togglePlayPause();
-            default -> false;
+            case STOPPED, UNKNOWN -> false;
         }).orElse(false);
     }
 
@@ -147,7 +147,7 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     }
 
     private static String normalizeApplicationName(String value) {
-        String normalized = value.trim().replaceAll("(?i)\\.exe", "");
+        String normalized = value.trim().replaceFirst("(?i)\\.exe", "");
         String[] parts = normalized.split("\\.");
 
         return parts.length == 0 ? normalized : parts[parts.length - 1];

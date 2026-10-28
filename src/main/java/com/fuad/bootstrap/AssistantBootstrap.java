@@ -44,6 +44,7 @@ import com.fuad.assistant.skills.research.QwenLocalResearchEngine;
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.config.AppConfig;
 import com.fuad.enums.Capability;
+import com.fuad.media.control.MediaActionExecutor;
 import com.fuad.media.control.MediaActionHandler;
 import com.fuad.model.runtime.LmStudioStartupCoordinator;
 import com.fuad.pipeline.AssistantExecutionLifecycleListener;
@@ -81,7 +82,7 @@ final class AssistantBootstrap {
     }
 
     AssistantComponents create(OsComponents os, LmStudioStartupCoordinator modelRuntime,
-                               AssistantAudioController audioController, MediaActionHandler mediaControl,
+                               AssistantAudioController audioController, MediaActionExecutor mediaControl,
                                AssistantExecutionLifecycleListener executionListener) {
         OpenAIClient localAiClient = os.localClient();
         OsCommandSkill osCommandSkill = os.skill();

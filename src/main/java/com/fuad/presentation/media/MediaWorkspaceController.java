@@ -5,19 +5,17 @@ import com.fuad.audio.output.AudioOutputSnapshot;
 import com.fuad.media.MediaPlaybackState;
 import com.fuad.media.MediaSessionProvider;
 import com.fuad.media.MediaSessionSnapshot;
-import com.fuad.media.control.MediaAction;
-import com.fuad.media.control.MediaActionHandler;
+import com.fuad.media.control.*;
 import com.fuad.media.enrichment.MediaEnrichmentProvider;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot;
 
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class MediaWorkspaceController implements MediaActionHandler, AutoCloseable {
+public class MediaWorkspaceController implements MediaActionHandler, MediaActionExecutor, AutoCloseable {
     private static final long REFRESH_MILLIS = 500L;
     private final AtomicReference<MediaWorkspaceSnapshot> current = new AtomicReference<>(MediaWorkspaceSnapshot.unavailable());
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(runnable -> {
@@ -25,6 +23,8 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
         thread.setDaemon(true);
         return thread;
     });
+    private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private final MediaSessionProvider provider;
     private final AudioOutputProvider audioOutputProvider;
     private final MediaEnrichmentProvider enrichmentProvider;
@@ -45,6 +45,12 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
     }
 
     public void start() {
+        if (closed.get()) {
+            throw new IllegalStateException("Media controller is closed");
+        }
+        if (!started.compareAndSet(false, true)) {
+            return;
+        }
         executor.scheduleWithFixedDelay(this::refreshSafely, 0, REFRESH_MILLIS, TimeUnit.MILLISECONDS);
     }
 
@@ -54,11 +60,15 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
 
     @Override
     public boolean submit(MediaAction action) {
-        if (executor.isShutdown()) {
-            return false;
-        }
-        executor.execute(() -> execute(action));
-        return true;
+        return enqueue(action, new CompletableFuture<>());
+    }
+
+    @Override
+    public CompletionStage<MediaActionResult> executeAsync(MediaAction action) {
+        var result = new CompletableFuture<MediaActionResult>();
+
+        enqueue(action, result);
+        return result;
     }
 
     @Override
@@ -69,26 +79,46 @@ public class MediaWorkspaceController implements MediaActionHandler, AutoCloseab
         clearProvider(enrichmentProvider, "media enrichment provider");
     }
 
-    private void execute(MediaAction action) {
-        boolean success;
-
+    private boolean enqueue(MediaAction action, CompletableFuture<MediaActionResult> result) {
+        Objects.requireNonNull(action);
+        if (closed.get()) {
+            result.complete(new MediaActionResult(action, MediaActionStatus.CLOSED));
+            return false;
+        }
         try {
-            success = switch (action) {
+            executor.execute(() -> {
+                MediaActionResult outcome;
+
+                try {
+                    outcome = performAction(action);
+                }
+                finally {
+                    refreshSafely();
+                }
+                result.complete(outcome);
+            });
+            return true;
+        }
+        catch (RejectedExecutionException e) {
+            result.complete(new MediaActionResult(action, MediaActionStatus.CLOSED));
+            return false;
+        }
+    }
+
+    private MediaActionResult performAction(MediaAction action) {
+        try {
+            boolean accepted = switch (action) {
                 case PREVIOUS -> provider.previous();
                 case NEXT -> provider.next();
                 case PAUSE -> provider.pause();
                 case RESUME -> provider.resume();
                 case PLAY_PAUSE -> provider.playPause();
             };
-            if (!success) {
-                System.err.println("Media action failed: " + action);
-            }
+            return new MediaActionResult(action, accepted ? MediaActionStatus.ACKNOWLEDGED : MediaActionStatus.REJECTED);
         }
         catch (Exception e) {
             System.err.printf("Media action error [%s]: %s%n", action, e.getMessage());
-        }
-        finally {
-            refreshSafely();
+            return new MediaActionResult(action, MediaActionStatus.FAILED);
         }
     }
 
