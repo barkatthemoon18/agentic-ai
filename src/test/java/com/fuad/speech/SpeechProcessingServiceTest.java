@@ -25,7 +25,9 @@ import com.fuad.enums.Capability;
 import com.fuad.pipeline.ConversationPolicy;
 import com.fuad.enums.UtteranceDecision;
 import com.fuad.media.control.MediaAction;
-import com.fuad.media.control.MediaActionHandler;
+import com.fuad.media.control.MediaActionExecutor;
+import com.fuad.media.control.MediaActionResult;
+import com.fuad.media.control.MediaActionStatus;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
@@ -73,8 +75,9 @@ class SpeechProcessingServiceTest {
         OpenAIClient utteranceClient = mock(OpenAIClient.class, RETURNS_DEEP_STUBS);
         OpenAIClient routerClient = mock(OpenAIClient.class, RETURNS_DEEP_STUBS);
         OpenAIClient parserClient = mock(OpenAIClient.class, RETURNS_DEEP_STUBS);
-        MediaActionHandler handler = mock(MediaActionHandler.class);
-        when(handler.submit(MediaAction.NEXT)).thenReturn(true);
+        MediaActionExecutor handler = mock(MediaActionExecutor.class);
+        when(handler.executeAsync(MediaAction.NEXT)).thenReturn(java.util.concurrent.CompletableFuture
+                .completedFuture(new MediaActionResult(MediaAction.NEXT, MediaActionStatus.ACKNOWLEDGED)));
         Skill unexpectedSkill = mock(Skill.class);
         TrackingAudioPipeline audio = new TrackingAudioPipeline();
         ConversationSession session = new ConversationSession();
@@ -91,7 +94,7 @@ class SpeechProcessingServiceTest {
             assertTrue(audio.awaitFinished());
         }
 
-        verify(handler).submit(MediaAction.NEXT);
+        verify(handler).executeAsync(MediaAction.NEXT);
         verifyNoMoreInteractions(handler);
         verifyNoInteractions(utteranceClient, routerClient, parserClient, unexpectedSkill);
         assertEquals("Siguiente.", audio.spokenText.get());
@@ -114,8 +117,9 @@ class SpeechProcessingServiceTest {
         respond(utteranceClient, "new_request");
         respond(routerClient, "media-control");
         respond(parserClient, "resume");
-        MediaActionHandler handler = mock(MediaActionHandler.class);
-        when(handler.submit(MediaAction.RESUME)).thenReturn(true);
+        MediaActionExecutor handler = mock(MediaActionExecutor.class);
+        when(handler.executeAsync(MediaAction.RESUME)).thenReturn(java.util.concurrent.CompletableFuture
+                .completedFuture(new MediaActionResult(MediaAction.RESUME, MediaActionStatus.ACKNOWLEDGED)));
         Skill unexpectedSkill = mock(Skill.class);
         TrackingAudioPipeline audio = new TrackingAudioPipeline();
         ConversationSession session = new ConversationSession();
@@ -127,7 +131,7 @@ class SpeechProcessingServiceTest {
             assertTrue(audio.awaitFinished());
         }
 
-        verify(handler).submit(MediaAction.RESUME);
+        verify(handler).executeAsync(MediaAction.RESUME);
         verifyNoMoreInteractions(handler);
         for (OpenAIClient client : List.of(utteranceClient, routerClient, parserClient)) {
             verify(client.chat().completions()).create(any(ChatCompletionCreateParams.class));
@@ -725,7 +729,7 @@ class SpeechProcessingServiceTest {
     }
 
     private AssistantPipeline mediaPipeline(OpenAIClient routerClient, OpenAIClient parserClient,
-                                            MediaActionHandler handler, Skill unexpectedSkill) {
+                                            MediaActionExecutor handler, Skill unexpectedSkill) {
         EnumMap<Capability, Skill> skills = new EnumMap<>(Capability.class);
         for (Capability capability : Capability.values()) {
             skills.put(capability, unexpectedSkill);

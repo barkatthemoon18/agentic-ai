@@ -1,6 +1,6 @@
 package com.fuad.bootstrap;
 
-import com.fuad.media.control.MediaActionHandler;
+import com.fuad.media.control.MediaActionExecutor;
 import com.fuad.model.runtime.LmStudioStartupCoordinator;
 import com.fuad.presentation.VisualOutput;
 import com.fuad.presentation.media.MediaWorkspaceController;
@@ -110,7 +110,7 @@ class AresApplicationTest {
         when(presentation.create(any(), eq(cleanup))).thenReturn(visuals);
         when(presentation.createInteraction(visuals, tools, cleanup)).thenReturn(interaction);
         when(visuals.visualOutput()).thenReturn(mock(VisualOutput.class));
-        when(assistant.create(os, models, resources.controller(), MediaActionHandler.unavailable(), visuals.executionLifecycleListener()))
+        when(assistant.create(os, models, resources.controller(), (MediaActionExecutor) controller, visuals.executionLifecycleListener()))
                 .thenReturn(components);
         when(audio.createVoice(eq(cleanup), eq(resources), eq(components), eq(visuals), eq(interaction),
                 eq(controller), any())).thenReturn(voice);

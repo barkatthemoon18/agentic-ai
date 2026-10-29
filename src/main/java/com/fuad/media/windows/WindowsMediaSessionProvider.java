@@ -61,6 +61,26 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     }
 
     @Override
+    public boolean pause() {
+        return systemMediaInterface.getActiveSession()
+                .map(session -> switch (session.getControls().getPlaybackState()) {
+            case PLAYING -> session.getControls().togglePlayPause();
+            case PAUSED -> true;
+            case STOPPED, UNKNOWN -> false;
+        }).orElse(false);
+    }
+
+    @Override
+    public boolean resume() {
+        return systemMediaInterface.getActiveSession()
+                .map(session -> switch (session.getControls().getPlaybackState()) {
+            case PLAYING -> true;
+            case PAUSED -> session.getControls().togglePlayPause();
+            case STOPPED, UNKNOWN -> false;
+        }).orElse(false);
+    }
+
+    @Override
     public boolean next() {
         return activeControls().map(MediaTransportControls::next).orElse(false);
     }
@@ -127,7 +147,7 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     }
 
     private static String normalizeApplicationName(String value) {
-        String normalized = value.trim().replaceAll("(?i)\\.exe", "");
+        String normalized = value.trim().replaceFirst("(?i)\\.exe", "");
         String[] parts = normalized.split("\\.");
 
         return parts.length == 0 ? normalized : parts[parts.length - 1];

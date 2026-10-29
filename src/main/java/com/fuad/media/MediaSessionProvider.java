@@ -5,6 +5,8 @@ import java.util.Optional;
 public interface MediaSessionProvider extends AutoCloseable {
     MediaSessionSnapshot current();
     boolean playPause();
+    boolean pause();
+    boolean resume();
     boolean next();
     boolean previous();
 
@@ -21,6 +23,16 @@ public interface MediaSessionProvider extends AutoCloseable {
 
             @Override
             public boolean playPause() {
+                return false;
+            }
+
+            @Override
+            public boolean pause() {
+                return false;
+            }
+
+            @Override
+            public boolean resume() {
                 return false;
             }
 

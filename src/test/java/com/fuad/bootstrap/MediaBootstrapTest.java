@@ -42,4 +42,33 @@ class MediaBootstrapTest {
         verify(enrichment).close();
         verify(sessions, times(failure == 0 ? 1 : 0)).close();
     }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2})
+    void bootstrapShouldFallBackToUnavailableForAnyProviderThatFailsOrReturnsNull(int failing) throws Exception {
+        MediaSessionProvider sessions = mock(MediaSessionProvider.class);
+        AudioOutputProvider output = mock(AudioOutputProvider.class);
+        MediaEnrichmentProvider enrichment = mock(MediaEnrichmentProvider.class);
+        when(sessions.current()).thenReturn(MediaSessionSnapshot.unavailable());
+        when(output.current()).thenReturn(new AudioOutputSnapshot(true, "endpoint", "device", OptionalDouble.of(0.5), true));
+        when(enrichment.current()).thenReturn(new MediaEnrichmentSnapshot("LOSSLESS", List.of()));
+        Supplier<MediaSessionProvider> sessionFactory = failing == 0 ? () -> { throw new IllegalStateException("sessions"); } : () -> sessions;
+        Supplier<AudioOutputProvider> outputFactory = failing == 1 ? () -> null : () -> output;
+        Supplier<MediaEnrichmentProvider> enrichmentFactory = failing == 2 ? () -> { throw new UnsatisfiedLinkError("enrichment"); } : () -> enrichment;
+
+        try (ResourceCleanup cleanup = new ResourceCleanup()) {
+            var controller = new MediaBootstrap(sessionFactory, outputFactory, enrichmentFactory).create(cleanup);
+            if (failing == 0) {
+                until(() -> controller.current().volume().isPresent());
+            } else if (failing == 1) {
+                until(() -> !controller.current().outputDevice().equals("device") && controller.current().quality().equals("LOSSLESS"));
+            } else {
+                until(() -> controller.current().outputDevice().equals("device"));
+                assertEquals("", controller.current().quality());
+            }
+        }
+        verify(sessions, times(failing == 0 ? 0 : 1)).close();
+        verify(output, times(failing == 1 ? 0 : 1)).close();
+        verify(enrichment, times(failing == 2 ? 0 : 1)).close();
+    }
 }

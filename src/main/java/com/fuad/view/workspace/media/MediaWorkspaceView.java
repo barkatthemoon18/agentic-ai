@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 public class MediaWorkspaceView extends VBox {
+    private static final String NONE = "--";
     private static final double PROGRESS_WIDTH = 320.0;
     private static final double PROGRESS_HEIGHT = 5.0;
     private static final Duration REFRESH_INTERVAL = Duration.millis(500);
@@ -106,7 +107,7 @@ public class MediaWorkspaceView extends VBox {
         if (snapshot.volume().isPresent()) {
             double volume = snapshot.volume().getAsDouble();
             volumeValue.setText("%.0f %%".formatted(volume * 100.0));
-            double volumeWidth = 250.0 * volume;
+            double volumeWidth = 250.0 * Math.clamp(volume, 0.0, 1.0);
             volumeFill.setMinWidth(volumeWidth);
             volumeFill.setPrefWidth(volumeWidth);
             volumeFill.setMaxWidth(volumeWidth);
@@ -129,18 +130,6 @@ public class MediaWorkspaceView extends VBox {
         progressFill.setMinWidth(progressWidth);
         progressFill.setPrefWidth(progressWidth);
         progressFill.setMaxWidth(progressWidth);
-        if (snapshot.volume().isPresent()) {
-            double volume = snapshot.volume().getAsDouble();
-            double volumeWidth = 250.0 * volume;
-            volumeFill.setMinWidth(volumeWidth);
-            volumeFill.setPrefWidth(volumeWidth);
-            volumeFill.setMaxWidth(volumeWidth);
-        }
-        else {
-            volumeFill.setMinWidth(0.0);
-            volumeFill.setPrefWidth(0.0);
-            volumeFill.setMaxWidth(0.0);
-        }
     }
 
     public void dispose() {
@@ -196,15 +185,14 @@ public class MediaWorkspaceView extends VBox {
 
     private void renderUnavailable() {
         title.setText("NO ACTIVE SESSION");
-        artist.setText("--");
-        album.setText("--");
-
+        artist.setText(NONE);
+        album.setText(NONE);
         elapsed.setText("00:00");
         duration.setText("00:00");
-
-        volumeValue.setText("--");
-        output.setText("--");
-        quality.setText("--");
+        volumeValue.setText(NONE);
+        output.setText(NONE);
+        quality.setText(NONE);
+        provider.setText("NO ACTIVE SESSION");
 
         progressFill.setMinWidth(0.0);
         progressFill.setPrefWidth(0.0);
@@ -215,14 +203,9 @@ public class MediaWorkspaceView extends VBox {
         volumeFill.setMaxWidth(0.0);
 
         playPauseButton.setGraphic(new HudIconView(HudIcon.PLAY, 16.0));
-
         clearArtwork();
-        provider.setText("NO ACTIVE SESSION");
 
-        queueList.getChildren().clear();
-        Label emptyQueue = new Label("--");
-        emptyQueue.getStyleClass().add("media-queue-row");
-        queueList.getChildren().add(emptyQueue);
+        renderQueue(List.of());
     }
 
     private HBox createNowPlaying(){
@@ -381,11 +364,10 @@ public class MediaWorkspaceView extends VBox {
             queueList.getChildren().add(empty);
             return;
         }
-        int count = Math.min(queue.size(), 3);
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < Math.min(queue.size(), 10); i++) {
             MediaQueueItem item = queue.get(i);
-            String artist = item.displayArtist();
-            String text = "%02d  %s%s".formatted(i + 1, item.title(), artist.isBlank() ? "" : "  //  " + artist);
+            String artistDisplay = item.displayArtist();
+            String text = "%02d  %s%s".formatted(i + 1, item.title(), artistDisplay.isBlank() ? "" : "  //  " + artistDisplay);
             Label row = new Label(text);
             row.getStyleClass().add("media-queue-row");
             row.setMaxWidth(Double.MAX_VALUE);

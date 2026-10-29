@@ -28,20 +28,29 @@ final class MediaBootstrap {
     }
 
     MediaWorkspaceController create(ResourceCleanup cleanup) {
-        AudioOutputProvider audioOutput = output.get();
-        MediaEnrichmentProvider mediaEnrichment = enrichment.get();
-        MediaSessionProvider mediaSessions;
-        try {
-            mediaSessions = sessions.get();
-            System.out.println("MEDIA -> Windowws media provider ready");
-        }
-        catch (RuntimeException | LinkageError e) {
-            System.err.println("MEDIA -> Windows media provider unavailable: " + e.getMessage());
-            mediaSessions = MediaSessionProvider.unavailable();
-        }
+        MediaSessionProvider mediaSessions = createSafely("media session", sessions, MediaSessionProvider::unavailable);
+        AudioOutputProvider audioOutput = createSafely("audio output", output, AudioOutputProvider::unavailable);
+        MediaEnrichmentProvider mediaEnrichment = createSafely("media enrichment", enrichment,
+                MediaEnrichmentProvider::unavailable);
+
         MediaWorkspaceController controller = new MediaWorkspaceController(mediaSessions, audioOutput, mediaEnrichment);
         cleanup.register(ResourceCleanup.Resource.MEDIA, controller);
         controller.start();
         return controller;
+    }
+
+    private static <T> T createSafely(String name, Supplier<? extends T> factory, Supplier<? extends T> fallback) {
+        try {
+            T provider = factory.get();
+            if (provider == null) {
+                throw new IllegalStateException("factory returned null");
+            }
+            System.out.println("MEDIA -> " + name + " provider ready");
+            return provider;
+        }
+        catch (RuntimeException | LinkageError e) {
+            System.err.println("MEDIA -> " + name + " provider unavailable: " + e);
+            return fallback.get();
+        }
     }
 }

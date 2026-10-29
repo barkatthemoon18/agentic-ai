@@ -12,6 +12,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -121,8 +122,79 @@ class WindowsMediaSessionProviderTest {
     void absentActiveSessionShouldRejectTransport() {
         WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
         assertFalse(provider.playPause());
+        assertFalse(provider.pause());
+        assertFalse(provider.resume());
         assertFalse(provider.next());
         assertFalse(provider.previous());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "PAUSE, PLAYING, PAUSED, true, 1",
+            "PAUSE, PAUSED, PAUSED, true, 0",
+            "PAUSE, STOPPED, STOPPED, false, 0",
+            "PAUSE, UNKNOWN, UNKNOWN, false, 0",
+            "RESUME, PAUSED, PLAYING, true, 1",
+            "RESUME, PLAYING, PLAYING, true, 0",
+            "RESUME, STOPPED, STOPPED, false, 0",
+            "RESUME, UNKNOWN, UNKNOWN, false, 0"
+    })
+    void pauseAndResumeShouldUseLivePlaybackStateAndBeIdempotent(String action, PlaybackState initialState,
+                                                               PlaybackState expectedState, boolean expectedSuccess,
+                                                               int expectedToggles) {
+        MediaSession session = session("Spotify", initialState);
+        MediaTransportControls controls = session.getControls();
+        AtomicReference<PlaybackState> state = new AtomicReference<>(initialState);
+        when(controls.getPlaybackState()).thenAnswer(invocation -> state.get());
+        when(controls.togglePlayPause()).thenAnswer(invocation -> {
+            state.set(expectedState);
+            return true;
+        });
+        when(system.getActiveSession()).thenReturn(Optional.of(session));
+        WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
+
+        for (int attempt = 0; attempt < 2; attempt++) {
+            assertEquals(expectedSuccess, action.equals("PAUSE") ? provider.pause() : provider.resume());
+            assertEquals(expectedState, state.get());
+        }
+
+        verify(controls, times(expectedToggles)).togglePlayPause();
+        verify(system, times(2)).getActiveSession();
+        verify(controls, times(2)).getPlaybackState();
+        verify(controls, never()).next();
+        verify(controls, never()).previous();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"PAUSE, PLAYING", "RESUME, PAUSED"})
+    void pauseAndResumeShouldReportFailedNativeTransport(String action, PlaybackState state) {
+        MediaSession session = session("Spotify", state);
+        MediaTransportControls controls = session.getControls();
+        when(system.getActiveSession()).thenReturn(Optional.of(session));
+        when(controls.togglePlayPause()).thenReturn(false);
+        WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
+
+        assertFalse(action.equals("PAUSE") ? provider.pause() : provider.resume());
+
+        verify(controls).togglePlayPause();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PAUSE", "RESUME"})
+    void pauseAndResumeShouldResolveTheActiveSessionForEachCommand(String action) {
+        PlaybackState initialState = action.equals("PAUSE") ? PlaybackState.PLAYING : PlaybackState.PAUSED;
+        MediaSession spotify = session("Spotify", initialState);
+        MediaSession tidal = session("TIDAL", initialState);
+        when(system.getActiveSession()).thenReturn(Optional.of(spotify), Optional.of(tidal));
+        when(spotify.getControls().togglePlayPause()).thenReturn(true);
+        when(tidal.getControls().togglePlayPause()).thenReturn(true);
+        WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
+
+        assertTrue(action.equals("PAUSE") ? provider.pause() : provider.resume());
+        assertTrue(action.equals("PAUSE") ? provider.pause() : provider.resume());
+
+        verify(spotify.getControls()).togglePlayPause();
+        verify(tidal.getControls()).togglePlayPause();
     }
 
     private static MediaSession session(String application, PlaybackState state) {
