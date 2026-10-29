@@ -1,0 +1,2 @@
+# Worker tests mock the inference libraries and only need NumPy.
+numpy==2.3.5
