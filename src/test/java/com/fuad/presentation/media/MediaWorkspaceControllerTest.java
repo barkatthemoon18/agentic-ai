@@ -6,6 +6,8 @@ import com.fuad.assistant.skills.media.LocalMediaControlParser;
 import com.fuad.assistant.skills.media.MediaControlSkill;
 import com.fuad.media.*;
 import com.fuad.media.control.MediaAction;
+import com.fuad.media.control.MediaActionResult;
+import com.fuad.media.control.MediaActionStatus;
 import com.fuad.media.enrichment.MediaEnrichmentProvider;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot.MediaQueueItem;
@@ -19,6 +21,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -199,6 +202,7 @@ class MediaWorkspaceControllerTest {
     void aPlayerNameInTheCommandShouldStillPauseTheActiveSpotifySession(String command) throws Exception {
         OpenAIClient client = mock(OpenAIClient.class);
         try (MediaWorkspaceController controller = controller()) {
+            when(media.pause()).thenReturn(true);
             assertTrue(controller.submit(MediaAction.NEXT));
             until(() -> controller.current().available());
             CountDownLatch refreshed = new CountDownLatch(1);
@@ -283,4 +287,155 @@ class MediaWorkspaceControllerTest {
     }
 
     enum Failure { MEDIA, AUDIO, ENRICHMENT, TIDAL }
+
+    private static MediaActionResult await(CompletableFuture<MediaActionResult> future) throws Exception {
+        return future.get(3, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void rejectedActionShouldBeReportedByTheSkillInsteadOfConfirmed() throws Exception {
+        OpenAIClient client = mock(OpenAIClient.class);
+        try (MediaWorkspaceController controller = controller()) {
+            when(media.pause()).thenReturn(false);
+            MediaControlSkill skill = new MediaControlSkill(new LocalMediaControlParser(client, "model"), controller);
+
+            assertEquals("No pude aplicar el control multimedia", skill.execute("Pausa la música").text());
+
+            verify(media).pause();
+            verifyNoInteractions(client);
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true, ACKNOWLEDGED", "false, REJECTED"})
+    void executeAsyncShouldReportWhetherTheTransportAcceptedTheAction(boolean accepted, MediaActionStatus expected)
+            throws Exception {
+        try (MediaWorkspaceController controller = controller()) {
+            when(media.pause()).thenReturn(accepted);
+
+            MediaActionResult result = await(controller.executeAsync(MediaAction.PAUSE).toCompletableFuture());
+
+            assertEquals(new MediaActionResult(MediaAction.PAUSE, expected), result);
+            assertEquals(accepted, result.successful());
+            until(() -> controller.current().available());
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(MediaAction.class)
+    void executeAsyncShouldReportFailureOnTransportExceptionAndKeepServingActions(MediaAction action) throws Exception {
+        try (MediaWorkspaceController controller = controller()) {
+            IllegalStateException failure = new IllegalStateException("transport");
+            switch (action) {
+                case NEXT -> when(media.next()).thenThrow(failure);
+                case PREVIOUS -> when(media.previous()).thenThrow(failure);
+                case PLAY_PAUSE -> when(media.playPause()).thenThrow(failure);
+                case PAUSE -> when(media.pause()).thenThrow(failure);
+                case RESUME -> when(media.resume()).thenThrow(failure);
+            }
+            MediaAction other = action == MediaAction.NEXT ? MediaAction.PREVIOUS : MediaAction.NEXT;
+            if (other == MediaAction.PREVIOUS) {
+                when(media.previous()).thenReturn(true);
+            } else {
+                when(media.next()).thenReturn(true);
+            }
+
+            MediaActionResult failed = await(controller.executeAsync(action).toCompletableFuture());
+            MediaActionResult following = await(controller.executeAsync(other).toCompletableFuture());
+
+            assertEquals(new MediaActionResult(action, MediaActionStatus.FAILED), failed);
+            assertFalse(failed.successful());
+            assertEquals(MediaActionStatus.ACKNOWLEDGED, following.status());
+        }
+    }
+
+    @Test
+    void actionsAfterCloseShouldBeClosedWithoutTouchingTheProvider() throws Exception {
+        MediaWorkspaceController controller = controller();
+        controller.close();
+
+        MediaActionResult result = await(controller.executeAsync(MediaAction.NEXT).toCompletableFuture());
+
+        assertEquals(new MediaActionResult(MediaAction.NEXT, MediaActionStatus.CLOSED), result);
+        assertFalse(controller.submit(MediaAction.PAUSE));
+        verify(media, never()).next();
+        verify(media, never()).pause();
+        assertDoesNotThrow(controller::close);
+        verify(media, times(1)).close();
+    }
+
+    @Test
+    void closeShouldCompleteRunningAndQueuedActionsAsClosedAndNeverRunTheQueuedOne() throws Exception {
+        MediaWorkspaceController controller = controller();
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(media.next()).thenAnswer(invocation -> {
+            entered.countDown();
+            release.await(5, TimeUnit.SECONDS);
+            return true;
+        });
+        CompletableFuture<MediaActionResult> running = controller.executeAsync(MediaAction.NEXT).toCompletableFuture();
+        assertTrue(entered.await(3, TimeUnit.SECONDS));
+        CompletableFuture<MediaActionResult> queued = controller.executeAsync(MediaAction.PAUSE).toCompletableFuture();
+
+        CompletableFuture<Void> closing = CompletableFuture.runAsync(() -> {
+            try {
+                controller.close();
+            }
+            catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+
+        try {
+            assertEquals(MediaActionStatus.CLOSED, await(queued).status());
+            assertEquals(MediaActionStatus.CLOSED, await(running).status());
+        }
+        finally {
+            release.countDown();
+        }
+        closing.get(10, TimeUnit.SECONDS);
+        verify(media, never()).pause();
+        verify(media).close();
+        verify(output).close();
+        verify(enrichment).close();
+    }
+
+    @Test
+    void closingFromTheMediaWorkerShouldNotDeadlockAndStillReleaseProviders() throws Exception {
+        MediaWorkspaceController controller = controller();
+        when(media.next()).thenAnswer(invocation -> {
+            controller.close();
+            return true;
+        });
+
+        MediaActionResult result = await(controller.executeAsync(MediaAction.NEXT).toCompletableFuture());
+
+        assertEquals(MediaActionStatus.CLOSED, result.status());
+        verify(media, timeout(3000)).close();
+        verify(output, timeout(3000)).close();
+        verify(enrichment, timeout(3000)).close();
+    }
+
+    @Test
+    void startShouldBeIdempotentAndRejectedAfterClose() throws Exception {
+        MediaWorkspaceController controller = controller();
+        controller.start();
+        assertDoesNotThrow(controller::start);
+        until(() -> controller.current().available());
+        controller.close();
+
+        assertThrows(IllegalStateException.class, controller::start);
+    }
+
+    @Test
+    void shouldRejectNullActionsAndProviders() throws Exception {
+        try (MediaWorkspaceController controller = controller()) {
+            assertThrows(NullPointerException.class, () -> controller.submit(null));
+            assertThrows(NullPointerException.class, () -> controller.executeAsync(null));
+        }
+        assertThrows(NullPointerException.class, () -> new MediaWorkspaceController(null, output, enrichment));
+        assertThrows(NullPointerException.class, () -> new MediaWorkspaceController(media, null, enrichment));
+        assertThrows(NullPointerException.class, () -> new MediaWorkspaceController(media, output, null));
+    }
 }
