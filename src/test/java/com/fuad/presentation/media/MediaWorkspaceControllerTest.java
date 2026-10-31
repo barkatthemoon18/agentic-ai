@@ -5,6 +5,8 @@ import com.fuad.audio.output.AudioOutputSnapshot;
 import com.fuad.assistant.skills.media.LocalMediaControlParser;
 import com.fuad.assistant.skills.media.MediaControlSkill;
 import com.fuad.media.*;
+import com.fuad.media.context.MediaContextService;
+import com.fuad.media.context.ProcessPresence;
 import com.fuad.media.control.MediaAction;
 import com.fuad.media.control.MediaActionResult;
 import com.fuad.media.control.MediaActionStatus;
@@ -18,12 +20,14 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.fuad.testsupport.Await.until;
@@ -36,15 +40,20 @@ class MediaWorkspaceControllerTest {
     private final MediaEnrichmentProvider enrichment = mock(MediaEnrichmentProvider.class);
     private final MediaTrack track = new MediaTrack("Song", "Artist", "Album", 120);
 
+    private MediaSessionSnapshot session(String source, double position, MediaPlaybackState state) {
+        return new MediaSessionSnapshot(true, source, Optional.of(track), position, state);
+    }
+
     private MediaWorkspaceController controller() {
-        when(media.current()).thenReturn(new MediaSessionSnapshot(true, "Spotify", Optional.of(track),
-                20, MediaPlaybackState.PLAYING));
+        when(media.current()).thenReturn(session("Spotify", 20, MediaPlaybackState.PLAYING));
         when(media.playbackState("TIDAL")).thenReturn(Optional.of(MediaPlaybackState.PAUSED));
         when(output.current()).thenReturn(new AudioOutputSnapshot(true, "endpoint", "Speakers",
                 OptionalDouble.of(0.5), true));
         when(enrichment.current()).thenReturn(new MediaEnrichmentSnapshot("LOSSLESS",
                 List.of(new MediaQueueItem("Next song", List.of("Guest")))));
-        return new MediaWorkspaceController(media, output, enrichment);
+        // The process probe is injected so tests never enumerate real OS processes.
+        return new MediaWorkspaceController(new MediaContextService(media, output, enrichment,
+                Clock.systemUTC(), () -> ProcessPresence.UNKNOWN));
     }
 
     @Test
@@ -52,7 +61,8 @@ class MediaWorkspaceControllerTest {
         try (MediaWorkspaceController controller = controller()) {
             assertFalse(controller.current().available());
             controller.start();
-            until(() -> controller.current().available());
+            until(() -> controller.current().available() && controller.current().volume().isPresent()
+                    && controller.current().mediaPlaybackState().isPresent());
             MediaWorkspaceSnapshot snapshot = controller.current();
             assertSame(track, snapshot.currentTrack().orElseThrow());
             assertEquals("Spotify", snapshot.sourceApplication());
@@ -61,14 +71,35 @@ class MediaWorkspaceControllerTest {
             assertEquals(Optional.of(MediaPlaybackState.PAUSED), snapshot.mediaPlaybackState());
             assertEquals(0.5, snapshot.volume().orElseThrow());
             assertEquals("Speakers", snapshot.outputDevice());
-            assertEquals("LOSSLESS", snapshot.quality());
-            assertEquals("Next song", snapshot.queue().getFirst().title());
+        }
+    }
+
+    @Test
+    void tidalEnrichmentShouldOnlyBeExposedWhileTidalIsTheActiveSession() throws Exception {
+        try (MediaWorkspaceController controller = controller()) {
+            AtomicReference<MediaSessionSnapshot> active = new AtomicReference<>(
+                    session("Spotify", 20, MediaPlaybackState.PLAYING));
+            when(media.current()).thenAnswer(invocation -> active.get());
+
+            controller.start();
+            verify(enrichment, timeout(3000).atLeastOnce()).current();
+            until(() -> controller.current().available());
+            assertEquals("", controller.current().quality());
+            assertTrue(controller.current().queue().isEmpty());
+
+            active.set(session("TIDAL.exe", 21, MediaPlaybackState.PLAYING));
+            until(() -> controller.current().quality().equals("LOSSLESS"));
+            assertEquals("Next song", controller.current().queue().getFirst().title());
+
+            active.set(session("Spotify", 22, MediaPlaybackState.PLAYING));
+            until(() -> controller.current().quality().isEmpty());
+            assertTrue(controller.current().queue().isEmpty());
         }
     }
 
     @ParameterizedTest
     @EnumSource(MediaAction.class)
-    void actionsShouldDelegateAndRefreshEvenWhenTransportReturnsFalse(MediaAction action) throws Exception {
+    void actionsShouldDelegateAndRefreshTheCoreContextEvenWhenTransportReturnsFalse(MediaAction action) throws Exception {
         try (MediaWorkspaceController controller = controller()) {
             assertTrue(controller.submit(action));
             until(() -> controller.current().available());
@@ -82,10 +113,11 @@ class MediaWorkspaceControllerTest {
             verify(media).current();
             verify(media).playbackState("TIDAL");
             verify(output).current();
-            verify(enrichment).current();
             if (action != MediaAction.PLAY_PAUSE) {
                 verify(media, never()).playPause();
             }
+            // Enrichment lives on its own scheduler: actions must not block on (or trigger) it.
+            verify(enrichment, never()).current();
         }
     }
 
@@ -105,7 +137,7 @@ class MediaWorkspaceControllerTest {
                                                                     MediaPlaybackState expectedState) throws Exception {
         try (MediaWorkspaceController controller = controller()) {
             AtomicReference<MediaSessionSnapshot> session = new AtomicReference<>(
-                    new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, cachedState));
+                    session("Spotify", 20, cachedState));
             CountDownLatch refreshed = new CountDownLatch(3);
             when(media.current()).thenAnswer(invocation -> {
                 refreshed.countDown();
@@ -113,12 +145,12 @@ class MediaWorkspaceControllerTest {
             });
             if (action == MediaAction.PAUSE) {
                 when(media.pause()).thenAnswer(invocation -> {
-                    session.set(new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, expectedState));
+                    session.set(session("Spotify", 20, expectedState));
                     return true;
                 });
             } else {
                 when(media.resume()).thenAnswer(invocation -> {
-                    session.set(new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, expectedState));
+                    session.set(session("Spotify", 20, expectedState));
                     return true;
                 });
             }
@@ -128,7 +160,7 @@ class MediaWorkspaceControllerTest {
             until(() -> controller.current().available());
             assertEquals(cachedState, controller.current().playbackState());
             MediaPlaybackState activeState = action == MediaAction.PAUSE ? MediaPlaybackState.PLAYING : MediaPlaybackState.PAUSED;
-            session.set(new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, activeState));
+            session.set(session("Spotify", 20, activeState));
 
             assertTrue(controller.submit(action));
             assertTrue(controller.submit(action));
@@ -149,7 +181,7 @@ class MediaWorkspaceControllerTest {
 
     @ParameterizedTest
     @EnumSource(MediaAction.class)
-    void transportExceptionShouldRefreshAllProvidersAndAllowFollowingActions(MediaAction action) throws Exception {
+    void transportExceptionShouldRefreshCoreProvidersAndAllowFollowingActions(MediaAction action) throws Exception {
         try (MediaWorkspaceController controller = controller()) {
             IllegalStateException failure = new IllegalStateException("transport");
             switch (action) {
@@ -160,8 +192,8 @@ class MediaWorkspaceControllerTest {
                 case RESUME -> when(media.resume()).thenThrow(failure);
             }
             when(media.current()).thenReturn(
-                    new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, MediaPlaybackState.PLAYING),
-                    new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 30, MediaPlaybackState.PLAYING));
+                    session("Spotify", 20, MediaPlaybackState.PLAYING),
+                    session("Spotify", 30, MediaPlaybackState.PLAYING));
             CountDownLatch followingAction = new CountDownLatch(1);
             AtomicReference<MediaWorkspaceSnapshot> refreshedAfterFailure = new AtomicReference<>();
             var barrier = doAnswer(invocation -> {
@@ -186,14 +218,11 @@ class MediaWorkspaceControllerTest {
             assertEquals(20, snapshot.positionSeconds());
             assertEquals("Speakers", snapshot.outputDevice());
             assertEquals(0.5, snapshot.volume().orElseThrow());
-            assertEquals("LOSSLESS", snapshot.quality());
-            assertEquals("Next song", snapshot.queue().getFirst().title());
             assertEquals(Optional.of(MediaPlaybackState.PAUSED), snapshot.mediaPlaybackState());
             until(() -> controller.current().positionSeconds() == 30);
             verify(media, times(2)).current();
             verify(media, times(2)).playbackState("TIDAL");
             verify(output, times(2)).current();
-            verify(enrichment, times(2)).current();
         }
     }
 
@@ -208,7 +237,7 @@ class MediaWorkspaceControllerTest {
             CountDownLatch refreshed = new CountDownLatch(1);
             when(media.current()).thenAnswer(invocation -> {
                 refreshed.countDown();
-                return new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, MediaPlaybackState.PAUSED);
+                return session("Spotify", 20, MediaPlaybackState.PAUSED);
             });
             MediaControlSkill skill = new MediaControlSkill(new LocalMediaControlParser(client, "model"), controller);
 
@@ -227,36 +256,48 @@ class MediaWorkspaceControllerTest {
     @EnumSource(Failure.class)
     void providerFailureShouldPreserveOtherProvidersAndRecover(Failure failure) throws Exception {
         try (MediaWorkspaceController controller = controller()) {
-            switch (failure) {
-                case MEDIA -> when(media.current()).thenThrow(new IllegalStateException("media"))
-                        .thenReturn(new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 20, MediaPlaybackState.PLAYING));
-                case AUDIO -> when(output.current()).thenThrow(new IllegalStateException("audio"))
-                        .thenReturn(new AudioOutputSnapshot(true, "endpoint", "Speakers", OptionalDouble.of(0.5), true));
-                case ENRICHMENT -> when(enrichment.current()).thenThrow(new IllegalStateException("enrichment"))
-                        .thenReturn(new MediaEnrichmentSnapshot("LOSSLESS", List.of()));
-                case TIDAL -> when(media.playbackState("TIDAL")).thenThrow(new IllegalStateException("tidal"))
-                        .thenReturn(Optional.of(MediaPlaybackState.PAUSED));
-            }
-            // The next action is an executor barrier: the first snapshot has been published before it runs.
-            java.util.concurrent.CountDownLatch barrier = new java.util.concurrent.CountDownLatch(1);
-            java.util.concurrent.atomic.AtomicReference<MediaWorkspaceSnapshot> failed = new java.util.concurrent.atomic.AtomicReference<>();
-            doAnswer(invocation -> {
-                failed.set(controller.current());
-                barrier.countDown();
-                return false;
-            }).when(media).next();
-            // Finish stubbing before the executor starts invoking this shared mock.
-            controller.submit(MediaAction.PLAY_PAUSE);
-            controller.submit(MediaAction.NEXT);
-            assertTrue(barrier.await(3, java.util.concurrent.TimeUnit.SECONDS));
-            MediaWorkspaceSnapshot snapshot = failed.get();
-            assertEquals(failure != Failure.MEDIA, snapshot.available());
-            assertEquals(failure != Failure.AUDIO, snapshot.volume().isPresent());
-            assertEquals(failure == Failure.ENRICHMENT ? "" : "LOSSLESS", snapshot.quality());
-            assertEquals(failure != Failure.TIDAL, snapshot.mediaPlaybackState().isPresent());
-            assertEquals(failure != Failure.ENRICHMENT, !snapshot.queue().isEmpty());
-            until(() -> controller.current().available() && controller.current().volume().isPresent()
-                    && controller.current().quality().equals("LOSSLESS") && controller.current().mediaPlaybackState().isPresent());
+            AtomicBoolean healthy = new AtomicBoolean();
+            // TIDAL must be the active session so its enrichment is exposed when everything is healthy.
+            when(media.current()).thenAnswer(invocation -> {
+                if (failure == Failure.MEDIA && !healthy.get()) throw new IllegalStateException("media");
+                return session("TIDAL", 20, MediaPlaybackState.PLAYING);
+            });
+            when(media.playbackState("TIDAL")).thenAnswer(invocation -> {
+                if (failure == Failure.TIDAL && !healthy.get()) throw new IllegalStateException("tidal");
+                return Optional.of(MediaPlaybackState.PAUSED);
+            });
+            when(output.current()).thenAnswer(invocation -> {
+                if (failure == Failure.AUDIO && !healthy.get()) throw new IllegalStateException("audio");
+                return new AudioOutputSnapshot(true, "endpoint", "Speakers", OptionalDouble.of(0.5), true);
+            });
+            when(enrichment.current()).thenAnswer(invocation -> {
+                if (failure == Failure.ENRICHMENT && !healthy.get()) throw new IllegalStateException("enrichment");
+                return new MediaEnrichmentSnapshot("LOSSLESS", List.of(new MediaQueueItem("Next song", List.of())));
+            });
+
+            controller.start();
+
+            // Degraded: only the failing provider (and what depends on it) is missing.
+            // Enrichment is gated by the active TIDAL session, so a media failure hides it too.
+            boolean mediaOk = failure != Failure.MEDIA;
+            boolean audioOk = failure != Failure.AUDIO;
+            boolean tidalOk = failure != Failure.TIDAL;
+            boolean enrichmentOk = failure != Failure.ENRICHMENT && mediaOk;
+            until(() -> {
+                MediaWorkspaceSnapshot s = controller.current();
+                return s.available() == mediaOk
+                        && s.volume().isPresent() == audioOk
+                        && s.mediaPlaybackState().isPresent() == tidalOk
+                        && s.quality().equals(enrichmentOk ? "LOSSLESS" : "")
+                        && !s.queue().isEmpty() == enrichmentOk;
+            });
+
+            healthy.set(true);
+            until(() -> {
+                MediaWorkspaceSnapshot s = controller.current();
+                return s.available() && s.volume().isPresent() && s.quality().equals("LOSSLESS")
+                        && s.mediaPlaybackState().isPresent();
+            });
         }
     }
 
@@ -273,9 +314,40 @@ class MediaWorkspaceControllerTest {
     }
 
     @Test
+    void closeShouldInvalidateThePublishedContextSoStaleDataIsNeverExposed() throws Exception {
+        MediaWorkspaceController controller = controller();
+        controller.start();
+        until(() -> controller.current().available() && controller.current().volume().isPresent());
+
+        controller.close();
+
+        MediaWorkspaceSnapshot snapshot = controller.current();
+        assertFalse(snapshot.available());
+        assertTrue(snapshot.volume().isEmpty());
+        assertEquals("", snapshot.quality());
+        assertTrue(snapshot.mediaPlaybackState().isEmpty());
+        assertFalse(controller.contextProvider().current().activeSession().readSucceeded());
+        assertFalse(controller.contextProvider().current().audioOutput().readSucceeded());
+    }
+
+    @Test
+    void closeShouldStopPollingAllProviders() throws Exception {
+        MediaWorkspaceController controller = controller();
+        controller.start();
+        until(() -> controller.current().available());
+        controller.close();
+
+        clearInvocations(media, output, enrichment);
+        Thread.sleep(700);
+
+        verify(media, never()).current();
+        verify(output, never()).current();
+        verify(enrichment, never()).current();
+    }
+
+    @Test
     void optionalProvidersShouldDefaultToUnknownDeviceAndNoEnrichment() throws Exception {
-        when(media.current()).thenReturn(new MediaSessionSnapshot(true, "Tidal", Optional.of(track),
-                20, MediaPlaybackState.PLAYING));
+        when(media.current()).thenReturn(session("Tidal", 20, MediaPlaybackState.PLAYING));
         try (MediaWorkspaceController controller = new MediaWorkspaceController(media)) {
             assertTrue(controller.submit(MediaAction.NEXT));
             until(() -> controller.current().available());
@@ -283,6 +355,28 @@ class MediaWorkspaceControllerTest {
             assertEquals("", controller.current().outputDevice());
             assertEquals("", controller.current().quality());
             assertTrue(controller.current().queue().isEmpty());
+        }
+    }
+
+    @Test
+    void contextProviderShouldExposeTheServiceBackingTheController() throws Exception {
+        MediaContextService service = new MediaContextService(media, output, enrichment,
+                Clock.systemUTC(), () -> ProcessPresence.UNKNOWN);
+        try (MediaWorkspaceController controller = new MediaWorkspaceController(service)) {
+            assertSame(service, controller.contextProvider());
+        }
+    }
+
+    @Test
+    void controllerShouldMapTheServiceContextThroughTheInjectedMapper() throws Exception {
+        MediaContextService service = new MediaContextService(media, output, enrichment,
+                Clock.systemUTC(), () -> ProcessPresence.UNKNOWN);
+        MediaWorkspaceMapper mapper = mock(MediaWorkspaceMapper.class);
+        MediaWorkspaceSnapshot mapped = MediaWorkspaceSnapshot.unavailable();
+        when(mapper.map(any())).thenReturn(mapped);
+        try (MediaWorkspaceController controller = new MediaWorkspaceController(service, mapper)) {
+            assertSame(mapped, controller.current());
+            verify(mapper).map(service.current());
         }
     }
 
@@ -429,7 +523,7 @@ class MediaWorkspaceControllerTest {
     }
 
     @Test
-    void shouldRejectNullActionsAndProviders() throws Exception {
+    void shouldRejectNullActionsAndDependencies() throws Exception {
         try (MediaWorkspaceController controller = controller()) {
             assertThrows(NullPointerException.class, () -> controller.submit(null));
             assertThrows(NullPointerException.class, () -> controller.executeAsync(null));
@@ -437,5 +531,8 @@ class MediaWorkspaceControllerTest {
         assertThrows(NullPointerException.class, () -> new MediaWorkspaceController(null, output, enrichment));
         assertThrows(NullPointerException.class, () -> new MediaWorkspaceController(media, null, enrichment));
         assertThrows(NullPointerException.class, () -> new MediaWorkspaceController(media, output, null));
+        assertThrows(NullPointerException.class, () -> new MediaWorkspaceController((MediaContextService) null));
+        assertThrows(NullPointerException.class, () -> new MediaWorkspaceController(
+                new MediaContextService(media, output, enrichment), null));
     }
 }

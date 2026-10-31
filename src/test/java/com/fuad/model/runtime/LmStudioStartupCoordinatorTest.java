@@ -16,6 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LmStudioStartupCoordinatorTest {
@@ -38,7 +40,62 @@ class LmStudioStartupCoordinatorTest {
         await(() -> coordinator.snapshot().state() == RuntimeState.READY);
         assertEquals(0, runner.mutations.get());
         assertTrue(coordinator.isPhiUsable());
+        // Qwen is loaded on demand: startup leaves it in standby without touching it.
+        assertEquals(ComponentState.STANDBY, coordinator.snapshot().component(RuntimeComponent.QWEN_MAIN).state());
+        assertFalse(coordinator.isQwenUsable());
+
+        coordinator.ensureQwenReady();
+
         assertTrue(coordinator.isQwenUsable());
+        assertEquals(RuntimeState.READY, coordinator.snapshot().state());
+        assertEquals(0, runner.mutations.get());
+    }
+
+    @Test
+    void qwenShouldOnlyBeLoadedWhenDemanded() throws Exception {
+        FakeRunner runner = readyRunner();
+        runner.models.remove("qwen-main");
+        coordinator = coordinator(runner, Duration.ofMillis(10));
+
+        coordinator.startAsync();
+
+        await(() -> coordinator.snapshot().state() == RuntimeState.READY);
+        assertEquals(0, runner.qwenLoads.get());
+        assertFalse(coordinator.isQwenUsable());
+
+        coordinator.ensureQwenReady();
+
+        assertEquals(1, runner.qwenLoads.get());
+        assertTrue(coordinator.isQwenUsable());
+    }
+
+    @Test
+    void ensureQwenReadyShouldRequireReadyInfrastructure() {
+        coordinator = coordinator(readyRunner(), Duration.ofMillis(10));
+
+        assertThrows(ModelRuntimeUnavailableException.class, coordinator::ensureQwenReady);
+    }
+
+    @Test
+    void ensureQwenReadyShouldFailAfterClose() {
+        coordinator = coordinator(readyRunner(), Duration.ofMillis(10));
+        coordinator.close();
+
+        assertThrows(ModelRuntimeUnavailableException.class, coordinator::ensureQwenReady);
+    }
+
+    @Test
+    void ensureQwenReadyShouldReportAFailedLoadAndKeepRetryingInTheBackground() throws Exception {
+        FakeRunner runner = readyRunner();
+        runner.models.remove("qwen-main");
+        runner.failQwenLoads.set(true);
+        coordinator = coordinator(runner, Duration.ofMillis(200));
+        startAndAwaitInfrastructure();
+
+        assertThrows(ModelRuntimeUnavailableException.class, coordinator::ensureQwenReady);
+
+        assertEquals(ComponentState.RETRY_WAIT, coordinator.snapshot().component(RuntimeComponent.QWEN_MAIN).state());
+        assertFalse(coordinator.isQwenUsable());
     }
 
     @Test
@@ -48,10 +105,12 @@ class LmStudioStartupCoordinatorTest {
         runner.appearOnSecondQwenProbe.set(true);
         coordinator = coordinator(runner, Duration.ofMillis(20));
 
-        coordinator.startAsync();
+        startAndAwaitInfrastructure();
+        coordinator.ensureQwenReady();
 
         await(() -> coordinator.snapshot().state() == RuntimeState.READY);
         assertEquals(0, runner.qwenLoads.get());
+        assertTrue(coordinator.isQwenUsable());
     }
 
     @Test
@@ -61,7 +120,8 @@ class LmStudioStartupCoordinatorTest {
         runner.timeoutQwenAndCompleteLater.set(true);
         coordinator = coordinator(runner, Duration.ofMillis(80));
 
-        coordinator.startAsync();
+        startAndAwaitInfrastructure();
+        demandQwen();
 
         await(() -> runner.qwenLoads.get() == 1);
         await(() -> coordinator.snapshot().component(RuntimeComponent.QWEN_MAIN).state()
@@ -75,7 +135,8 @@ class LmStudioStartupCoordinatorTest {
         runner.models.remove("qwen-main");
         runner.failQwenLoads.set(true);
         coordinator = coordinator(runner, Duration.ofMillis(200));
-        coordinator.startAsync();
+        startAndAwaitInfrastructure();
+        demandQwen();
         await(() -> {
             ModelRuntimeSnapshot snapshot = coordinator.snapshot();
             return snapshot.component(RuntimeComponent.QWEN_MAIN).state() == ComponentState.RETRY_WAIT
@@ -106,7 +167,8 @@ class LmStudioStartupCoordinatorTest {
                 new ObjectMapper(), Executors.newScheduledThreadPool(4),
                 List.of(Duration.ofMillis(10), Duration.ofMillis(20), Duration.ofMillis(30)));
 
-        coordinator.startAsync();
+        startAndAwaitInfrastructure();
+        demandQwen();
 
         await(() -> coordinator.snapshot().component(RuntimeComponent.QWEN_MAIN).state()
                 == ComponentState.FAILED);
@@ -170,7 +232,8 @@ class LmStudioStartupCoordinatorTest {
         runner.qwenPath = "another/publisher/wrong-model";
         coordinator = coordinator(runner, Duration.ofMillis(10));
 
-        coordinator.startAsync();
+        startAndAwaitInfrastructure();
+        demandQwen();
 
         await(() -> coordinator.snapshot().component(RuntimeComponent.QWEN_MAIN).state()
                 == ComponentState.FAILED);
@@ -185,11 +248,27 @@ class LmStudioStartupCoordinatorTest {
         runner.qwenPath = null;
         coordinator = coordinator(runner, Duration.ofMillis(10));
 
-        coordinator.startAsync();
+        startAndAwaitInfrastructure();
+        coordinator.ensureQwenReady();
 
         await(() -> coordinator.snapshot().state() == RuntimeState.READY);
         assertTrue(coordinator.snapshot().component(RuntimeComponent.QWEN_MAIN).detail()
                 .contains("no verificable"));
+    }
+
+    private void startAndAwaitInfrastructure() throws InterruptedException {
+        coordinator.startAsync();
+        await(() -> coordinator.isPhiUsable());
+    }
+
+    /** Triggers the on-demand Qwen load; failures are inspected through the published snapshot. */
+    private void demandQwen() {
+        try {
+            coordinator.ensureQwenReady();
+        }
+        catch (ModelRuntimeUnavailableException expected) {
+            // The caller asserts on the component state instead.
+        }
     }
 
     private LmStudioStartupCoordinator coordinator(FakeRunner runner, Duration retryDelay) {

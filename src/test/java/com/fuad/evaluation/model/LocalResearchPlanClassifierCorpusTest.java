@@ -1,8 +1,8 @@
 package com.fuad.evaluation.model;
 
-import com.fuad.assistant.skills.research.LocalResearchDepthClassifier;
-import com.fuad.config.AppConfig;
+import com.fuad.assistant.skills.research.LocalResearchPlanClassifier;
 import com.fuad.assistant.skills.research.ResearchDepth;
+import com.fuad.config.AppConfig;
 import com.fuad.evaluation.classification.DecisionCorpusEvaluator;
 import com.fuad.evaluation.classification.DecisionCorpusLoader;
 import com.fuad.evaluation.classification.DecisionEvaluationReport;
@@ -17,22 +17,26 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Evaluates the depth axis of {@link LocalResearchPlanClassifier} (model inference plus explicit
+ * depth/brevity rules) against the research-depth corpus. The access axis has no corpus yet.
+ */
 @Tag("model-evaluation")
-class LocalResearchDepthClassifierCorpusTest {
+class LocalResearchPlanClassifierCorpusTest {
     private static final List<String> LABELS = List.of("quick", "deep");
 
     @Test
-    void classifierShouldMeetCorpusThreshold() {
+    void classifierDepthShouldMeetCorpusThreshold() {
         String corpus = corpus();
         String model = System.getProperty("evaluation.model", AppConfig.LOCAL_MODEL_ID);
         OpenAIClient client = OpenAIOkHttpClient.builder()
                 .baseUrl(System.getProperty("evaluation.base-url", AppConfig.LOCAL_AI_BASE_URL))
                 .apiKey(System.getProperty("evaluation.api-key", AppConfig.LOCAL_AI_API_KEY)).build();
-        LocalResearchDepthClassifier classifier = new LocalResearchDepthClassifier(client, model);
+        LocalResearchPlanClassifier classifier = new LocalResearchPlanClassifier(client, model);
         DecisionEvaluationReport report = new DecisionCorpusEvaluator().evaluate(
                 new DecisionCorpusLoader().loadResource(
                         "evaluation/research-depth-" + corpus + ".jsonl", Set.copyOf(LABELS), Set.of()),
-                LABELS, testCase -> classifier.classify(testCase.query()) == ResearchDepth.QUICK
+                LABELS, testCase -> classifier.classify(testCase.query()).depth() == ResearchDepth.QUICK
                         ? "quick" : "deep");
         String formatted = report.format("Research depth corpus evaluation",
                 "model=" + model + " corpus=" + corpus);

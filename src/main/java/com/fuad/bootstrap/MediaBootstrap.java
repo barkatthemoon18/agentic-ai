@@ -3,6 +3,7 @@ package com.fuad.bootstrap;
 import com.fuad.audio.output.AudioOutputProvider;
 import com.fuad.audio.output.windows.WindowsAudioOutputProvider;
 import com.fuad.media.MediaSessionProvider;
+import com.fuad.media.context.MediaContextService;
 import com.fuad.media.enrichment.MediaEnrichmentProvider;
 import com.fuad.media.enrichment.tidal.TidalMediaEnrichmentProvider;
 import com.fuad.media.windows.WindowsMediaSessionProvider;
@@ -28,12 +29,14 @@ final class MediaBootstrap {
     }
 
     MediaWorkspaceController create(ResourceCleanup cleanup) {
+        Objects.requireNonNull(cleanup, "cleanup");
         MediaSessionProvider mediaSessions = createSafely("media session", sessions, MediaSessionProvider::unavailable);
         AudioOutputProvider audioOutput = createSafely("audio output", output, AudioOutputProvider::unavailable);
         MediaEnrichmentProvider mediaEnrichment = createSafely("media enrichment", enrichment,
                 MediaEnrichmentProvider::unavailable);
 
-        MediaWorkspaceController controller = new MediaWorkspaceController(mediaSessions, audioOutput, mediaEnrichment);
+        MediaContextService contextService = new MediaContextService(mediaSessions, audioOutput, mediaEnrichment);
+        MediaWorkspaceController controller = new MediaWorkspaceController(contextService);
         cleanup.register(ResourceCleanup.Resource.MEDIA, controller);
         controller.start();
         return controller;

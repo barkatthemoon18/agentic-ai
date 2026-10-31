@@ -142,7 +142,8 @@ Las decisiones nuevas se evalúan con corpus y métricas independientes:
 - `general-backend-development.jsonl`: ajuste de `qwen_local` o `gpt`.
 - `general-backend-holdout-v1.jsonl`: holdout ya observado, conservado como regresión histórica.
 - `general-backend-holdout-v2.jsonl`: holdout congelado para la validación final de General.
-- `research-backend-{development|holdout}.jsonl`: `qwen_local` o `gpt_web`.
+- `research-backend-{development|holdout}.jsonl`: `qwen_local` o `gpt_web`. Obsoleto: el backend ahora
+  se deriva del plan (`ResearchAccess`) y ya no hay evaluador; solo se valida su estructura.
 - `research-depth-{development|holdout}.jsonl`: `quick` o `deep`.
 
 Cada línea usa este contrato:
@@ -159,7 +160,7 @@ Para obtener la línea base de development sin aplicar umbrales:
 
 ```powershell
 mvn -Pmodel-evaluation `
-    -Dtest=LocalGeneralComplexityClassifierCorpusTest,ResearchBackendClassifierCorpusTest,LocalResearchDepthClassifierCorpusTest `
+    -Dtest=LocalGeneralComplexityClassifierCorpusTest,LocalResearchPlanClassifierCorpusTest `
     -Devaluation.corpus=development `
     -Devaluation.report-only=true test
 ```
@@ -168,7 +169,7 @@ Para validar el holdout congelado:
 
 ```powershell
 mvn -Pmodel-evaluation `
-    -Dtest=LocalGeneralComplexityClassifierCorpusTest,ResearchBackendClassifierCorpusTest,LocalResearchDepthClassifierCorpusTest `
+    -Dtest=LocalGeneralComplexityClassifierCorpusTest,LocalResearchPlanClassifierCorpusTest `
     -Devaluation.corpus=holdout test
 ```
 
@@ -187,7 +188,7 @@ y macro-F1 mínima de `0.90` por corpus. Se puede ajustar con:
 - `evaluation.minimum-research-depth-macro-f1`.
 
 General backend y Research depth requieren el modelo local servido mediante
-`evaluation.base-url`; Research backend es determinista. Ajusta prompts sólo
+`evaluation.base-url`; el plan de Research (`LocalResearchPlanClassifier`) solo se evalúa en profundidad. Ajusta prompts sólo
 contra development, congela el candidato antes de ejecutar holdout y no reajustes
 los prompts ni las etiquetas después de observar el holdout. General v1 ya fue
 observado y no debe usarse como aprobación estadística limpia. General v2 se

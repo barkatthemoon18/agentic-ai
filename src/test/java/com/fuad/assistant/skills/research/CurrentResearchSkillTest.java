@@ -6,78 +6,97 @@ import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.enums.Capability;
 import com.fuad.pipeline.ConversationPolicy;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class CurrentResearchSkillTest {
+    private final AtomicReference<ResearchRequest> web = new AtomicReference<>();
+    private final AtomicReference<ResearchRequest> local = new AtomicReference<>();
+    private final QuickResearchEngine webEngine = request -> {
+        web.set(request);
+        return new ResearchEngineResult("respuesta web",
+                new ResearchBranchState("token-web", request.previousMessages()));
+    };
+    private final QuickResearchEngine localEngine = request -> {
+        local.set(request);
+        return new ResearchEngineResult("respuesta local",
+                new ResearchBranchState(null, request.previousMessages()));
+    };
+
+    private CurrentResearchSkill skill(ResearchAccess access, ResearchDepth depth) {
+        return new CurrentResearchSkill(webEngine, localEngine, query -> new ResearchPlan(access, depth));
+    }
 
     @Test
-    void quickResearchShouldBuildVoiceRequestAndKeepConversationOpen() {
-        AtomicReference<ResearchRequest> captured = new AtomicReference<>();
-        QuickResearchEngine engine = request -> {
-            captured.set(request);
-            return new ResearchEngineResult("respuesta",
-                    new ResearchBranchState("token-nuevo", request.previousMessages()));
-        };
-        CurrentResearchSkill skill = new CurrentResearchSkill(engine, engine,
-                query -> ResearchDepth.QUICK, new DefaultResearchBackendClassifier());
+    void quickWebResearchShouldBuildVoiceRequestAndKeepConversationOpen() {
+        CurrentResearchSkill skill = skill(ResearchAccess.WEB_REQUIRED, ResearchDepth.QUICK);
 
         AssistantResult result = skill.execute("precio actual de Bitcoin");
 
-        assertEquals("respuesta", result.text());
-        assertEquals("token-nuevo", result.continuationToken());
-        assertEquals("precio actual de Bitcoin", captured.get().query());
-        assertEquals(ResearchDepth.QUICK, captured.get().depth());
-        assertEquals(500, captured.get().maxOutputTokens());
-        assertNull(captured.get().continuation().continuationToken());
-        assertTrue(captured.get().instructions().contains("1 a 3 frases"));
+        assertEquals("respuesta web", result.text());
+        assertEquals("token-web", result.continuationToken());
+        assertEquals("precio actual de Bitcoin", web.get().query());
+        assertEquals(ResearchAccess.WEB_REQUIRED, web.get().access());
+        assertEquals(ResearchDepth.QUICK, web.get().depth());
+        assertEquals(1500, web.get().maxOutputTokens());
+        assertNull(web.get().continuation().continuationToken());
+        assertTrue(web.get().instructions().contains("busca informacion actual en Internet"));
+        assertTrue(web.get().instructions().contains("1 a 3 frases"));
+        assertNull(local.get(), "web plans must not use the local engine");
+        assertEquals(ResearchBackend.GPT_API, result.researchConversationState().getActiveBackend().orElseThrow());
         assertEquals(ConversationPolicy.KEEP_OPEN, skill.getConversationPolicy());
     }
 
     @Test
-    void deepResearchShouldForwardContinuationTokenAndUseLargerBudget() {
-        AtomicReference<ResearchRequest> captured = new AtomicReference<>();
-        QuickResearchEngine engine = request -> {
-            captured.set(request);
-            return new ResearchEngineResult("analisis",
-                    new ResearchBranchState("token-siguiente", request.previousMessages()));
-        };
-        CurrentResearchSkill skill = new CurrentResearchSkill(engine, engine,
-                query -> ResearchDepth.DEEP, new DefaultResearchBackendClassifier());
+    void deepWebResearchShouldForwardContinuationTokenAndUseLargerBudget() {
+        CurrentResearchSkill skill = skill(ResearchAccess.WEB_REQUIRED, ResearchDepth.DEEP);
 
         AssistantResult result = skill.execute("compara las noticias", "token-anterior");
 
-        assertEquals("analisis", result.text());
-        assertEquals(ResearchDepth.DEEP, captured.get().depth());
-        assertEquals(1200, captured.get().maxOutputTokens());
-        assertEquals("token-anterior", captured.get().continuation().continuationToken());
-        assertTrue(captured.get().instructions().contains("Contrasta varias fuentes"));
+        assertEquals("respuesta web", result.text());
+        assertEquals(ResearchAccess.WEB_REQUIRED, web.get().access());
+        assertEquals(ResearchDepth.DEEP, web.get().depth());
+        assertEquals(4000, web.get().maxOutputTokens());
+        assertEquals("token-anterior", web.get().continuation().continuationToken());
+        assertTrue(web.get().instructions().contains("Contrasta varias fuentes"));
+        assertNull(local.get());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"QUICK, 1500, 1 a 3 frases", "DEEP, 4000, un maximo de 6 frases"})
+    void modelKnowledgeResearchShouldUseTheLocalEngineWithoutWebInstructions(
+            ResearchDepth depth, int expectedTokens, String expectedInstruction) {
+        CurrentResearchSkill skill = skill(ResearchAccess.MODEL_KNOWLEDGE, depth);
+
+        AssistantResult result = skill.execute("compara Raft y Paxos");
+
+        assertEquals("respuesta local", result.text());
+        assertEquals(ResearchAccess.MODEL_KNOWLEDGE, local.get().access());
+        assertEquals(depth, local.get().depth());
+        assertEquals(expectedTokens, local.get().maxOutputTokens());
+        assertTrue(local.get().instructions().contains("sin buscar en Internet"));
+        assertTrue(local.get().instructions().contains(expectedInstruction));
+        assertNull(web.get(), "knowledge plans must not use the web engine");
+        assertEquals(ResearchBackend.QWEN_LOCAL, result.researchConversationState().getActiveBackend().orElseThrow());
     }
 
     @Test
     void escalationFromGeneralShouldSeedVisibleContextAndIgnoreForeignToken() {
-        AtomicReference<ResearchRequest> captured = new AtomicReference<>();
-        QuickResearchEngine engine = request -> {
-            captured.set(request);
-            return new ResearchEngineResult("investigación",
-                    new ResearchBranchState("research-token", request.previousMessages()));
-        };
-        CurrentResearchSkill skill = new CurrentResearchSkill(engine, engine,
-                query -> ResearchDepth.QUICK, (query, inherited) -> ResearchBackend.GPT_API);
+        CurrentResearchSkill skill = skill(ResearchAccess.WEB_REQUIRED, ResearchDepth.QUICK);
         ConversationSnapshot generalSnapshot = new ConversationSnapshot(
                 Capability.GENERAL, "¿Quién fue Alan Turing?", "Fue un matemático.",
                 "general-gpt-token");
 
         skill.executeFollowUp("Ahora búscalo en Internet", generalSnapshot);
 
-        assertNull(captured.get().continuation().continuationToken());
-        assertEquals(2, captured.get().previousMessages().size());
-        assertEquals("¿Quién fue Alan Turing?", captured.get().previousMessages().getFirst().content());
-        assertEquals("Fue un matemático.", captured.get().previousMessages().getLast().content());
+        assertNull(web.get().continuation().continuationToken());
+        assertEquals(2, web.get().previousMessages().size());
+        assertEquals("¿Quién fue Alan Turing?", web.get().previousMessages().getFirst().content());
+        assertEquals("Fue un matemático.", web.get().previousMessages().getLast().content());
     }
 
     @Test
@@ -88,12 +107,37 @@ class CurrentResearchSkillTest {
         CurrentResearchSkill skill = new CurrentResearchSkill(
                 request -> { throw new AssertionError("web engine must not be used"); },
                 unavailable,
-                query -> ResearchDepth.QUICK,
-                (query, inherited) -> ResearchBackend.QWEN_LOCAL);
+                query -> new ResearchPlan(ResearchAccess.MODEL_KNOWLEDGE, ResearchDepth.QUICK));
 
-        AssistantResult result = skill.execute("investiga localmente");
+        AssistantResult result = skill.execute("explica RSA");
 
         assertEquals("El modelo local no está disponible en este momento.", result.text());
         assertEquals(ConversationPolicy.PRESERVE, result.conversationPolicyOverride());
+    }
+
+    @Test
+    void nonUnavailableLocalFailuresAndWebFailuresShouldPropagate() {
+        LocalQwenException failure = new LocalQwenException(LocalQwenException.Kind.FAILURE, "boom");
+        CurrentResearchSkill local = new CurrentResearchSkill(
+                request -> { throw new AssertionError("web engine must not be used"); },
+                request -> { throw failure; },
+                query -> new ResearchPlan(ResearchAccess.MODEL_KNOWLEDGE, ResearchDepth.QUICK));
+        LocalQwenException unavailable = new LocalQwenException(LocalQwenException.Kind.UNAVAILABLE, "not ready");
+        CurrentResearchSkill web = new CurrentResearchSkill(
+                request -> { throw unavailable; },
+                request -> { throw new AssertionError("local engine must not be used"); },
+                query -> new ResearchPlan(ResearchAccess.WEB_REQUIRED, ResearchDepth.QUICK));
+
+        assertSame(failure, assertThrows(LocalQwenException.class, () -> local.execute("explica RSA")));
+        assertSame(unavailable, assertThrows(LocalQwenException.class, () -> web.execute("noticias de hoy")));
+    }
+
+    @Test
+    void shouldRejectNullCollaborators() {
+        ResearchPlanClassifier classifier = query -> new ResearchPlan(ResearchAccess.WEB_REQUIRED, ResearchDepth.QUICK);
+
+        assertThrows(NullPointerException.class, () -> new CurrentResearchSkill(null, localEngine, classifier));
+        assertThrows(NullPointerException.class, () -> new CurrentResearchSkill(webEngine, null, classifier));
+        assertThrows(NullPointerException.class, () -> new CurrentResearchSkill(webEngine, localEngine, null));
     }
 }
