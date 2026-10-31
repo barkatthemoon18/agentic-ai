@@ -8,7 +8,7 @@ import com.fuad.assistant.skills.os.OpenApplicationItem;
 import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioPlaybackService;
-import com.fuad.audio.output.MediaExclusiveAudioDetector;
+import com.fuad.audio.output.AudioReservationDetector;
 import com.fuad.audio.output.AudioDeliveryState;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.tts.TtsAudio;
@@ -40,7 +40,7 @@ class AssistantOutputCoordinatorTest {
     private TrackingAudioPipeline audioPipeline;
     private TrackingVisualOutput visualOutput;
     private AssistantOutputCoordinator coordinator;
-    private MediaExclusiveAudioDetector exclusiveAudioDetector;
+    private AudioReservationDetector exclusiveAudioDetector;
     private final List<String> events = new ArrayList<>();
 
     @BeforeEach
@@ -50,7 +50,7 @@ class AssistantOutputCoordinatorTest {
         visualOutput = new TrackingVisualOutput();
         audioPipeline.events = events;
         visualOutput.events = events;
-        exclusiveAudioDetector = mock(MediaExclusiveAudioDetector.class);
+        exclusiveAudioDetector = mock(AudioReservationDetector.class);
         coordinator = new AssistantOutputCoordinator(
                 audioController,
                 new OutputPresentationPolicy(20),

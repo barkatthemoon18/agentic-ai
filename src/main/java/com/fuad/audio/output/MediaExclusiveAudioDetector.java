@@ -8,7 +8,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-public final class MediaExclusiveAudioDetector {
+public final class MediaExclusiveAudioDetector implements AudioReservationDetector {
     Supplier<MediaWorkspaceSnapshot>  mediaWorkspaceSnapshotSupplier;
 
     public MediaExclusiveAudioDetector() {
@@ -19,6 +19,7 @@ public final class MediaExclusiveAudioDetector {
         this.mediaWorkspaceSnapshotSupplier = Objects.requireNonNull(supplier);
     }
 
+    @Override
     public boolean isOutputReserved() {
         if (!isTidalRunning()) {
             return false;

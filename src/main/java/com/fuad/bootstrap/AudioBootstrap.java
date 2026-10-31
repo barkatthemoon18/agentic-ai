@@ -6,6 +6,7 @@ import com.fuad.audio.AudioCaptureService;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioDeviceManager;
 import com.fuad.audio.AudioPlaybackService;
+import com.fuad.audio.output.MediaContextAudioReservationDetector;
 import com.fuad.audio.output.MediaExclusiveAudioDetector;
 import com.fuad.config.AppConfig;
 import com.fuad.pipeline.AudioPipeline;
@@ -75,7 +76,7 @@ final class AudioBootstrap {
                 audio.controller(), activity, audio.signals());
         AssistantOutputCoordinator output = new AssistantOutputCoordinator(audio.controller(),
                 new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD), audioPipeline,
-                presentation.visualOutput(), new MediaExclusiveAudioDetector(media::current));
+                presentation.visualOutput(), new MediaContextAudioReservationDetector(media.contextProvider()));
         cleanup.register(ResourceCleanup.Resource.VISUAL_OUTPUT, output);
         SpeechProcessingService speech = new SpeechProcessingService(audio.speech().stt(), assistant.pipeline(),
                 assistant.activation(), new ConversationSession(), audioPipeline, audio.validator(),

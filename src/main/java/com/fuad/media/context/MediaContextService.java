@@ -295,19 +295,34 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
         }
     }
 
-    private static ProcessPresence detectTidalProcess() {
-        boolean found;
+    static ProcessPresence detectTidalProcess() {
+        ProcessHandle process;
+        Path executable;
+        boolean incomplete = false;
 
-        try (Stream<ProcessHandle> processes = ProcessHandle.allProcesses()) {
-            found = processes.anyMatch(process -> process.info().command().map(cmd -> {
+        try (var processes = ProcessHandle.allProcesses()) {
+            var iterator = processes.iterator();
+            while (iterator.hasNext()) {
+                process = iterator.next();
                 try {
-                    return "TIDAL.exe".equalsIgnoreCase(Path.of(cmd).getFileName().toString());
+                    var cmd = process.info().command();
+                    if (cmd.isEmpty()) {
+                        incomplete = true;
+                        continue;
+                    }
+                    executable = Path.of(cmd.get()).getFileName();
+                    if (executable != null && "TIDAL.exe".equalsIgnoreCase(executable.toString())) {
+                        return ProcessPresence.RUNNING;
+                    }
                 }
-                catch (RuntimeException e) {
-                    return false;
+                catch (RuntimeException | LinkageError e) {
+                    incomplete = true;
                 }
-            }).orElse(false));
-            return found ? ProcessPresence.RUNNING : ProcessPresence.NOT_RUNNING;
+            }
         }
+        catch (RuntimeException | LinkageError e) {
+            return ProcessPresence.UNKNOWN;
+        }
+        return incomplete ? ProcessPresence.UNKNOWN : ProcessPresence.NOT_RUNNING;
     }
 }

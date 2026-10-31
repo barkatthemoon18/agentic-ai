@@ -6,7 +6,7 @@ import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.skills.os.ApplicationCatalogPayload;
 import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import com.fuad.audio.output.AudioDeliveryState;
-import com.fuad.audio.output.MediaExclusiveAudioDetector;
+import com.fuad.audio.output.AudioReservationDetector;
 import com.fuad.pipeline.AudioPipeline;
 
 import java.util.Objects;
@@ -14,20 +14,16 @@ import java.util.Objects;
 public class AssistantOutputCoordinator implements AutoCloseable {
 
     private final AssistantAudioController audioController;
-
     private final OutputPresentationPolicy presentationPolicy;
-
     private final AudioPipeline audioPipeline;
-
     private final VisualOutput visualOutput;
-
-    private final MediaExclusiveAudioDetector exclusiveAudioDetector;
+    private final AudioReservationDetector exclusiveAudioDetector;
 
     public AssistantOutputCoordinator(AssistantAudioController audioController,
                                       OutputPresentationPolicy presentationPolicy,
                                       AudioPipeline audioPipeline,
                                       VisualOutput visualOutput,
-                                      MediaExclusiveAudioDetector exclusiveAudioDetector) {
+                                      AudioReservationDetector exclusiveAudioDetector) {
         this.audioController = Objects.requireNonNull(audioController, "audioController cannot be null");
         this.presentationPolicy = Objects.requireNonNull(presentationPolicy, "presentationPolicy cannot be null");
         this.audioPipeline = Objects.requireNonNull(audioPipeline, "audioPipeline cannot be null");
