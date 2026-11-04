@@ -14,7 +14,7 @@ class AudioValueObjectsTest {
         assertSame(samples, new AudioFrame(samples, 16_000, 0).samples());
         assertSame(samples, new SpeechSegment(samples, 16_000, 0).samples());
         assertSame(samples, new TtsAudio(samples, 16_000).samples());
-        assertSame(samples, new com.fuad.tts.piper.PiperResponse(0, 16_000, samples, "").samples());
+        assertSame(samples, new com.fuad.tts.worker.TtsWorkerResponse(0, 16_000, samples, "").samples());
     }
 
     @Test

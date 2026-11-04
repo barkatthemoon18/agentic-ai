@@ -24,12 +24,12 @@ import com.fuad.stt.SttEngine;
 import com.fuad.stt.fasterwhisper.FasterWhisperClient;
 import com.fuad.stt.fasterwhisper.FasterWhisperSttEngine;
 import com.fuad.tts.TtsEngine;
-import com.fuad.tts.piper.PiperClient;
-import com.fuad.tts.piper.PiperTtsEngine;
+import com.fuad.tts.TtsEngineFactory;
+import com.fuad.tts.TtsSettings;
 import com.fuad.vad.SileroVadEngine;
 
 final class AudioBootstrap {
-    record SpeechEngines(FasterWhisperClient sttClient, SttEngine stt, PiperClient ttsClient, TtsEngine tts) { }
+    record SpeechEngines(FasterWhisperClient sttClient, SttEngine stt, TtsEngine tts) { }
     record AudioResources(AudioCaptureService capture, AudioPlaybackService playback, SpeechEngines speech,
                           SpeechSegmentValidator validator, AssistantAudioController controller,
                           VoiceSignalStore signals, VoiceInputController input) { }
@@ -43,12 +43,11 @@ final class AudioBootstrap {
         final FasterWhisperClient client = new FasterWhisperClient();
         final SttEngine stt = new FasterWhisperSttEngine(client);
         cleanup.register(ResourceCleanup.Resource.STT, stt);
-        final PiperClient piperClient = new PiperClient();
-        final TtsEngine tts = new PiperTtsEngine(piperClient);
+        final TtsEngine tts = TtsEngineFactory.create(TtsSettings.fromSystemProperties());
         cleanup.register(ResourceCleanup.Resource.TTS, tts);
         final SpeechSegmentValidator speechSegmentValidator = new BasicSpeechSegmentValidator(300, 0.008, 0.02);
 
-        return new AudioResources(captureService, playbackService, new SpeechEngines(client, stt, piperClient, tts),
+        return new AudioResources(captureService, playbackService, new SpeechEngines(client, stt, tts),
                 speechSegmentValidator, new AssistantAudioController(), new VoiceSignalStore(), new VoiceInputController());
     }
 
@@ -84,7 +83,7 @@ final class AudioBootstrap {
         VoicePipeline pipeline = new VoicePipeline(vad, new SpeechBuffer(), speech, audioPipeline,
                 activity, audio.signals(), audio.input());
         return new VoiceComponents(speech, pipeline, new VoiceRuntimeCoordinator.VoiceStarts(
-                audio.speech().sttClient()::start, audio.speech().ttsClient()::start,
+                audio.speech().sttClient()::start, audio.speech().tts()::start,
                 () -> audio.capture().start(deviceFocusrite, pipeline::process)));
     }
 }

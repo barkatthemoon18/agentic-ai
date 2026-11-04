@@ -11,6 +11,11 @@ public class PiperTtsEngine implements TtsEngine {
     }
 
     @Override
+    public void start() {
+        client.start();
+    }
+
+    @Override
     public TtsAudio synthesize(String text) {
         return client.synthesize(text);
     }

@@ -1,7 +1,7 @@
-package com.fuad.tts.piper;
+package com.fuad.tts.worker;
 
 /** Samples are an owned, read-only-by-convention buffer; construction and access are zero-copy. */
-public record PiperResponse(
+public record TtsWorkerResponse(
         int status,
         int sampleRate,
         float[] samples,
