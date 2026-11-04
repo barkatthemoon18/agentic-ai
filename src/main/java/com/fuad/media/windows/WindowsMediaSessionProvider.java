@@ -4,10 +4,14 @@ import com.fuad.media.MediaPlaybackState;
 import com.fuad.media.MediaSessionProvider;
 import com.fuad.media.MediaSessionSnapshot;
 import com.fuad.media.MediaTrack;
+import com.fuad.media.control.MediaAction;
+import com.fuad.media.control.MediaControlRequest;
+import com.fuad.media.control.MediaTarget;
 import org.endlesssource.mediainterface.SystemMediaFactory;
 import org.endlesssource.mediainterface.api.*;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -51,52 +55,46 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     }
 
     @Override
+    public boolean execute(MediaControlRequest request) {
+        Objects.requireNonNull(request);
+
+        return resolveSession(request.target()).map(session -> executeOnSession(session, request.action()))
+                .orElse(false);
+    }
+
+    @Override
     public MediaSessionSnapshot current() {
         return systemMediaInterface.getActiveSession().map(this::toSnapshot).orElseGet(MediaSessionSnapshot::unavailable);
     }
 
     @Override
     public boolean playPause() {
-        return activeControls().map(MediaTransportControls::togglePlayPause).orElse(false);
+        return execute(MediaControlRequest.active(MediaAction.PLAY_PAUSE));
     }
 
     @Override
     public boolean pause() {
-        return systemMediaInterface.getActiveSession()
-                .map(session -> switch (session.getControls().getPlaybackState()) {
-            case PLAYING -> session.getControls().togglePlayPause();
-            case PAUSED -> true;
-            case STOPPED, UNKNOWN -> false;
-        }).orElse(false);
+        return execute(MediaControlRequest.active(MediaAction.PAUSE));
     }
 
     @Override
     public boolean resume() {
-        return systemMediaInterface.getActiveSession()
-                .map(session -> switch (session.getControls().getPlaybackState()) {
-            case PLAYING -> true;
-            case PAUSED -> session.getControls().togglePlayPause();
-            case STOPPED, UNKNOWN -> false;
-        }).orElse(false);
+        return execute(MediaControlRequest.active(MediaAction.RESUME));
     }
 
     @Override
     public boolean next() {
-        return activeControls().map(MediaTransportControls::next).orElse(false);
+        return execute(MediaControlRequest.active(MediaAction.NEXT));
     }
 
     @Override
     public boolean previous() {
-        return activeControls().map(MediaTransportControls::previous).orElse(false);
+        return execute(MediaControlRequest.active(MediaAction.PREVIOUS));
     }
 
     @Override
     public void close() {
         systemMediaInterface.close();
-    }
-
-    private Optional<MediaTransportControls> activeControls() {
-        return systemMediaInterface.getActiveSession().map(MediaSession::getControls);
     }
 
     private MediaSessionSnapshot toSnapshot(MediaSession session) {
@@ -151,5 +149,39 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
         String[] parts = normalized.split("\\.");
 
         return parts.length == 0 ? normalized : parts[parts.length - 1];
-     }
+    }
+
+    private static boolean executeOnSession(MediaSession session, MediaAction action) {
+        MediaTransportControls controls = session.getControls();
+
+        return switch (action) {
+            case NEXT -> controls.next();
+            case PREVIOUS -> controls.previous();
+            case PLAY_PAUSE -> controls.togglePlayPause();
+            case PAUSE -> switch (controls.getPlaybackState()) {
+                case PLAYING -> controls.togglePlayPause();
+                case PAUSED -> true;
+                case STOPPED, UNKNOWN -> false;
+            };
+            case RESUME -> switch (controls.getPlaybackState()) {
+                case PLAYING -> true;
+                case PAUSED -> controls.togglePlayPause();
+                case STOPPED, UNKNOWN -> false;
+            };
+        };
+    }
+
+    private Optional<MediaSession> resolveSession(MediaTarget target) {
+        return switch (target) {
+            case MediaTarget.Active ignored -> systemMediaInterface.getActiveSession();
+            case MediaTarget.Application application -> resolveApplicationSession(application.applicationName());
+        };
+    }
+
+    private Optional<MediaSession> resolveApplicationSession(String applicationName) {
+        List<MediaSession> matches = systemMediaInterface.getAllSessions().stream()
+                .filter(session -> matchesApplication(session.getApplicationName(), applicationName))
+                .limit(2).toList();
+        return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
+    }
 }

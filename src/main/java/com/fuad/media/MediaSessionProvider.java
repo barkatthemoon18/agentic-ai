@@ -1,5 +1,9 @@
 package com.fuad.media;
 
+import com.fuad.media.control.MediaControlRequest;
+import com.fuad.media.control.MediaTarget;
+
+import java.util.Objects;
 import java.util.Optional;
 
 public interface MediaSessionProvider extends AutoCloseable {
@@ -12,6 +16,21 @@ public interface MediaSessionProvider extends AutoCloseable {
 
     default Optional<MediaPlaybackState> playbackState(String applicationName) {
         return Optional.empty();
+    }
+
+    default boolean execute(MediaControlRequest request) {
+        Objects.requireNonNull(request);
+
+        if (!(request.target() instanceof MediaTarget.Active)) {
+            return false;
+        }
+        return switch (request.action()) {
+            case PREVIOUS -> previous();
+            case NEXT -> next();
+            case PAUSE -> pause();
+            case RESUME -> resume();
+            case PLAY_PAUSE -> playPause();
+        };
     }
 
     static MediaSessionProvider unavailable() {

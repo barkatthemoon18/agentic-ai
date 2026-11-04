@@ -51,7 +51,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
     }
 
     public MediaContextService(MediaSessionProvider sessions, AudioOutputProvider audio, MediaEnrichmentProvider enrichment,
-                               Clock clock,  Supplier<ProcessPresence> processProbe) {
+                               Clock clock, Supplier<ProcessPresence> processProbe) {
         this.sessions = Objects.requireNonNull(sessions);
         this.audio = Objects.requireNonNull(audio);
         this.enrichment = Objects.requireNonNull(enrichment);
@@ -66,14 +66,24 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
 
     @Override
     public boolean submit(MediaAction action) {
-        return enqueue(action, new CompletableFuture<>());
+        return submit(MediaControlRequest.active(action));
+    }
+
+    @Override
+    public boolean submit(MediaControlRequest request) {
+        return enqueue(request, new CompletableFuture<>());
     }
 
     @Override
     public CompletionStage<MediaActionResult> executeAsync(MediaAction action) {
+        return executeAsync(MediaControlRequest.active(action));
+    }
+
+    @Override
+    public CompletionStage<MediaActionResult> executeAsync(MediaControlRequest request) {
         var result = new CompletableFuture<MediaActionResult>();
 
-        enqueue(action, result);
+        enqueue(request, result);
         return result;
     }
 
@@ -153,18 +163,18 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
         }
     }
 
-    private boolean enqueue(MediaAction action, CompletableFuture<MediaActionResult> result) {
+    private boolean enqueue(MediaControlRequest request, CompletableFuture<MediaActionResult> result) {
         boolean accepted;
 
-        Objects.requireNonNull(action);
+        Objects.requireNonNull(request);
         Objects.requireNonNull(result);
         accepted = false;
         synchronized (lifecycleLock) {
             if (!closed.get()) {
-                pending.put(result, action);
+                pending.put(result, request.action());
                 result.whenComplete((ignored, error) -> pending.remove(result));
                 try {
-                    coreExecutor.execute(() -> runAction(action, result));
+                    coreExecutor.execute(() -> runAction(request, result));
                     accepted = true;
                 }
                 catch (RejectedExecutionException e) {
@@ -173,32 +183,38 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
             }
         }
         if (!accepted) {
-            result.complete(new MediaActionResult(action, MediaActionStatus.CLOSED));
+            result.complete(new MediaActionResult(request.action(), MediaActionStatus.CLOSED));
         }
         return accepted;
     }
 
-    private void runAction(MediaAction action, CompletableFuture<MediaActionResult> result) {
+    private void runAction(MediaControlRequest request, CompletableFuture<MediaActionResult> result) {
         MediaActionResult outcome;
         boolean acknowledged;
 
         if (closed.get()) {
-            result.complete(new MediaActionResult(action, MediaActionStatus.CLOSED));
+            result.complete(new MediaActionResult(request.action(), MediaActionStatus.CLOSED));
             return;
         }
-        outcome = new MediaActionResult(action, MediaActionStatus.FAILED);
+        outcome = new MediaActionResult(request.action(), MediaActionStatus.FAILED);
         try {
-            acknowledged = switch (action) {
-                case PREVIOUS -> sessions.previous();
-                case NEXT -> sessions.next();
-                case PAUSE -> sessions.pause();
-                case RESUME -> sessions.resume();
-                case PLAY_PAUSE -> sessions.playPause();
-            };
-            outcome = new MediaActionResult(action, acknowledged ? MediaActionStatus.ACKNOWLEDGED : MediaActionStatus.REJECTED);
+            if (request.target() instanceof MediaTarget.Active) {
+                acknowledged = switch (request.action()) {
+                    case PREVIOUS -> sessions.previous();
+                    case NEXT -> sessions.next();
+                    case PAUSE -> sessions.pause();
+                    case RESUME -> sessions.resume();
+                    case PLAY_PAUSE -> sessions.playPause();
+                };
+            }
+            else {
+                acknowledged = sessions.execute(request);
+            }
+            outcome = new MediaActionResult(request.action(), acknowledged ?
+                    MediaActionStatus.ACKNOWLEDGED : MediaActionStatus.REJECTED);
         }
         catch (RuntimeException | LinkageError e) {
-            System.err.println("Media action failed[" + action + "]: " + e);
+            System.err.println("Media action failed[" + request.action() + "]: " + e);
         }
         finally {
             result.complete(outcome);

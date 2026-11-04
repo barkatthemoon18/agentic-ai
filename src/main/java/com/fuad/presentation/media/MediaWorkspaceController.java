@@ -4,10 +4,7 @@ import com.fuad.audio.output.AudioOutputProvider;
 import com.fuad.media.MediaSessionProvider;
 import com.fuad.media.context.MediaContextProvider;
 import com.fuad.media.context.MediaContextService;
-import com.fuad.media.control.MediaAction;
-import com.fuad.media.control.MediaActionExecutor;
-import com.fuad.media.control.MediaActionHandler;
-import com.fuad.media.control.MediaActionResult;
+import com.fuad.media.control.*;
 import com.fuad.media.enrichment.MediaEnrichmentProvider;
 
 import java.util.Objects;
@@ -56,8 +53,18 @@ public class MediaWorkspaceController implements MediaActionHandler, MediaAction
     }
 
     @Override
+    public CompletionStage<MediaActionResult> executeAsync(MediaControlRequest request) {
+        return service.executeAsync(request);
+    }
+
+    @Override
     public boolean submit(MediaAction action) {
         return service.submit(action);
+    }
+
+    @Override
+    public boolean submit(MediaControlRequest request) {
+        return service.submit(request);
     }
 
     @Override
