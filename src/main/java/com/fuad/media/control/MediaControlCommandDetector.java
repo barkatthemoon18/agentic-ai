@@ -17,6 +17,7 @@ public final class MediaControlCommandDetector {
     private static final String TRACK = "(?:cancion|pista|tema)";
     private static final String PLAYBACK_TARGET =
             "(?:(?:la )?(?:musica|cancion|pista|reproduccion)|tidal|spotify|vlc)";
+    private static final String APP_SUFFIX = "(?: (?:en|de) (?:tidal|spotify|vlc))?";
     private static final Map<MediaAction, Pattern> COMMANDS = Map.of(
             MediaAction.NEXT, Pattern.compile("(?:siguiente " + TRACK
                     + "|pon la siguiente " + TRACK
@@ -25,8 +26,9 @@ public final class MediaControlCommandDetector {
             MediaAction.PREVIOUS, Pattern.compile("(?:" + TRACK + " anterior"
                     + "|pon la " + TRACK + " anterior"
                     + "|(?:vuelve|regresa|retrocede) a la " + TRACK + " anterior)"),
-            MediaAction.PAUSE, Pattern.compile("(?:pausa|pon en pausa) " + PLAYBACK_TARGET),
-            MediaAction.RESUME, Pattern.compile("(?:reanuda|continua|sigue reproduciendo) " + PLAYBACK_TARGET));
+            MediaAction.PAUSE, Pattern.compile("(?:(?:pausa|pon en pausa) " + PLAYBACK_TARGET + ")" + APP_SUFFIX),
+            MediaAction.RESUME, Pattern.compile("(?:(?:reanuda|continua|sigue reproduciendo) " + PLAYBACK_TARGET
+                    + ")" + APP_SUFFIX));
 
     private static final List<Pattern> CONTRADICTIONS = List.of(
             Pattern.compile("no (?:pauses|reanudes|continues|saltes|cambies) " + PLAYBACK_TARGET),
