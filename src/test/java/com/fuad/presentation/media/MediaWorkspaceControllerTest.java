@@ -525,8 +525,8 @@ class MediaWorkspaceControllerTest {
     @Test
     void shouldRejectNullActionsAndDependencies() throws Exception {
         try (MediaWorkspaceController controller = controller()) {
-            assertThrows(NullPointerException.class, () -> controller.submit(null));
-            assertThrows(NullPointerException.class, () -> controller.executeAsync(null));
+            assertThrows(NullPointerException.class, () -> controller.submit((MediaAction) null));
+            assertThrows(NullPointerException.class, () -> controller.executeAsync((MediaAction) null));
         }
         assertThrows(NullPointerException.class, () -> new MediaWorkspaceController(null, output, enrichment));
         assertThrows(NullPointerException.class, () -> new MediaWorkspaceController(media, null, enrichment));

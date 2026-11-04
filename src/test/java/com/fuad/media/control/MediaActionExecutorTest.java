@@ -19,7 +19,7 @@ class MediaActionExecutorTest {
 
     @Test
     void unavailableExecutorShouldRejectNullActions() {
-        assertThrows(NullPointerException.class, () -> MediaActionExecutor.unavailable().executeAsync(null));
+        assertThrows(NullPointerException.class, () -> MediaActionExecutor.unavailable().executeAsync((MediaAction) null));
     }
 
     @ParameterizedTest
