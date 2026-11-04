@@ -8,9 +8,10 @@ import com.fuad.media.MediaSessionSnapshot;
 import com.fuad.media.control.*;
 import com.fuad.media.enrichment.MediaEnrichmentProvider;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot;
+import com.fuad.platform.windows.process.ProcessInventory;
+import com.fuad.platform.windows.process.ProcessInventorySnapshot;
+import com.fuad.platform.windows.process.WindowsProcessInventory;
 
-import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.util.Objects;
 import java.util.Optional;
@@ -18,13 +19,13 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 public final class MediaContextService implements MediaContextProvider, MediaActionHandler, MediaActionExecutor, AutoCloseable {
     private static final long CORE_REFRESH_MILLIS = 500L;
     private static final long ENRICHMENT_REFRESH_MILLIS = 1500L;
     private static final long PROCESS_REFRESH_NANOS = TimeUnit.SECONDS.toNanos(3);
     private static final long CLOSE_TIMEOUT_SECONDS = 5L;
+    private static final ProcessInventory PROCESS_INVENTORY = new WindowsProcessInventory();
     private final MediaSessionProvider sessions;
     private final AudioOutputProvider audio;
     private final MediaEnrichmentProvider enrichment;
@@ -296,33 +297,13 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
     }
 
     static ProcessPresence detectTidalProcess() {
-        ProcessHandle process;
-        Path executable;
-        boolean incomplete = false;
+        return resolveTidalPresence(PROCESS_INVENTORY.snapshot());
+    }
 
-        try (var processes = ProcessHandle.allProcesses()) {
-            var iterator = processes.iterator();
-            while (iterator.hasNext()) {
-                process = iterator.next();
-                try {
-                    var cmd = process.info().command();
-                    if (cmd.isEmpty()) {
-                        incomplete = true;
-                        continue;
-                    }
-                    executable = Path.of(cmd.get()).getFileName();
-                    if (executable != null && "TIDAL.exe".equalsIgnoreCase(executable.toString())) {
-                        return ProcessPresence.RUNNING;
-                    }
-                }
-                catch (RuntimeException | LinkageError e) {
-                    incomplete = true;
-                }
-            }
+    static ProcessPresence resolveTidalPresence(ProcessInventorySnapshot snapshot) {
+        if (snapshot.containsExecutable("TIDAL.exe")) {
+            return ProcessPresence.RUNNING;
         }
-        catch (RuntimeException | LinkageError e) {
-            return ProcessPresence.UNKNOWN;
-        }
-        return incomplete ? ProcessPresence.UNKNOWN : ProcessPresence.NOT_RUNNING;
+        return snapshot.complete() ? ProcessPresence.NOT_RUNNING : ProcessPresence.UNKNOWN;
     }
 }

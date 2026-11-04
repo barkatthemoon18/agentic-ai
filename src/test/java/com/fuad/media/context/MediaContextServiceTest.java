@@ -11,6 +11,8 @@ import com.fuad.media.control.MediaActionResult;
 import com.fuad.media.control.MediaActionStatus;
 import com.fuad.media.enrichment.MediaEnrichmentProvider;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot;
+import com.fuad.platform.windows.process.ProcessInventorySnapshot;
+import com.fuad.platform.windows.process.ProcessInventorySnapshot.ProcessEntry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,8 +20,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -31,7 +31,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 
 import static com.fuad.testsupport.Await.until;
 import static org.junit.jupiter.api.Assertions.*;
@@ -276,102 +275,68 @@ class MediaContextServiceTest {
         assertDoesNotThrow(() -> service.close());
     }
 
-    // --- Tests for detectTidalProcess() ---
+    // --- Tests for detectTidalProcess() and resolveTidalPresence() ---
 
     @ParameterizedTest
-    @ValueSource(strings = {"TIDAL.exe", "tidal.exe", "TiDaL.ExE", "C:\\Users\\User\\AppData\\Local\\TIDAL\\TIDAL.exe", "/opt/tidal/tidal.exe"})
-    void detectTidalProcessShouldDetectRunningProcess(String executablePath) {
-        ProcessHandle tidal = mockProcess(executablePath);
-        ProcessHandle other = mockProcess("C:\\Windows\\explorer.exe");
+    @ValueSource(strings = {"TIDAL.exe", "tidal.exe", "TiDaL.ExE"})
+    void resolveTidalPresenceShouldDetectRunningProcess(String executableName) {
+        ProcessInventorySnapshot snapshot = ProcessInventorySnapshot.completed(List.of(
+                new ProcessEntry(100L, "explorer.exe"),
+                new ProcessEntry(101L, executableName)
+        ));
 
-        try (var mocked = mockStatic(ProcessHandle.class)) {
-            mocked.when(ProcessHandle::allProcesses).thenAnswer(inv -> Stream.of(other, tidal));
-            assertEquals(ProcessPresence.RUNNING, MediaContextService.detectTidalProcess());
-        }
+        assertEquals(ProcessPresence.RUNNING, MediaContextService.resolveTidalPresence(snapshot));
     }
 
     @Test
-    void detectTidalProcessShouldReturnNotRunningWhenAllProcessesInspectedWithoutTidal() {
-        ProcessHandle p1 = mockProcess("C:\\Program Files\\Spotify\\Spotify.exe");
-        ProcessHandle p2 = mockProcess("C:\\Program Files\\Google\\Chrome\\chrome.exe");
+    void resolveTidalPresenceShouldReturnRunningEvenIfSnapshotIsIncomplete() {
+        ProcessInventorySnapshot snapshot = ProcessInventorySnapshot.incomplete(List.of(
+                new ProcessEntry(100L, "explorer.exe"),
+                new ProcessEntry(101L, "TIDAL.exe")
+        ));
 
-        try (var mocked = mockStatic(ProcessHandle.class)) {
-            mocked.when(ProcessHandle::allProcesses).thenAnswer(inv -> Stream.of(p1, p2));
-            assertEquals(ProcessPresence.NOT_RUNNING, MediaContextService.detectTidalProcess());
-        }
+        assertEquals(ProcessPresence.RUNNING, MediaContextService.resolveTidalPresence(snapshot));
     }
 
     @Test
-    void detectTidalProcessShouldReturnNotRunningWhenProcessStreamIsEmpty() {
-        try (var mocked = mockStatic(ProcessHandle.class)) {
-            mocked.when(ProcessHandle::allProcesses).thenAnswer(inv -> Stream.empty());
-            assertEquals(ProcessPresence.NOT_RUNNING, MediaContextService.detectTidalProcess());
-        }
+    void resolveTidalPresenceShouldReturnNotRunningWhenAllProcessesInspectedWithoutTidal() {
+        ProcessInventorySnapshot snapshot = ProcessInventorySnapshot.completed(List.of(
+                new ProcessEntry(100L, "Spotify.exe"),
+                new ProcessEntry(101L, "chrome.exe")
+        ));
+
+        assertEquals(ProcessPresence.NOT_RUNNING, MediaContextService.resolveTidalPresence(snapshot));
     }
 
     @Test
-    void detectTidalProcessShouldReturnUnknownWhenProcessHasEmptyCommand() {
-        ProcessHandle p1 = mockProcess(null); // empty command info
-        ProcessHandle p2 = mockProcess("C:\\Windows\\notepad.exe");
+    void resolveTidalPresenceShouldReturnNotRunningWhenProcessSnapshotIsEmpty() {
+        ProcessInventorySnapshot snapshot = ProcessInventorySnapshot.completed(List.of());
 
-        try (var mocked = mockStatic(ProcessHandle.class)) {
-            mocked.when(ProcessHandle::allProcesses).thenAnswer(inv -> Stream.of(p1, p2));
-            assertEquals(ProcessPresence.UNKNOWN, MediaContextService.detectTidalProcess());
-        }
+        assertEquals(ProcessPresence.NOT_RUNNING, MediaContextService.resolveTidalPresence(snapshot));
     }
 
     @Test
-    void detectTidalProcessShouldReturnUnknownWhenProcessInfoThrowsRuntimeException() {
-        ProcessHandle p1 = mock(ProcessHandle.class);
-        when(p1.info()).thenThrow(new SecurityException("Access denied"));
-        ProcessHandle p2 = mockProcess("C:\\Windows\\notepad.exe");
+    void resolveTidalPresenceShouldReturnUnknownWhenSnapshotIsIncompleteWithoutTidal() {
+        ProcessInventorySnapshot snapshot = ProcessInventorySnapshot.incomplete(List.of(
+                new ProcessEntry(100L, "notepad.exe")
+        ));
 
-        try (var mocked = mockStatic(ProcessHandle.class)) {
-            mocked.when(ProcessHandle::allProcesses).thenAnswer(inv -> Stream.of(p1, p2));
-            assertEquals(ProcessPresence.UNKNOWN, MediaContextService.detectTidalProcess());
-        }
+        assertEquals(ProcessPresence.UNKNOWN, MediaContextService.resolveTidalPresence(snapshot));
     }
 
     @Test
-    void detectTidalProcessShouldReturnUnknownWhenProcessInfoThrowsLinkageError() {
-        ProcessHandle p1 = mock(ProcessHandle.class);
-        when(p1.info()).thenThrow(new UnsatisfiedLinkError("Native failure"));
+    void resolveTidalPresenceShouldReturnUnknownWhenSnapshotIsEmptyAndIncomplete() {
+        ProcessInventorySnapshot snapshot = ProcessInventorySnapshot.incomplete(List.of());
 
-        try (var mocked = mockStatic(ProcessHandle.class)) {
-            mocked.when(ProcessHandle::allProcesses).thenAnswer(inv -> Stream.of(p1));
-            assertEquals(ProcessPresence.UNKNOWN, MediaContextService.detectTidalProcess());
-        }
+        assertEquals(ProcessPresence.UNKNOWN, MediaContextService.resolveTidalPresence(snapshot));
     }
 
     @Test
-    void detectTidalProcessShouldReturnRunningEvenIfEarlierProcessWasIncomplete() {
-        ProcessHandle incomplete = mockProcess(null);
-        ProcessHandle tidal = mockProcess("C:\\TIDAL\\TIDAL.exe");
-
-        try (var mocked = mockStatic(ProcessHandle.class)) {
-            mocked.when(ProcessHandle::allProcesses).thenAnswer(inv -> Stream.of(incomplete, tidal));
-            assertEquals(ProcessPresence.RUNNING, MediaContextService.detectTidalProcess());
-        }
-    }
-
-    @Test
-    void detectTidalProcessShouldReturnUnknownWhenAllProcessesThrows() {
-        try (var mocked = mockStatic(ProcessHandle.class)) {
-            mocked.when(ProcessHandle::allProcesses).thenThrow(new RuntimeException("OS failure"));
-            assertEquals(ProcessPresence.UNKNOWN, MediaContextService.detectTidalProcess());
-        }
-
-        try (var mocked = mockStatic(ProcessHandle.class)) {
-            mocked.when(ProcessHandle::allProcesses).thenThrow(new UnsatisfiedLinkError("OS linkage"));
-            assertEquals(ProcessPresence.UNKNOWN, MediaContextService.detectTidalProcess());
-        }
-    }
-
-    private static ProcessHandle mockProcess(String command) {
-        ProcessHandle handle = mock(ProcessHandle.class);
-        ProcessHandle.Info info = mock(ProcessHandle.Info.class);
-        when(handle.info()).thenReturn(info);
-        when(info.command()).thenReturn(Optional.ofNullable(command));
-        return handle;
+    void detectTidalProcessShouldReturnNonNullPresence() {
+        ProcessPresence presence = MediaContextService.detectTidalProcess();
+        assertNotNull(presence);
+        assertTrue(presence == ProcessPresence.RUNNING
+                || presence == ProcessPresence.NOT_RUNNING
+                || presence == ProcessPresence.UNKNOWN);
     }
 }
