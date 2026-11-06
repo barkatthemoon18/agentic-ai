@@ -1,16 +1,15 @@
 package com.fuad.assistant.skills.media;
 
 import com.fuad.assistant.AssistantResult;
-import com.fuad.media.control.MediaAction;
-import com.fuad.media.control.MediaActionExecutor;
-import com.fuad.media.control.MediaActionResult;
-import com.fuad.media.control.MediaActionStatus;
+import com.fuad.media.control.*;
 import com.fuad.pipeline.ConversationPolicy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -45,6 +44,94 @@ class MediaControlSkillTest {
         verify(parser).parse(command);
         verify(executor).executeAsync(action);
         verifyNoMoreInteractions(parser, executor);
+    }
+
+    @Test
+    void pauseTidalShouldInvokeExecuteAsyncWithMediaControlRequestAndNeverMediaAction() {
+        when(parser.parse("Pausa TIDAL")).thenReturn(MediaControlIntent.PAUSE);
+        when(executor.executeAsync(any(MediaControlRequest.class)))
+                .thenReturn(completed(MediaAction.PAUSE, MediaActionStatus.ACKNOWLEDGED));
+
+        AssistantResult result = skill.execute("Pausa TIDAL");
+
+        assertEquals(new AssistantResult("Reproducción pausada."), result);
+        verify(executor).executeAsync(new MediaControlRequest(MediaAction.PAUSE, MediaTarget.application("TIDAL")));
+        verify(executor, never()).executeAsync(any(MediaAction.class));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "Pausa Spotify, PAUSE, PAUSE, Spotify, Reproducción pausada.",
+            "Reanuda VLC, RESUME, RESUME, VLC, Reproducción reanudada.",
+            "Siguiente canción en Spotify, NEXT, NEXT, Spotify, Siguiente."
+    })
+    void applicationTargetedCommandsShouldInvokeExecuteAsyncWithMediaControlRequest(
+            String command,
+            MediaControlIntent intent,
+            MediaAction action,
+            String appName,
+            String expectedResponse) {
+        when(parser.parse(command)).thenReturn(intent);
+        when(executor.executeAsync(any(MediaControlRequest.class)))
+                .thenReturn(completed(action, MediaActionStatus.ACKNOWLEDGED));
+
+        AssistantResult result = skill.execute(command);
+
+        assertEquals(new AssistantResult(expectedResponse), result);
+        verify(executor).executeAsync(new MediaControlRequest(action, MediaTarget.application(appName)));
+        verify(executor, never()).executeAsync(any(MediaAction.class));
+    }
+
+    @Test
+    void previousTrackWithApplicationTargetShouldExecuteWhenParserRecognizesAction() {
+        String command = "Anterior canción de TIDAL";
+        when(parser.parse(command)).thenReturn(MediaControlIntent.PREVIOUS);
+
+        MediaControlCommandDetector mockDetector = mock(MediaControlCommandDetector.class);
+        when(mockDetector.detect("anterior cancion")).thenReturn(Optional.of(MediaAction.PREVIOUS));
+        MediaCommandTargetResolver targetResolver = new MediaCommandTargetResolver(mockDetector);
+        MediaControlSkill skillWithCustomResolver = new MediaControlSkill(parser, executor, targetResolver);
+
+        when(executor.executeAsync(any(MediaControlRequest.class)))
+                .thenReturn(completed(MediaAction.PREVIOUS, MediaActionStatus.ACKNOWLEDGED));
+
+        AssistantResult result = skillWithCustomResolver.execute(command);
+
+        assertEquals(new AssistantResult("Anterior."), result);
+        verify(executor).executeAsync(new MediaControlRequest(MediaAction.PREVIOUS, MediaTarget.application("TIDAL")));
+        verify(executor, never()).executeAsync(any(MediaAction.class));
+    }
+
+    @Test
+    void pauseMusicShouldInvokeExecuteAsyncWithMediaActionAndNeverMediaControlRequest() {
+        when(parser.parse("Pausa la música")).thenReturn(MediaControlIntent.PAUSE);
+        when(executor.executeAsync(MediaAction.PAUSE))
+                .thenReturn(completed(MediaAction.PAUSE, MediaActionStatus.ACKNOWLEDGED));
+
+        AssistantResult result = skill.execute("Pausa la música");
+
+        assertEquals(new AssistantResult("Reproducción pausada."), result);
+        verify(executor).executeAsync(MediaAction.PAUSE);
+        verify(executor, never()).executeAsync(any(MediaControlRequest.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Pausa Deezer",
+            "Siguiente canción en Deezer",
+            "Pausa Deezer en Spotify",
+            "Pausa Spotify en TIDAL",
+            "Pausa Spotify y TIDAL",
+            "No pauses TIDAL",
+            "Pausa TIDAL cuando termine"
+    })
+    void rejectedCommandsShouldReportUnidentifiablePlayerWithoutCallingExecutor(String command) {
+        when(parser.parse(command)).thenReturn(MediaControlIntent.PAUSE);
+
+        AssistantResult result = skill.execute(command);
+
+        assertEquals("No pude identificar de forma segura el reproductor", result.text());
+        verifyNoInteractions(executor);
     }
 
     @ParameterizedTest
@@ -159,8 +246,9 @@ class MediaControlSkillTest {
     }
 
     @Test
-    void shouldRequireBothDependencies() {
+    void shouldRequireDependencies() {
         assertThrows(NullPointerException.class, () -> new MediaControlSkill(null, executor));
         assertThrows(NullPointerException.class, () -> new MediaControlSkill(parser, null));
+        assertThrows(NullPointerException.class, () -> new MediaControlSkill(parser, executor, null));
     }
 }

@@ -10,6 +10,8 @@ import com.fuad.media.context.ProcessPresence;
 import com.fuad.media.control.MediaAction;
 import com.fuad.media.control.MediaActionResult;
 import com.fuad.media.control.MediaActionStatus;
+import com.fuad.media.control.MediaControlRequest;
+import com.fuad.media.control.MediaTarget;
 import com.fuad.media.enrichment.MediaEnrichmentProvider;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot.MediaQueueItem;
@@ -226,9 +228,9 @@ class MediaWorkspaceControllerTest {
         }
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"Pausa la música", "Pausa TIDAL"})
-    void aPlayerNameInTheCommandShouldStillPauseTheActiveSpotifySession(String command) throws Exception {
+    @Test
+    void activePlaybackCommandShouldPauseTheActiveSpotifySession() throws Exception {
+        String command = "Pausa la música";
         OpenAIClient client = mock(OpenAIClient.class);
         try (MediaWorkspaceController controller = controller()) {
             when(media.pause()).thenReturn(true);
@@ -248,6 +250,32 @@ class MediaWorkspaceControllerTest {
             assertEquals("Spotify", controller.current().sourceApplication());
             verify(media).pause();
             verify(media, never()).playPause();
+            verifyNoInteractions(client);
+        }
+    }
+
+    @Test
+    void applicationTargetedCommandShouldDispatchMediaControlRequest() throws Exception {
+        String command = "Pausa TIDAL";
+        OpenAIClient client = mock(OpenAIClient.class);
+        try (MediaWorkspaceController controller = controller()) {
+            when(media.execute(new MediaControlRequest(MediaAction.PAUSE, MediaTarget.application("TIDAL")))).thenReturn(true);
+            assertTrue(controller.submit(MediaAction.NEXT));
+            until(() -> controller.current().available());
+            CountDownLatch refreshed = new CountDownLatch(1);
+            when(media.current()).thenAnswer(invocation -> {
+                refreshed.countDown();
+                return session("TIDAL", 20, MediaPlaybackState.PAUSED);
+            });
+            MediaControlSkill skill = new MediaControlSkill(new LocalMediaControlParser(client, "model"), controller);
+
+            assertEquals("Reproducción pausada.", skill.execute(command).text());
+
+            assertTrue(refreshed.await(3, TimeUnit.SECONDS));
+            until(() -> controller.current().playbackState() == MediaPlaybackState.PAUSED);
+            assertEquals("TIDAL", controller.current().sourceApplication());
+            verify(media).execute(new MediaControlRequest(MediaAction.PAUSE, MediaTarget.application("TIDAL")));
+            verify(media, never()).pause();
             verifyNoInteractions(client);
         }
     }

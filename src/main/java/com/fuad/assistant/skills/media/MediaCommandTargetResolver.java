@@ -1,5 +1,6 @@
 package com.fuad.assistant.skills.media;
 
+import com.fuad.media.control.MediaControlCommandDetector;
 import com.fuad.media.control.MediaTarget;
 
 import java.text.Normalizer;
@@ -12,44 +13,72 @@ public final class MediaCommandTargetResolver {
             "tidal", "TIDAL",
             "spotify", "Spotify",
             "vlc", "VLC");
-    private static final Pattern SCOPED_KNOWN_PLAYER = Pattern.compile(
-            "\\b(?:en|desde|de|del)\\s+(tidal|spotify|vlc)\\b");
+    private static final Set<String> GENERIC_OBJECTS = Set.of(
+            "musica", "cancion", "pista",
+            "tema", "reproduccion", "audio");
     private static final Pattern UNSAFE_CONTEXT = Pattern.compile(
-            "\\b(no|nunca|jamas|cuando|si|salvo|pero|aunque|manana|despues|luego|y)\\b");
-    private static final Pattern SCOPED_TARGET = Pattern.compile(
-            "\\b(?:en|desde|de|del)\\s+(?!pausa\\b)[a-z][a-z0-9._-]*");
-    private static final Pattern DIRECT_COMMAND = Pattern.compile(
-            "^(?:pausa|reanuda|continua|pon en pausa|sigue reproduciendo)\\s+.+$");
-    private static final Pattern GENERIC_COMMAND = Pattern.compile(
-            "^(?:pausa|reanuda|continua|pon en pausa|sigue reproduciendo)"
-                    + "\\s+(?:(?:la|el)\\s+)?"
-                    + "(?:musica|cancion|pista|tema|reproduccion|audio|tidal|spotify|vlc)$");
+            "\\b(?:no|nunca|jamas|cuando|si|salvo|pero"
+                    + "|aunque|manana|despues|luego|y)\\b");
+    private static final Pattern KNOWN_MENTION = Pattern.compile(
+            "\\b(?:tidal|spotify|vlc)\\b");
+    private static final Pattern DIRECT = Pattern.compile(
+            "^(?:pausa|reanuda|continua|pon en pausa"
+                    + "|sigue reproduciendo)\\s+([a-z][a-z0-9._-]*)$");
+    private static final Pattern SCOPED = Pattern.compile(
+            "^(.+)\\s+(?:en|de|del|desde|para|con|usando)"
+                    + "\\s+([a-z][a-z0-9._-]*)$");
+    private static final Pattern DIRECT_VERB = Pattern.compile(
+            "^(?:pausa|reanuda|continua|pon en pausa"
+                    + "|sigue reproduciendo)\\s+.+$");
+    private static final Pattern EXTRA_TRACK_TARGET = Pattern.compile(
+            ".*\\b(?:cancion|pista|tema)\\s+"
+                    + "(?!anterior$|siguiente$|actual$)"
+                    + "[a-z][a-z0-9._-]*$");
+    private final MediaControlCommandDetector actionDetector;
+
+    public MediaCommandTargetResolver() {
+        this(new MediaControlCommandDetector());
+    }
+
+    public MediaCommandTargetResolver(MediaControlCommandDetector actionDetector) {
+        this.actionDetector = Objects.requireNonNull(actionDetector, "actionDetector cannot be null");
+    }
 
     public Optional<MediaTarget> resolve(String command) {
         String normalized = normalize(command);
         if (normalized.isBlank() || UNSAFE_CONTEXT.matcher(normalized).find()) {
             return Optional.empty();
         }
-
-        Set<String> scopedMatches = new LinkedHashSet<>();
-        Matcher scopedMatcher = SCOPED_KNOWN_PLAYER.matcher(normalized);
-        while (scopedMatcher.find()) {
-            scopedMatches.add(PLAYERS.get(scopedMatcher.group(1)));
+        if (normalized.equalsIgnoreCase("ponlo en pausa") || normalized.equalsIgnoreCase("dale de nuevo")) {
+            return Optional.of(MediaTarget.active());
         }
-        if (scopedMatches.size() == 1) {
-            return Optional.of(MediaTarget.application(scopedMatches.iterator().next()));
+        var scoped = SCOPED.matcher(normalized);
+        if (scoped.matches()) {
+            String baseCommand = scoped.group(1);
+            String player = canonicalPlayer(scoped.group(2));
+            if (player == null || KNOWN_MENTION.matcher(baseCommand).find() || actionDetector.detect(baseCommand).isEmpty()) {
+                return Optional.empty();
+            }
+            return Optional.of(MediaTarget.application(player));
         }
-        if (scopedMatches.size() > 1) {
+        var direct = DIRECT.matcher(normalized);
+        if (direct.matches()) {
+            String object = direct.group(1);
+            String player = canonicalPlayer(object);
+            if (player != null) {
+                return Optional.of(MediaTarget.application(player));
+            }
+            return GENERIC_OBJECTS.contains(object) ? Optional.of(MediaTarget.active()) : Optional.empty();
+        }
+        if (KNOWN_MENTION.matcher(normalized).find()) {
             return Optional.empty();
         }
-
-        boolean unknownScopedTarget = SCOPED_TARGET.matcher(normalized).find();
-        boolean unknownDirectTarget = DIRECT_COMMAND.matcher(normalized).matches()
-                && !GENERIC_COMMAND.matcher(normalized).matches();
-        if (unknownScopedTarget || unknownDirectTarget) {
+        if (DIRECT_VERB.matcher(normalized).matches() && actionDetector.detect(normalized).isEmpty()) {
             return Optional.empty();
         }
-
+        if (EXTRA_TRACK_TARGET.matcher(normalized).matches() && actionDetector.detect(normalized).isEmpty()) {
+            return Optional.empty();
+        }
         return Optional.of(MediaTarget.active());
     }
 
@@ -58,7 +87,13 @@ public final class MediaCommandTargetResolver {
             return "";
         }
         return Normalizer.normalize(command, Normalizer.Form.NFD).replaceAll("\\p{M}", "")
-                .toLowerCase(Locale.ROOT).strip().replaceAll("\\s+", " ").strip()
-                .replaceFirst("^por favor,?", "");
+                .toLowerCase(Locale.ROOT).strip().replaceAll("\\s+", " ")
+                .replaceAll("^[¡¿]+|[.!?]+$", "").strip()
+                .replaceFirst("^por favor,?\\s*", "")
+                .replaceFirst(",?\\s+por favor$", "").strip();
+    }
+
+    private static String canonicalPlayer(String value) {
+        return PLAYERS.get(value.replaceFirst("\\.exe$", ""));
     }
 }

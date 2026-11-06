@@ -22,10 +22,10 @@ public final class MediaControlCommandDetector {
             MediaAction.NEXT, Pattern.compile("(?:siguiente " + TRACK
                     + "|pon la siguiente " + TRACK
                     + "|(?:cambia|pasa|salta) a la siguiente " + TRACK
-                    + "|salta esta " + TRACK + ")"),
+                    + "|salta esta " + TRACK + ")" + APP_SUFFIX),
             MediaAction.PREVIOUS, Pattern.compile("(?:" + TRACK + " anterior"
                     + "|pon la " + TRACK + " anterior"
-                    + "|(?:vuelve|regresa|retrocede) a la " + TRACK + " anterior)"),
+                    + "|(?:vuelve|regresa|retrocede) a la " + TRACK + " anterior)" + APP_SUFFIX),
             MediaAction.PAUSE, Pattern.compile("(?:(?:pausa|pon en pausa) " + PLAYBACK_TARGET + ")" + APP_SUFFIX),
             MediaAction.RESUME, Pattern.compile("(?:(?:reanuda|continua|sigue reproduciendo) " + PLAYBACK_TARGET
                     + ")" + APP_SUFFIX));
