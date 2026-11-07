@@ -1,14 +1,23 @@
 package com.fuad.assistant.skills.media;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fuad.assistant.AssistantResult;
+import com.fuad.logging.LogCategory;
 import com.fuad.media.control.*;
 import com.fuad.pipeline.ConversationPolicy;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -23,6 +32,27 @@ class MediaControlSkillTest {
     private final MediaControlParser parser = mock(MediaControlParser.class);
     private final MediaActionExecutor executor = mock(MediaActionExecutor.class);
     private final MediaControlSkill skill = new MediaControlSkill(parser, executor);
+
+    private Logger logger;
+    private Level originalLevel;
+    private ListAppender<ILoggingEvent> capturedEvents;
+
+    @BeforeEach
+    void captureLogs() {
+        logger = (Logger) LoggerFactory.getLogger(MediaControlSkill.class);
+        originalLevel = logger.getLevel();
+        logger.setLevel(Level.INFO);
+        capturedEvents = new ListAppender<>();
+        capturedEvents.start();
+        logger.addAppender(capturedEvents);
+    }
+
+    @AfterEach
+    void restoreLogger() {
+        logger.detachAppender(capturedEvents);
+        capturedEvents.stop();
+        logger.setLevel(originalLevel);
+    }
 
     private static CompletableFuture<MediaActionResult> completed(MediaAction action, MediaActionStatus status) {
         return CompletableFuture.completedFuture(new MediaActionResult(action, status));
@@ -136,6 +166,35 @@ class MediaControlSkillTest {
 
         assertEquals("No pude identificar de forma segura el reproductor", result.text());
         verifyNoInteractions(executor);
+
+        assertTrue(capturedEvents.list.stream().anyMatch(event ->
+                event.getLevel() == Level.WARN
+                        && event.getMarkerList().contains(LogCategory.MEDIA)
+                        && event.getFormattedMessage().contains("event=MEDIA_TARGET_REJECTED")
+                        && event.getFormattedMessage().contains("UNRESOLVED")
+        ));
+    }
+
+    @Test
+    void rejectedDestinationShouldLogWarningAndNeverInvokeExecutor() {
+        MediaCommandTargetResolver resolver = mock(MediaCommandTargetResolver.class);
+        when(resolver.resolve("Pausa desconocido")).thenReturn(Optional.empty());
+        when(parser.parse("Pausa desconocido")).thenReturn(MediaControlIntent.PAUSE);
+
+        MediaControlSkill skillWithCustomResolver = new MediaControlSkill(parser, executor, resolver);
+        AssistantResult result = skillWithCustomResolver.execute("Pausa desconocido");
+
+        assertEquals("No pude identificar de forma segura el reproductor", result.text());
+        verifyNoInteractions(executor);
+
+        List<ILoggingEvent> rejectedLogs = capturedEvents.list.stream()
+                .filter(event -> event.getFormattedMessage().contains("event=MEDIA_TARGET_REJECTED"))
+                .toList();
+        assertEquals(1, rejectedLogs.size());
+        ILoggingEvent event = rejectedLogs.getFirst();
+        assertEquals(Level.WARN, event.getLevel());
+        assertEquals(List.of(LogCategory.MEDIA), event.getMarkerList());
+        assertTrue(event.getFormattedMessage().contains("reason=UNRESOLVED"));
     }
 
     @ParameterizedTest

@@ -1,9 +1,14 @@
 package com.fuad.media.context;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fuad.audio.output.AudioOutputProvider;
 import com.fuad.audio.output.AudioOutputSnapshot;
 import com.fuad.audio.output.AudioReservation;
 import com.fuad.audio.output.MediaContextAudioReservationDetector;
+import com.fuad.logging.LogCategory;
 import com.fuad.media.MediaPlaybackState;
 import com.fuad.media.MediaSessionProvider;
 import com.fuad.media.MediaSessionSnapshot;
@@ -17,8 +22,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -29,6 +36,7 @@ import java.util.OptionalDouble;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -42,17 +50,33 @@ class MediaContextServiceTest {
     private MediaEnrichmentProvider enrichment;
     private MediaContextService service;
 
+    private Logger logger;
+    private Level originalLevel;
+    private ListAppender<ILoggingEvent> capturedEvents;
+
     @BeforeEach
     void setUp() {
         sessions = mock(MediaSessionProvider.class);
         audio = mock(AudioOutputProvider.class);
         enrichment = mock(MediaEnrichmentProvider.class);
+
+        logger = (Logger) LoggerFactory.getLogger(MediaContextService.class);
+        originalLevel = logger.getLevel();
+        logger.setLevel(Level.DEBUG);
+        capturedEvents = new ListAppender<>();
+        capturedEvents.start();
+        logger.addAppender(capturedEvents);
     }
 
     @AfterEach
     void tearDown() throws Exception {
         if (service != null) {
             service.close();
+        }
+        if (logger != null && capturedEvents != null) {
+            logger.detachAppender(capturedEvents);
+            capturedEvents.stop();
+            logger.setLevel(originalLevel);
         }
     }
 
@@ -591,5 +615,191 @@ class MediaContextServiceTest {
         assertTrue(presence == ProcessPresence.RUNNING
                 || presence == ProcessPresence.NOT_RUNNING
                 || presence == ProcessPresence.UNKNOWN);
+    }
+
+    // --- Tests for action terminal event logging ---
+
+    @Test
+    void singleActionShouldGenerateExactlyOneTerminalLogEvent() throws Exception {
+        when(sessions.next()).thenReturn(true);
+        when(sessions.current()).thenReturn(MediaSessionSnapshot.unavailable());
+        when(sessions.playbackState(anyString())).thenReturn(Optional.empty());
+        when(audio.current()).thenReturn(AudioOutputSnapshot.unavailable());
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.UNKNOWN);
+
+        MediaActionResult result = service.executeAsync(MediaAction.NEXT).toCompletableFuture().get(3, TimeUnit.SECONDS);
+        assertEquals(MediaActionStatus.ACKNOWLEDGED, result.status());
+
+        until(() -> capturedEvents.list.stream()
+                .anyMatch(event -> event.getFormattedMessage().contains("event=MEDIA_ACTION")));
+
+        List<ILoggingEvent> actionLogs = capturedEvents.list.stream()
+                .filter(event -> event.getFormattedMessage().contains("event=MEDIA_ACTION"))
+                .toList();
+
+        assertEquals(1, actionLogs.size(), "Una acción genera exactamente un evento terminal");
+        ILoggingEvent event = actionLogs.getFirst();
+        assertEquals(Level.INFO, event.getLevel());
+        assertEquals(List.of(LogCategory.MEDIA), event.getMarkerList());
+        assertEquals("event=MEDIA_ACTION action=NEXT, target=ACTIVE, status=ACKNOWLEDGED", event.getFormattedMessage());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "PAUSE, false, REJECTED",
+            "PREVIOUS, true, ACKNOWLEDGED"
+    })
+    void rejectedOrAcknowledgedActionShouldGenerateExactlyOneTerminalEvent(MediaAction action, boolean ack, String expectedStatus) throws Exception {
+        when(sessions.pause()).thenReturn(ack);
+        when(sessions.previous()).thenReturn(ack);
+        when(sessions.current()).thenReturn(MediaSessionSnapshot.unavailable());
+        when(sessions.playbackState(anyString())).thenReturn(Optional.empty());
+        when(audio.current()).thenReturn(AudioOutputSnapshot.unavailable());
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.UNKNOWN);
+
+        MediaActionResult result = service.executeAsync(action).toCompletableFuture().get(3, TimeUnit.SECONDS);
+        assertEquals(MediaActionStatus.valueOf(expectedStatus), result.status());
+
+        until(() -> capturedEvents.list.stream()
+                .anyMatch(event -> event.getFormattedMessage().contains("event=MEDIA_ACTION")));
+
+        List<ILoggingEvent> actionLogs = capturedEvents.list.stream()
+                .filter(event -> event.getFormattedMessage().contains("event=MEDIA_ACTION"))
+                .toList();
+
+        assertEquals(1, actionLogs.size(), "Una acción genera exactamente un evento terminal");
+        ILoggingEvent event = actionLogs.getFirst();
+        assertEquals(Level.INFO, event.getLevel());
+        assertEquals(List.of(LogCategory.MEDIA), event.getMarkerList());
+        assertTrue(event.getFormattedMessage().contains("action=" + action));
+        assertTrue(event.getFormattedMessage().contains("status=" + expectedStatus));
+    }
+
+    // --- Tests for session change registration ---
+
+    @Test
+    void sessionChangeShouldBeLoggedExactlyOnce() throws Exception {
+        MediaTrack track1 = new MediaTrack("Song 1", "Artist 1", "Album 1", 180);
+        MediaTrack track2 = new MediaTrack("Song 2", "Artist 2", "Album 2", 200);
+
+        MediaSessionSnapshot spotifySession = new MediaSessionSnapshot(true, "Spotify", Optional.of(track1), 10.0, MediaPlaybackState.PLAYING);
+        MediaSessionSnapshot tidalSession = new MediaSessionSnapshot(true, "TIDAL", Optional.of(track2), 20.0, MediaPlaybackState.PLAYING);
+        AudioOutputSnapshot okAudio = new AudioOutputSnapshot(true, "dev-1", "Speakers", OptionalDouble.of(0.8), false);
+
+        AtomicReference<MediaSessionSnapshot> currentSession = new AtomicReference<>(spotifySession);
+        when(sessions.current()).thenAnswer(inv -> currentSession.get());
+        when(sessions.playbackState(anyString())).thenReturn(Optional.of(MediaPlaybackState.PLAYING));
+        when(audio.current()).thenReturn(okAudio);
+        when(enrichment.current()).thenReturn(new MediaEnrichmentSnapshot("LOSSLESS", List.of()));
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.RUNNING);
+        service.start();
+
+        // Wait until initial session (Spotify) is observed
+        until(() -> service.current().activeSession().readSucceeded()
+                && "Spotify".equals(service.current().activeSession().value().sourceApplication()));
+
+        // At this point lastObservedSession was initialized to Spotify (no change log yet)
+        List<ILoggingEvent> initialChangeLogs = capturedEvents.list.stream()
+                .filter(event -> event.getFormattedMessage().contains("SESION_CHANGED")
+                        || event.getFormattedMessage().contains("SESSION_CHANGED"))
+                .toList();
+        assertTrue(initialChangeLogs.isEmpty());
+
+        // Change session from Spotify to TIDAL
+        currentSession.set(tidalSession);
+
+        until(() -> "TIDAL".equals(service.current().activeSession().value().sourceApplication())
+                && capturedEvents.list.stream().anyMatch(event ->
+                (event.getFormattedMessage().contains("SESION_CHANGED")
+                        || event.getFormattedMessage().contains("SESSION_CHANGED"))
+                        && event.getFormattedMessage().contains("from=Spotify to=TIDAL")));
+
+        // Wait to allow multiple core refresh cycles while still TIDAL
+        Thread.sleep(1200);
+
+        List<ILoggingEvent> changeLogs = capturedEvents.list.stream()
+                .filter(event -> event.getFormattedMessage().contains("SESION_CHANGED")
+                        || event.getFormattedMessage().contains("SESSION_CHANGED"))
+                .toList();
+
+        // Cambio de sesión registrado una sola vez
+        assertEquals(1, changeLogs.size(), "El cambio de sesión a TIDAL debe registrarse exactamente una vez");
+        ILoggingEvent event = changeLogs.getFirst();
+        assertEquals(Level.INFO, event.getLevel());
+        assertEquals(List.of(LogCategory.MEDIA), event.getMarkerList());
+        assertTrue(event.getFormattedMessage().contains("from=Spotify to=TIDAL"));
+    }
+
+    // --- Tests for provider failure and recovery logging ---
+
+    @Test
+    void repeatedProviderFailureShouldLogSingleWarnAndRecoveryShouldLogSingleInfo() throws Exception {
+        MediaTrack track = new MediaTrack("Song", "Artist", "Album", 180);
+        MediaSessionSnapshot okSession = new MediaSessionSnapshot(true, "TIDAL", Optional.of(track), 10.0, MediaPlaybackState.PLAYING);
+        AudioOutputSnapshot okAudio = new AudioOutputSnapshot(true, "dev-1", "Speakers", OptionalDouble.of(0.8), false);
+        MediaEnrichmentSnapshot okEnrichment = new MediaEnrichmentSnapshot("LOSSLESS", List.of());
+
+        AtomicBoolean failing = new AtomicBoolean(true);
+        when(sessions.current()).thenAnswer(inv -> {
+            if (failing.get()) {
+                throw new RuntimeException("Session provider crashed");
+            }
+            return okSession;
+        });
+        when(sessions.playbackState(anyString())).thenReturn(Optional.of(MediaPlaybackState.PLAYING));
+        when(audio.current()).thenReturn(okAudio);
+        when(enrichment.current()).thenReturn(okEnrichment);
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.RUNNING);
+        service.start();
+
+        // Wait until at least one failure cycle completes
+        until(() -> capturedEvents.list.stream().anyMatch(e ->
+                e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=active session")
+                        && e.getFormattedMessage().contains("state=FAILED")));
+
+        // Let core refresh tick several more times while still failing (repeated failure)
+        Thread.sleep(1200);
+
+        List<ILoggingEvent> failureLogs = capturedEvents.list.stream()
+                .filter(e -> e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=active session")
+                        && e.getFormattedMessage().contains("state=FAILED"))
+                .toList();
+
+        // Fallo repetido -> un WARN
+        assertEquals(1, failureLogs.size(), "El fallo repetido debe generar un solo WARN");
+        ILoggingEvent failureEvent = failureLogs.getFirst();
+        assertEquals(Level.WARN, failureEvent.getLevel());
+        assertEquals(List.of(LogCategory.MEDIA), failureEvent.getMarkerList());
+        assertTrue(failureEvent.getFormattedMessage().contains("cause=RuntimeException"));
+
+        // Now recover
+        failing.set(false);
+
+        // Wait until recovery cycle completes
+        until(() -> capturedEvents.list.stream().anyMatch(e ->
+                e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=active session")
+                        && e.getFormattedMessage().contains("state=RECOVERED")));
+
+        // Let core refresh tick several more times while recovered
+        Thread.sleep(1200);
+
+        List<ILoggingEvent> recoveryLogs = capturedEvents.list.stream()
+                .filter(e -> e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=active session")
+                        && e.getFormattedMessage().contains("state=RECOVERED"))
+                .toList();
+
+        // Recuperación -> un INFO
+        assertEquals(1, recoveryLogs.size(), "La recuperación debe generar un solo INFO");
+        ILoggingEvent recoveryEvent = recoveryLogs.getFirst();
+        assertEquals(Level.INFO, recoveryEvent.getLevel());
+        assertEquals(List.of(LogCategory.MEDIA), recoveryEvent.getMarkerList());
     }
 }

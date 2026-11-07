@@ -3,12 +3,17 @@ package com.fuad.assistant.skills.media;
 import com.fuad.assistant.AssistantResult;
 import com.fuad.assistant.skills.Skill;
 import com.fuad.media.control.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.*;
 
+import static com.fuad.logging.LogCategory.MEDIA;
+
 public final class MediaControlSkill implements Skill {
+    private static final Logger LOGGER = LoggerFactory.getLogger(MediaControlSkill.class);
     private final MediaControlParser parser;
     private final MediaActionExecutor mediaActionExecutor;
     private final MediaCommandTargetResolver targetResolver;
@@ -43,6 +48,7 @@ public final class MediaControlSkill implements Skill {
         try {
             Optional<MediaTarget> resolvedTarget = targetResolver.resolve(command);
             if (resolvedTarget.isEmpty()) {
+                LOGGER.warn(MEDIA, "event=MEDIA_TARGET_REJECTED reason=UNRESOLVED");
                 return new AssistantResult("No pude identificar de forma segura el reproductor");
             }
             MediaTarget target = resolvedTarget.orElseThrow();

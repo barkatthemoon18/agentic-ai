@@ -1,15 +1,23 @@
 package com.fuad.media.windows;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.fuad.logging.LogCategory;
 import com.fuad.media.MediaPlaybackState;
 import com.fuad.media.MediaSessionSnapshot;
 import com.fuad.media.control.MediaAction;
 import com.fuad.media.control.MediaControlRequest;
 import org.endlesssource.mediainterface.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.List;
@@ -21,6 +29,27 @@ import static org.mockito.Mockito.*;
 
 class WindowsMediaSessionProviderTest {
     private final SystemMediaInterface system = mock(SystemMediaInterface.class);
+
+    private Logger logger;
+    private Level originalLevel;
+    private ListAppender<ILoggingEvent> capturedEvents;
+
+    @BeforeEach
+    void captureLogs() {
+        logger = (Logger) LoggerFactory.getLogger(WindowsMediaSessionProvider.class);
+        originalLevel = logger.getLevel();
+        logger.setLevel(Level.INFO);
+        capturedEvents = new ListAppender<>();
+        capturedEvents.start();
+        logger.addAppender(capturedEvents);
+    }
+
+    @AfterEach
+    void restoreLogger() {
+        logger.detachAppender(capturedEvents);
+        capturedEvents.stop();
+        logger.setLevel(originalLevel);
+    }
 
     @Test
     void activeSessionShouldMapMetadataArtworkAndFractionalSeconds() {
@@ -140,6 +169,11 @@ class WindowsMediaSessionProviderTest {
         assertFalse(executed);
         verify(firstSession.getControls(), never()).togglePlayPause();
         verify(secondSession.getControls(), never()).togglePlayPause();
+
+        assertTrue(capturedEvents.list.stream().anyMatch(e ->
+                e.getFormattedMessage().contains("event=MEDIA_TARGET_REJECTED")
+                        && e.getFormattedMessage().contains("target=TIDAL")
+                        && e.getFormattedMessage().contains("reason=AMBIGUOUS")));
     }
 
     @Test
@@ -169,6 +203,43 @@ class WindowsMediaSessionProviderTest {
         boolean executed = provider.execute(MediaControlRequest.application(MediaAction.PAUSE, "Spotify"));
 
         assertFalse(executed);
+        assertTrue(capturedEvents.list.stream().anyMatch(e ->
+                e.getFormattedMessage().contains("event=MEDIA_TARGET_REJECTED")
+                        && e.getFormattedMessage().contains("target=Spotify")
+                        && e.getFormattedMessage().contains("reason=NOT_FOUND")));
+    }
+
+    @Test
+    void shouldDifferentiateNotFoundAndAmbiguousWhenRejectingTarget() {
+        WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
+
+        // NOT_FOUND: no sessions match the target application
+        when(system.getAllSessions()).thenReturn(List.of());
+        boolean notFoundExecuted = provider.execute(MediaControlRequest.application(MediaAction.PAUSE, "Spotify"));
+        assertFalse(notFoundExecuted);
+
+        // AMBIGUOUS: multiple sessions match the target application
+        MediaSession first = session("TIDAL.exe", PlaybackState.PLAYING);
+        MediaSession second = session("tidal", PlaybackState.PLAYING);
+        when(system.getAllSessions()).thenReturn(List.of(first, second));
+        boolean ambiguousExecuted = provider.execute(MediaControlRequest.application(MediaAction.PAUSE, "TIDAL"));
+        assertFalse(ambiguousExecuted);
+
+        List<ILoggingEvent> rejectedLogs = capturedEvents.list.stream()
+                .filter(event -> event.getFormattedMessage().contains("event=MEDIA_TARGET_REJECTED"))
+                .toList();
+
+        assertEquals(2, rejectedLogs.size());
+
+        ILoggingEvent notFoundLog = rejectedLogs.get(0);
+        assertEquals(Level.INFO, notFoundLog.getLevel());
+        assertEquals(List.of(LogCategory.MEDIA), notFoundLog.getMarkerList());
+        assertEquals("event=MEDIA_TARGET_REJECTED target=Spotify reason=NOT_FOUND", notFoundLog.getFormattedMessage());
+
+        ILoggingEvent ambiguousLog = rejectedLogs.get(1);
+        assertEquals(Level.INFO, ambiguousLog.getLevel());
+        assertEquals(List.of(LogCategory.MEDIA), ambiguousLog.getMarkerList());
+        assertEquals("event=MEDIA_TARGET_REJECTED target=TIDAL reason=AMBIGUOUS", ambiguousLog.getFormattedMessage());
     }
 
     @Test

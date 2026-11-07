@@ -194,6 +194,10 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
         List<MediaSession> matches = systemMediaInterface.getAllSessions().stream()
                 .filter(session -> matchesApplication(session.getApplicationName(), applicationName))
                 .limit(2).toList();
-        return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
+        if (matches.size() != 1) {
+            LOGGER.info(MEDIA, "event=MEDIA_TARGET_REJECTED target={} reason={}", applicationName, matches.isEmpty() ? "NOT_FOUND" : "AMBIGUOUS");
+            return Optional.empty();
+        }
+        return Optional.of(matches.getFirst());
     }
 }

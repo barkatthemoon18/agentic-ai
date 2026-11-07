@@ -42,6 +42,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
     private final AtomicBoolean started = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final ConcurrentMap<CompletableFuture<MediaActionResult>, MediaAction> pending =  new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Boolean> failedProviders = new ConcurrentHashMap<>();
     private final AtomicReference<Thread> coreWorker = new AtomicReference<>();
     private final AtomicReference<Thread> enrichmentWorker = new AtomicReference<>();
     private final ScheduledExecutorService coreExecutor = Executors.newSingleThreadScheduledExecutor(task ->
@@ -50,6 +51,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
             daemon(task, "ares-media-enrichment", enrichmentWorker));
     private ScheduledFuture<?> coreTask;
     private ScheduledFuture<?> enrichmentTask;
+    private String lastObservedSession;
     private long nextProcessRefreshNanos;
 
     public MediaContextService(MediaSessionProvider sessions, AudioOutputProvider audio, MediaEnrichmentProvider enrichment) {
@@ -157,7 +159,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
                     TimeUnit.MILLISECONDS);
             try {
                 second = enrichmentExecutor.scheduleWithFixedDelay(this::refreshEnrichmentSafely, 0,
-                        ENRICHMENT_REFRESH_MILLIS, TimeUnit.MILLISECONDS);
+                    ENRICHMENT_REFRESH_MILLIS, TimeUnit.MILLISECONDS);
                 coreTask = first;
                 enrichmentTask = second;
                 started.set(true);
@@ -178,7 +180,21 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
         synchronized (lifecycleLock) {
             if (!closed.get()) {
                 pending.put(result, request.action());
-                result.whenComplete((ignored, error) -> pending.remove(result));
+                result.whenComplete((outcome, error) -> {
+                    pending.remove(result);
+                    String status;
+                    if (result.isCancelled()) {
+                        status = "CONFIRMATION_CANCELLED";
+                    }
+                    else if (error != null) {
+                        status = "FAILED";
+                    }
+                    else {
+                        status = (outcome != null) ? outcome.status().name() : "FAILED";
+                    }
+                    LOGGER.info(MEDIA, "event=MEDIA_ACTION action={}, target={}, status={}", request.action(),
+                            targetLabel(request.target()), status);
+                });
                 try {
                     coreExecutor.execute(() -> runAction(request, result));
                     accepted = true;
@@ -253,6 +269,11 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
                 if (!closed.get()) {
                     current.updateAndGet(latest ->
                             new MediaContextSnapshot(active, tidal, latest.tidalEnrichment(), output, process));
+                    String next = active.value().available() ? active.value().sourceApplication() : "NONE";
+                    if (lastObservedSession != null && !lastObservedSession.equals(next)) {
+                        LOGGER.info(MEDIA, "event=MEDIA_SESION_CHANGED from={} to={}", lastObservedSession, next);
+                    }
+                    lastObservedSession = next;
                 }
             }
         }
@@ -285,9 +306,12 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
 
     private <T> MediaSample<T> read(Supplier<T> supplier, MediaSample<T> prior, String label) {
         try {
-            return MediaSample.observed(Objects.requireNonNull(supplier.get(), label), clock);
+            T value = Objects.requireNonNull(supplier.get(), label);
+            providerRecovered(label);
+            return MediaSample.observed(value, clock);
         }
         catch (RuntimeException | LinkageError e) {
+            providerFailed(label, e);
             LOGGER.warn(MEDIA, "Media provider read failed [{}]", label, e);
             return prior.asFailed();
         }
@@ -324,6 +348,20 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
         }
     }
 
+    private void providerFailed(String component, Throwable error) {
+        if (failedProviders.putIfAbsent(component, true) == null) {
+            LOGGER.warn(MEDIA, "event=MEDIA_PROVIDER_FAILURE component={} state=FAILED cause={}", component,
+                    error.getClass().getSimpleName());
+            LOGGER.debug(MEDIA, "Provider failure detail component={}", component, error);
+        }
+    }
+
+    private void providerRecovered(String component) {
+        if (failedProviders.remove(component) != null) {
+            LOGGER.info(MEDIA, "event=MEDIA_PROVIDER_FAILURE component={} state=RECOVERED", component);
+        }
+    }
+
     private static boolean awaitRemaining(ExecutorService executor, long until) throws InterruptedException {
         return executor.awaitTermination(Math.max(0L, until - System.nanoTime()), TimeUnit.NANOSECONDS);
     }
@@ -343,6 +381,13 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
         catch (Exception | LinkageError e) {
             LOGGER.warn(MEDIA, "Unable to close {}", label, e);
         }
+    }
+
+    private static String targetLabel(MediaTarget target) {
+        return switch (target) {
+            case MediaTarget.Active ignored -> "ACTIVE";
+            case MediaTarget.Application app -> app.applicationName();
+        };
     }
 
     static ProcessPresence detectTidalProcess() {
