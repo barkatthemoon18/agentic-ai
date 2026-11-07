@@ -269,16 +269,18 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
                 if (!closed.get()) {
                     current.updateAndGet(latest ->
                             new MediaContextSnapshot(active, tidal, latest.tidalEnrichment(), output, process));
-                    String next = active.value().available() ? active.value().sourceApplication() : "NONE";
-                    if (lastObservedSession != null && !lastObservedSession.equals(next)) {
-                        LOGGER.info(MEDIA, "event=MEDIA_SESION_CHANGED from={} to={}", lastObservedSession, next);
+                    if (active.readSucceeded()) {
+                        String next = active.value().available() ? active.value().sourceApplication() : "NONE";
+                        if (lastObservedSession != null && !lastObservedSession.equals(next)) {
+                            LOGGER.info(MEDIA, "event=MEDIA_SESSION_CHANGED from={} to={}", lastObservedSession, next);
+                        }
+                        lastObservedSession = next;
                     }
-                    lastObservedSession = next;
                 }
             }
         }
         catch (RuntimeException | LinkageError e) {
-            LOGGER.warn(MEDIA, "Media core refresh failed", e);
+            providerFailed("core-refresh", e);
             invalidateCoreSafely();
         }
     }
@@ -299,20 +301,19 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
             }
         }
         catch (RuntimeException | LinkageError e) {
-            LOGGER.warn(MEDIA, "Media enrichment refresh failed", e);
+            providerFailed("enrichment-refresh", e);
             invalidateEnrichmentSafely();
         }
     }
 
     private <T> MediaSample<T> read(Supplier<T> supplier, MediaSample<T> prior, String label) {
         try {
-            T value = Objects.requireNonNull(supplier.get(), label);
+            MediaSample<T> sample = MediaSample.observed(Objects.requireNonNull(supplier.get(), label), clock);
             providerRecovered(label);
-            return MediaSample.observed(value, clock);
+            return sample;
         }
         catch (RuntimeException | LinkageError e) {
             providerFailed(label, e);
-            LOGGER.warn(MEDIA, "Media provider read failed [{}]", label, e);
             return prior.asFailed();
         }
     }

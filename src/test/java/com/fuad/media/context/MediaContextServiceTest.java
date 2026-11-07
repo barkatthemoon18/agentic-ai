@@ -703,8 +703,7 @@ class MediaContextServiceTest {
 
         // At this point lastObservedSession was initialized to Spotify (no change log yet)
         List<ILoggingEvent> initialChangeLogs = capturedEvents.list.stream()
-                .filter(event -> event.getFormattedMessage().contains("SESION_CHANGED")
-                        || event.getFormattedMessage().contains("SESSION_CHANGED"))
+                .filter(event -> event.getFormattedMessage().contains("event=MEDIA_SESSION_CHANGED"))
                 .toList();
         assertTrue(initialChangeLogs.isEmpty());
 
@@ -713,16 +712,13 @@ class MediaContextServiceTest {
 
         until(() -> "TIDAL".equals(service.current().activeSession().value().sourceApplication())
                 && capturedEvents.list.stream().anyMatch(event ->
-                (event.getFormattedMessage().contains("SESION_CHANGED")
-                        || event.getFormattedMessage().contains("SESSION_CHANGED"))
-                        && event.getFormattedMessage().contains("from=Spotify to=TIDAL")));
+                event.getFormattedMessage().contains("event=MEDIA_SESSION_CHANGED from=Spotify to=TIDAL")));
 
         // Wait to allow multiple core refresh cycles while still TIDAL
         Thread.sleep(1200);
 
         List<ILoggingEvent> changeLogs = capturedEvents.list.stream()
-                .filter(event -> event.getFormattedMessage().contains("SESION_CHANGED")
-                        || event.getFormattedMessage().contains("SESSION_CHANGED"))
+                .filter(event -> event.getFormattedMessage().contains("event=MEDIA_SESSION_CHANGED"))
                 .toList();
 
         // Cambio de sesión registrado una sola vez
@@ -730,7 +726,60 @@ class MediaContextServiceTest {
         ILoggingEvent event = changeLogs.getFirst();
         assertEquals(Level.INFO, event.getLevel());
         assertEquals(List.of(LogCategory.MEDIA), event.getMarkerList());
-        assertTrue(event.getFormattedMessage().contains("from=Spotify to=TIDAL"));
+        assertEquals("event=MEDIA_SESSION_CHANGED from=Spotify to=TIDAL", event.getFormattedMessage());
+    }
+
+    @Test
+    void failedActiveSessionReadShouldNotLogSessionChangeWhenSnapshotUpdateFails() throws Exception {
+        MediaTrack track = new MediaTrack("Song", "Artist", "Album", 180);
+        MediaSessionSnapshot spotifySession = new MediaSessionSnapshot(true, "Spotify", Optional.of(track), 10.0, MediaPlaybackState.PLAYING);
+        AudioOutputSnapshot okAudio = new AudioOutputSnapshot(true, "dev-1", "Speakers", OptionalDouble.of(0.8), false);
+        MediaEnrichmentSnapshot okEnrichment = new MediaEnrichmentSnapshot("LOSSLESS", List.of());
+
+        AtomicBoolean failing = new AtomicBoolean(false);
+        when(sessions.current()).thenAnswer(inv -> {
+            if (failing.get()) {
+                throw new RuntimeException("Transient session read failure");
+            }
+            return spotifySession;
+        });
+        when(sessions.playbackState(anyString())).thenReturn(Optional.of(MediaPlaybackState.PLAYING));
+        when(audio.current()).thenReturn(okAudio);
+        when(enrichment.current()).thenReturn(okEnrichment);
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.RUNNING);
+        service.start();
+
+        // 1. Establish Spotify as active session
+        until(() -> service.current().activeSession().readSucceeded()
+                && "Spotify".equals(service.current().activeSession().value().sourceApplication()));
+
+        // 2. Active session read fails (readSucceeded() becomes false)
+        failing.set(true);
+        until(() -> !service.current().activeSession().readSucceeded());
+
+        // Wait to allow multiple cycles while readSucceeded() is false
+        Thread.sleep(1200);
+
+        // Logging solo cuando se actualiza el snapshot correctamente:
+        // A failed active session read must NOT trigger MEDIA_SESSION_CHANGED
+        List<ILoggingEvent> changeLogsDuringFailure = capturedEvents.list.stream()
+                .filter(event -> event.getFormattedMessage().contains("event=MEDIA_SESSION_CHANGED"))
+                .toList();
+        assertTrue(changeLogsDuringFailure.isEmpty(),
+                "No debe registrarse cambio de sesión cuando la lectura del snapshot falla");
+
+        // 3. Provider recovers with Spotify again
+        failing.set(false);
+        until(() -> service.current().activeSession().readSucceeded());
+        Thread.sleep(1200);
+
+        // Still no change logs because Spotify -> failed -> Spotify is not a session change
+        List<ILoggingEvent> changeLogsAfterRecovery = capturedEvents.list.stream()
+                .filter(event -> event.getFormattedMessage().contains("event=MEDIA_SESSION_CHANGED"))
+                .toList();
+        assertTrue(changeLogsAfterRecovery.isEmpty(),
+                "La recuperación con la misma sesión no debe emitir evento de cambio de sesión");
     }
 
     // --- Tests for provider failure and recovery logging ---
@@ -777,6 +826,12 @@ class MediaContextServiceTest {
         assertEquals(Level.WARN, failureEvent.getLevel());
         assertEquals(List.of(LogCategory.MEDIA), failureEvent.getMarkerList());
         assertTrue(failureEvent.getFormattedMessage().contains("cause=RuntimeException"));
+
+        // Deduplicación general: no debe haber logs de advertencia duplicados en cada ciclo
+        List<ILoggingEvent> allWarnLogsDuringFailure = capturedEvents.list.stream()
+                .filter(e -> e.getLevel() == Level.WARN)
+                .toList();
+        assertEquals(1, allWarnLogsDuringFailure.size(), "La deduplicación debe evitar advertencias repetidas en cada ciclo");
 
         // Now recover
         failing.set(false);
