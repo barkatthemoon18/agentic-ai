@@ -269,6 +269,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
                 if (!closed.get()) {
                     current.updateAndGet(latest ->
                             new MediaContextSnapshot(active, tidal, latest.tidalEnrichment(), output, process));
+                    providerRecovered("core-refresh");
                     if (active.readSucceeded()) {
                         String next = active.value().available() ? active.value().sourceApplication() : "NONE";
                         if (lastObservedSession != null && !lastObservedSession.equals(next)) {
@@ -297,6 +298,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
                 if (!closed.get()) {
                     current.updateAndGet(latest -> new MediaContextSnapshot(latest.activeSession(),
                             latest.tidalPlayback(), sample, latest.audioOutput(), latest.tidalProcess()));
+                    providerRecovered("enrichment-refresh");
                 }
             }
         }

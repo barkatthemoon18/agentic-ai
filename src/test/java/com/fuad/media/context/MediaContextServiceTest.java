@@ -857,4 +857,153 @@ class MediaContextServiceTest {
         assertEquals(Level.INFO, recoveryEvent.getLevel());
         assertEquals(List.of(LogCategory.MEDIA), recoveryEvent.getMarkerList());
     }
+
+    @Test
+    void healthyReadsShouldNotEmitProviderFailureOrRecoveryLogs() throws Exception {
+        MediaTrack track = new MediaTrack("Song", "Artist", "Album", 180);
+        MediaSessionSnapshot okSession = new MediaSessionSnapshot(true, "TIDAL", Optional.of(track), 10.0, MediaPlaybackState.PLAYING);
+        AudioOutputSnapshot okAudio = new AudioOutputSnapshot(true, "dev-1", "Speakers", OptionalDouble.of(0.8), false);
+        MediaEnrichmentSnapshot okEnrichment = new MediaEnrichmentSnapshot("LOSSLESS", List.of());
+
+        when(sessions.current()).thenReturn(okSession);
+        when(sessions.playbackState(anyString())).thenReturn(Optional.of(MediaPlaybackState.PLAYING));
+        when(audio.current()).thenReturn(okAudio);
+        when(enrichment.current()).thenReturn(okEnrichment);
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.RUNNING);
+        service.start();
+
+        until(() -> service.current().activeSession().readSucceeded()
+                && service.current().tidalEnrichment().readSucceeded());
+
+        // Wait through several cycles of both core and enrichment
+        Thread.sleep(1200);
+
+        List<ILoggingEvent> providerEvents = capturedEvents.list.stream()
+                .filter(e -> e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE"))
+                .toList();
+
+        assertTrue(providerEvents.isEmpty(),
+                "Las lecturas saludables no deben emitir eventos de fallo ni de recuperación inesperados");
+    }
+
+    @Test
+    void providerFailureRecoveryCycleShouldAllowSubsequentFailureAndRecoveryLogging() throws Exception {
+        MediaTrack track = new MediaTrack("Song", "Artist", "Album", 180);
+        MediaSessionSnapshot okSession = new MediaSessionSnapshot(true, "TIDAL", Optional.of(track), 10.0, MediaPlaybackState.PLAYING);
+        AudioOutputSnapshot okAudio = new AudioOutputSnapshot(true, "dev-1", "Speakers", OptionalDouble.of(0.8), false);
+        MediaEnrichmentSnapshot okEnrichment = new MediaEnrichmentSnapshot("LOSSLESS", List.of());
+
+        AtomicBoolean failing = new AtomicBoolean(true);
+        when(sessions.current()).thenAnswer(inv -> {
+            if (failing.get()) {
+                throw new RuntimeException("Simulated transient error");
+            }
+            return okSession;
+        });
+        when(sessions.playbackState(anyString())).thenReturn(Optional.of(MediaPlaybackState.PLAYING));
+        when(audio.current()).thenReturn(okAudio);
+        when(enrichment.current()).thenReturn(okEnrichment);
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.RUNNING);
+        service.start();
+
+        // 1. First failure
+        until(() -> capturedEvents.list.stream().filter(e ->
+                e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=active session")
+                        && e.getFormattedMessage().contains("state=FAILED")).count() == 1);
+
+        // 2. First recovery
+        failing.set(false);
+        until(() -> capturedEvents.list.stream().filter(e ->
+                e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=active session")
+                        && e.getFormattedMessage().contains("state=RECOVERED")).count() == 1);
+
+        // 3. Second failure (re-arming test)
+        failing.set(true);
+        until(() -> capturedEvents.list.stream().filter(e ->
+                e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=active session")
+                        && e.getFormattedMessage().contains("state=FAILED")).count() == 2);
+
+        // 4. Second recovery
+        failing.set(false);
+        until(() -> capturedEvents.list.stream().filter(e ->
+                e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=active session")
+                        && e.getFormattedMessage().contains("state=RECOVERED")).count() == 2);
+
+        List<ILoggingEvent> failureLogs = capturedEvents.list.stream()
+                .filter(e -> e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=active session")
+                        && e.getFormattedMessage().contains("state=FAILED"))
+                .toList();
+        List<ILoggingEvent> recoveryLogs = capturedEvents.list.stream()
+                .filter(e -> e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=active session")
+                        && e.getFormattedMessage().contains("state=RECOVERED"))
+                .toList();
+
+        assertEquals(2, failureLogs.size(), "Debe registrarse exactamente un WARN por cada ciclo de falla");
+        assertEquals(2, recoveryLogs.size(), "Debe registrarse exactamente un INFO por cada ciclo de recuperación");
+    }
+
+    @Test
+    void enrichmentProviderFailureAndRecoveryShouldLogSingleWarnAndInfo() throws Exception {
+        MediaTrack track = new MediaTrack("Song", "Artist", "Album", 180);
+        MediaSessionSnapshot okSession = new MediaSessionSnapshot(true, "TIDAL", Optional.of(track), 10.0, MediaPlaybackState.PLAYING);
+        AudioOutputSnapshot okAudio = new AudioOutputSnapshot(true, "dev-1", "Speakers", OptionalDouble.of(0.8), false);
+        MediaEnrichmentSnapshot okEnrichment = new MediaEnrichmentSnapshot("LOSSLESS", List.of());
+
+        AtomicBoolean failing = new AtomicBoolean(true);
+        when(sessions.current()).thenReturn(okSession);
+        when(sessions.playbackState(anyString())).thenReturn(Optional.of(MediaPlaybackState.PLAYING));
+        when(audio.current()).thenReturn(okAudio);
+        when(enrichment.current()).thenAnswer(inv -> {
+            if (failing.get()) {
+                throw new RuntimeException("Tidal enrichment endpoint failed");
+            }
+            return okEnrichment;
+        });
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.RUNNING);
+        service.start();
+
+        // 1. Initial failure of enrichment provider
+        until(() -> capturedEvents.list.stream().anyMatch(e ->
+                e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=TIDAL enrichment")
+                        && e.getFormattedMessage().contains("state=FAILED")));
+
+        Thread.sleep(1200);
+
+        List<ILoggingEvent> failureLogs = capturedEvents.list.stream()
+                .filter(e -> e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=TIDAL enrichment")
+                        && e.getFormattedMessage().contains("state=FAILED"))
+                .toList();
+
+        assertEquals(1, failureLogs.size(), "Fallo repetido de enriquecimiento debe generar un solo WARN");
+        assertEquals(Level.WARN, failureLogs.getFirst().getLevel());
+
+        // 2. Enrichment recovers
+        failing.set(false);
+        until(() -> capturedEvents.list.stream().anyMatch(e ->
+                e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=TIDAL enrichment")
+                        && e.getFormattedMessage().contains("state=RECOVERED")));
+
+        Thread.sleep(1200);
+
+        List<ILoggingEvent> recoveryLogs = capturedEvents.list.stream()
+                .filter(e -> e.getFormattedMessage().contains("event=MEDIA_PROVIDER_FAILURE")
+                        && e.getFormattedMessage().contains("component=TIDAL enrichment")
+                        && e.getFormattedMessage().contains("state=RECOVERED"))
+                .toList();
+
+        assertEquals(1, recoveryLogs.size(), "Recuperación de enriquecimiento debe generar un solo INFO");
+        assertEquals(Level.INFO, recoveryLogs.getFirst().getLevel());
+    }
 }
