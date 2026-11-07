@@ -2,6 +2,8 @@ package com.fuad.media.windows;
 
 import com.fuad.media.MediaPlaybackState;
 import com.fuad.media.MediaSessionSnapshot;
+import com.fuad.media.control.MediaAction;
+import com.fuad.media.control.MediaControlRequest;
 import org.endlesssource.mediainterface.api.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -80,7 +82,7 @@ class WindowsMediaSessionProviderTest {
             "STOPPED,STOPPED,STOPPED", "STOPPED,PLAYING,PLAYING", "PAUSED,UNKNOWN,UNKNOWN"})
     void allMatchingSessionsShouldUsePlayingUnknownPausedStoppedPriority(String first, String second, String expected) {
         List<MediaSession> sessions = List.of(
-                session("com.vendor.TIDAL.exe", PlaybackState.valueOf(first)),
+                session("TIDAL.exe", PlaybackState.valueOf(first)),
                 session(" tidal.EXE ", PlaybackState.valueOf(second)),
                 session("Spotify", PlaybackState.PLAYING));
         when(system.getAllSessions()).thenReturn(sessions);
@@ -89,12 +91,91 @@ class WindowsMediaSessionProviderTest {
     }
 
     @ParameterizedTest
+    @CsvSource({
+            "TIDAL, TIDAL",
+            "TIDAL.exe, TIDAL",
+            "tidal, TIDAL",
+            " tidal.EXE , TIDAL",
+            "TiDaL.exe, tidal",
+            "Tidal, TIDAL.exe",
+            "tidal.exe, TIDAL.EXE"
+    })
+    void applicationMatchingShouldSupportCaseInsensitiveAndExeVariants(String sessionApp, String queryApp) {
+        MediaSession session = session(sessionApp, PlaybackState.PLAYING);
+        when(system.getAllSessions()).thenReturn(List.of(session));
+        WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
+
+        assertEquals(Optional.of(MediaPlaybackState.PLAYING), provider.playbackState(queryApp));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"tidal-helper.exe", "com.vendor.TIDAL.exe", "tidal.exe.bak"})
+    void distinctOrDottedApplicationVariantsShouldNotMatchAutomatically(String sessionApp) {
+        MediaSession session = session(sessionApp, PlaybackState.PLAYING);
+        when(system.getAllSessions()).thenReturn(List.of(session));
+        WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
+
+        assertTrue(provider.playbackState("TIDAL").isEmpty());
+        assertTrue(provider.playbackState("TIDAL.exe").isEmpty());
+    }
+
+    @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = {" ", "Spotify", "tidal-helper"})
+    @ValueSource(strings = {" ", "Spotify", "tidal-helper", "com.vendor.TIDAL.exe", "tidal.exe.bak"})
     void absentOrNonmatchingApplicationShouldNotInventPlayback(String application) {
         MediaSession session = session("Tidal", PlaybackState.PLAYING);
         when(system.getAllSessions()).thenReturn(List.of(session));
         assertTrue(new WindowsMediaSessionProvider(system).playbackState(application).isEmpty());
+    }
+
+    @Test
+    void twoLegitimateTidalSessionsShouldRejectTargetedCommandDueToAmbiguity() {
+        MediaSession firstSession = session("TIDAL.exe", PlaybackState.PLAYING);
+        MediaSession secondSession = session("tidal", PlaybackState.PLAYING);
+        when(system.getAllSessions()).thenReturn(List.of(firstSession, secondSession));
+        WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
+
+        boolean executed = provider.execute(MediaControlRequest.application(MediaAction.PAUSE, "TIDAL"));
+
+        assertFalse(executed);
+        verify(firstSession.getControls(), never()).togglePlayPause();
+        verify(secondSession.getControls(), never()).togglePlayPause();
+    }
+
+    @Test
+    void singleLegitimateTidalSessionShouldExecuteTargetedCommandIgnoringNonMatchingSessions() {
+        MediaSession tidalSession = session("TIDAL.exe", PlaybackState.PLAYING);
+        MediaSession helperSession = session("tidal-helper.exe", PlaybackState.PLAYING);
+        MediaSession vendorSession = session("com.vendor.TIDAL.exe", PlaybackState.PLAYING);
+        MediaSession bakSession = session("tidal.exe.bak", PlaybackState.PLAYING);
+        when(system.getAllSessions()).thenReturn(List.of(tidalSession, helperSession, vendorSession, bakSession));
+        when(tidalSession.getControls().togglePlayPause()).thenReturn(true);
+        WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
+
+        boolean executed = provider.execute(MediaControlRequest.application(MediaAction.PAUSE, "TIDAL"));
+
+        assertTrue(executed);
+        verify(tidalSession.getControls()).togglePlayPause();
+        verify(helperSession.getControls(), never()).togglePlayPause();
+        verify(vendorSession.getControls(), never()).togglePlayPause();
+        verify(bakSession.getControls(), never()).togglePlayPause();
+    }
+
+    @Test
+    void executeShouldRejectNullRequest() {
+        WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
+        assertThrows(NullPointerException.class, () -> provider.execute(null));
+    }
+
+    @Test
+    void executeWithActiveTargetShouldDelegateToActiveSession() {
+        MediaSession session = session("Spotify", PlaybackState.PLAYING);
+        when(system.getActiveSession()).thenReturn(Optional.of(session));
+        when(session.getControls().next()).thenReturn(true);
+        WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
+
+        assertTrue(provider.execute(MediaControlRequest.active(MediaAction.NEXT)));
+        verify(session.getControls()).next();
     }
 
     @Test

@@ -12,6 +12,7 @@ import org.endlesssource.mediainterface.api.*;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -138,17 +139,21 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     }
 
     private static boolean matchesApplication(String actual, String expected) {
+        String source;
+        String target;
+
         if (actual == null || expected == null) {
             return false;
         }
-        return normalizeApplicationName(actual).equalsIgnoreCase(normalizeApplicationName(expected));
+        source = normalizeApplicationName(actual);
+        target = normalizeApplicationName(expected);
+        return !source.isBlank() && source.equals(target);
     }
 
     private static String normalizeApplicationName(String value) {
-        String normalized = value.trim().replaceFirst("(?i)\\.exe", "");
-        String[] parts = normalized.split("\\.");
+        String normalized = value.strip().toLowerCase(Locale.ROOT);
 
-        return parts.length == 0 ? normalized : parts[parts.length - 1];
+        return normalized.endsWith(".exe") ? normalized.substring(0, normalized.length() - 4) : normalized;
     }
 
     private static boolean executeOnSession(MediaSession session, MediaAction action) {
