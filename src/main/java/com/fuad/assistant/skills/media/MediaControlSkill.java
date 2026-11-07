@@ -62,6 +62,7 @@ public final class MediaControlSkill implements Skill {
             return new AssistantResult("No pude confirmar el resultado del comando");
         }
         catch (InterruptedException e) {
+            pending.cancel(false);
             Thread.currentThread().interrupt();
             return new AssistantResult("La operación multimedia fue interrumpida");
         }

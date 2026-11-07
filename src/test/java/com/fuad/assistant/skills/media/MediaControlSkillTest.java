@@ -11,6 +11,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -172,12 +176,14 @@ class MediaControlSkillTest {
     @Test
     void unresolvedActionShouldTimeOutWithoutClaimingSuccess() {
         when(parser.parse("Pausa")).thenReturn(MediaControlIntent.PAUSE);
-        when(executor.executeAsync(MediaAction.PAUSE)).thenReturn(new CompletableFuture<>());
+        CompletableFuture<MediaActionResult> future = new CompletableFuture<>();
+        when(executor.executeAsync(MediaAction.PAUSE)).thenReturn(future);
 
         AssistantResult result = assertTimeoutPreemptively(java.time.Duration.ofSeconds(5),
                 () -> skill.execute("Pausa"));
 
         assertEquals("No pude confirmar el resultado del comando", result.text());
+        assertTrue(future.isCancelled());
     }
 
     @Test
@@ -192,16 +198,48 @@ class MediaControlSkillTest {
     @Test
     void interruptedWaitShouldRestoreTheInterruptFlag() {
         when(parser.parse("Pausa")).thenReturn(MediaControlIntent.PAUSE);
-        when(executor.executeAsync(MediaAction.PAUSE)).thenReturn(new CompletableFuture<>());
+        CompletableFuture<MediaActionResult> future = new CompletableFuture<>();
+        when(executor.executeAsync(MediaAction.PAUSE)).thenReturn(future);
 
         Thread.currentThread().interrupt();
         try {
             assertEquals("La operación multimedia fue interrumpida", skill.execute("Pausa").text());
             assertTrue(Thread.currentThread().isInterrupted());
+            assertTrue(future.isCancelled());
         }
         finally {
             Thread.interrupted();
         }
+    }
+
+    @Test
+    void interruptedThreadShouldCancelExecutionAndRestoreInterruptFlag() throws Exception {
+        CountDownLatch waiting = new CountDownLatch(1);
+        CompletableFuture<MediaActionResult> future = new CompletableFuture<>();
+        when(parser.parse("Pausa")).thenReturn(MediaControlIntent.PAUSE);
+        when(executor.executeAsync(MediaAction.PAUSE)).thenAnswer(inv -> {
+            waiting.countDown();
+            return future;
+        });
+
+        AtomicReference<AssistantResult> result = new AtomicReference<>();
+        AtomicBoolean threadInterrupted = new AtomicBoolean();
+
+        Thread thread = new Thread(() -> {
+            result.set(skill.execute("Pausa"));
+            threadInterrupted.set(Thread.currentThread().isInterrupted());
+        });
+
+        thread.start();
+        assertTrue(waiting.await(2, TimeUnit.SECONDS));
+        Thread.sleep(50);
+        thread.interrupt();
+        thread.join(2000);
+
+        assertFalse(thread.isAlive());
+        assertTrue(threadInterrupted.get());
+        assertTrue(future.isCancelled());
+        assertEquals("La operación multimedia fue interrumpida", result.get().text());
     }
 
     @Test

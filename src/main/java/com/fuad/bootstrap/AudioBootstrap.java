@@ -7,7 +7,6 @@ import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioDeviceManager;
 import com.fuad.audio.AudioPlaybackService;
 import com.fuad.audio.output.MediaContextAudioReservationDetector;
-import com.fuad.audio.output.MediaExclusiveAudioDetector;
 import com.fuad.config.AppConfig;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.pipeline.VoiceInputController;
