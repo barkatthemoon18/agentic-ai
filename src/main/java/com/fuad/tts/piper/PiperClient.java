@@ -1,12 +1,18 @@
 package com.fuad.tts.piper;
 
 import com.fuad.tts.TtsAudio;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static com.fuad.logging.LogCategory.TTS;
+
 public class PiperClient implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(PiperClient.class);
+
     private static final int MAGIC_REQUEST = 0x50545453;   // PTTS
     private static final int MAGIC_RESPONSE = 0x50545452;  // PTTR
     private static final int VERSION = 1;
@@ -32,7 +38,7 @@ public class PiperClient implements AutoCloseable {
                     .daemon(true)
                     .start(() -> {
                         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-                            reader.lines().forEach(line -> System.out.println("[Piper] " + line));
+                            reader.lines().forEach(line -> LOGGER.info(TTS, "[Piper] {}", line));
                         }
                         catch (IOException e) {
                             /* Ignored */
@@ -94,7 +100,7 @@ public class PiperClient implements AutoCloseable {
             }
         }
         catch (Exception e) {
-            System.err.println("Unable to gracefully stop Piper: " + e.getMessage());
+            LOGGER.warn(TTS, "Unable to gracefully stop Piper", e);
         }
         finally {
             try {
@@ -186,10 +192,10 @@ public class PiperClient implements AutoCloseable {
     }
 
     private void waitUntilReady() throws IOException {
-        System.out.println("Waiting for Piper worker to start...");
+        LOGGER.info(TTS, "Waiting for Piper worker to start...");
         if (!ping()) {
             throw new RuntimeException("Piper worker did not become ready");
         }
-        System.out.println("Piper worker running properly: true");
+        LOGGER.info(TTS, "Piper worker running properly: true");
     }
 }

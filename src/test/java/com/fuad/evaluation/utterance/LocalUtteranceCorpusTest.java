@@ -7,6 +7,8 @@ import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.nio.file.*;
@@ -17,12 +19,14 @@ import java.time.Instant;
 import com.fuad.activation.utterance.UtteranceClassificationRequest;
 import org.junit.jupiter.api.function.Executable;
 
+import static com.fuad.logging.LogCategory.EVALUATION;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("model-evaluation")
 class LocalUtteranceCorpusTest {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LocalUtteranceCorpusTest.class);
 
     @Test
     void classifierShouldMeetCorpusThresholds() throws Exception {
@@ -92,8 +96,8 @@ class LocalUtteranceCorpusTest {
                 var reports = UtteranceComparison.repeat(classifier, cases, repetitions, (repetition, report) -> {
                     UtteranceComparison.write(directory.resolve(mode + "-" + repetition + ".json"),
                             UtteranceComparison.artifact(mode, repetition, report, metadata));
-                    System.out.println("model=" + model + " mode=" + mode + " repetition=" + repetition);
-                    System.out.println(report.format());
+                    LOGGER.info(EVALUATION, "model={} mode={} repetition={}", model, mode, repetition);
+                    LOGGER.info(EVALUATION, "{}", report.format());
                     if (mode == UtteranceComparison.Mode.HYBRID && !Boolean.getBoolean("evaluation.report-only")) {
                         gates.add(() -> assertThresholds(report, cases.size()));
                     }
@@ -103,7 +107,7 @@ class LocalUtteranceCorpusTest {
                                 "unstableCaseRate", UtteranceComparison.instability(reports),
                                 "stabilityMeasured", repetitions > 1));
             }
-            System.out.println("Reports: " + directory.toAbsolutePath());
+            LOGGER.info(EVALUATION, "Reports: {}", directory.toAbsolutePath());
             assertAll("Hybrid acceptance thresholds for every repetition", gates);
         }
         finally {

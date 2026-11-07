@@ -5,8 +5,14 @@ import com.fuad.telemetry.gpu.GpuTelemetrySnapshot;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static com.fuad.logging.LogCategory.TELEMETRY;
 
 public final class NvidiaGpuTelemetryProvider implements GpuTelemetryProvider {
+    private static final Logger LOGGER = LoggerFactory.getLogger(NvidiaGpuTelemetryProvider.class);
+
     private static final double BYTES_PER_GB = Math.pow(1024, 3);
     private final NvmlLibrary nvml;
     private final Pointer device;
@@ -51,7 +57,7 @@ public final class NvidiaGpuTelemetryProvider implements GpuTelemetryProvider {
                     memory.total / BYTES_PER_GB, temperature.getValue());
         }
         catch (RuntimeException | LinkageError e) {
-            System.err.println("NVML telemetry unavailable: " + e.getMessage());
+            LOGGER.warn(TELEMETRY, "NVML telemetry unavailable", e);
         }
         return GpuTelemetrySnapshot.unavailable();
     }
@@ -64,7 +70,7 @@ public final class NvidiaGpuTelemetryProvider implements GpuTelemetryProvider {
         closed = true;
         int result = nvml.nvmlShutdown();
         if (result != NvmlLibrary.NVML_SUCCESS) {
-            System.err.println("nvmlShutdown failed: " + nvml.nvmlErrorString(result));
+            LOGGER.warn(TELEMETRY, "nvmlShutdown failed: {}", nvml.nvmlErrorString(result));
         }
     }
 

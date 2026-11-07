@@ -3,11 +3,17 @@ package com.fuad.platform.windows.process;
 import com.sun.jna.Native;
 import com.sun.jna.Platform;
 import com.sun.jna.platform.win32.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.fuad.logging.LogCategory.OS;
+
 public class WindowsProcessInventory implements ProcessInventory{
+    private static final Logger LOGGER = LoggerFactory.getLogger(WindowsProcessInventory.class);
+
     @Override
     public ProcessInventorySnapshot snapshot() {
         if (!Platform.isWindows()) {
@@ -17,7 +23,7 @@ public class WindowsProcessInventory implements ProcessInventory{
             return enumerate();
         }
         catch (RuntimeException | LinkageError e) {
-            System.err.println("WIN32 PROCESS -> enumeration unavailable");
+            LOGGER.warn(OS, "WIN32 PROCESS -> enumeration unavailable", e);
         }
         return ProcessInventorySnapshot.incomplete(List.of());
     }
@@ -34,7 +40,7 @@ public class WindowsProcessInventory implements ProcessInventory{
         }
         finally {
             if (!kernel.CloseHandle(handle)) {
-                System.err.println("WIN32 PROCESS -> unable to close snapshot handle");
+                LOGGER.warn(OS, "WIN32 PROCESS -> unable to close snapshot handle");
             }
         }
     }

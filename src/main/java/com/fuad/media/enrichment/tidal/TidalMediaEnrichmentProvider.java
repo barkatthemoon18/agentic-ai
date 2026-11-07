@@ -19,6 +19,8 @@ import com.sun.jna.platform.win32.WinNT.HRESULT;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.*;
@@ -26,7 +28,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
+import static com.fuad.logging.LogCategory.MEDIA;
+
 public class TidalMediaEnrichmentProvider implements MediaEnrichmentProvider {
+    private static final Logger LOGGER = LoggerFactory.getLogger(TidalMediaEnrichmentProvider.class);
+
     private static final CLSID CLSID_CUI_AUTOMATION = new CLSID("FF48DBA4-60EF-4201-AA87-54103EEF594E");
     private static final IID IID_IUI_AUTOMATION = new IID("30CBE57D-D9D0-452A-AB13-7AC5AC4825EE");
     private static final Pattern QUALITY_PATTERN = Pattern.compile("\\b\\d{1,2}-bit\\s+\\d+(?:\\.\\d+)?\\s*kHz\\b",
@@ -55,7 +61,7 @@ public class TidalMediaEnrichmentProvider implements MediaEnrichmentProvider {
             cached = readSnapshot();
         }
         catch (RuntimeException | LinkageError e) {
-            System.err.println("TIDAL ENRICHMENT -> unavailable: " + e.getMessage());
+            LOGGER.warn(MEDIA, "TIDAL ENRICHMENT -> unavailable", e);
             cached = MediaEnrichmentSnapshot.unavailable();
         }
         return cached;
@@ -70,11 +76,11 @@ public class TidalMediaEnrichmentProvider implements MediaEnrichmentProvider {
         HWND tidalWindow = findTidalWindow().orElse(null);
 
         if (tidalWindow == null) {
-            System.out.println("[TIDAL UIA] TIDAL window not found");
+            LOGGER.debug(MEDIA, "[TIDAL UIA] TIDAL window not found");
             return MediaEnrichmentSnapshot.unavailable();
         }
         if (showHwnd.compareAndSet(false, true)) {
-            System.out.println("[TIDAL UIA] hwnd=" + Pointer.nativeValue(tidalWindow.getPointer()));
+            LOGGER.debug(MEDIA, "[TIDAL UIA] hwnd={}", Pointer.nativeValue(tidalWindow.getPointer()));
         }
         HRESULT initialization = Ole32.INSTANCE.CoInitializeEx(Pointer.NULL, Ole32.COINIT_MULTITHREADED);
         boolean initialized = !COMUtils.FAILED(initialization);
@@ -96,8 +102,8 @@ public class TidalMediaEnrichmentProvider implements MediaEnrichmentProvider {
             ScanState state = new ScanState();
             traverse(root, walker, state, 0);
             if (showTreeWalk.compareAndSet(false, true)) {
-                System.out.println("[TIDAL UIA] visited=" + state.visited + " | quality='" + state.quality + "' | nextSection="
-                        + state.nextSectionSeen + " | queue=" + state.queue.size());
+                LOGGER.debug(MEDIA, "[TIDAL UIA] visited={} | quality='{}' | nextSection={} | queue={}",
+                        state.visited, state.quality, state.nextSectionSeen, state.queue.size());
             }
             return new MediaEnrichmentSnapshot(state.quality, state.queue);
         }

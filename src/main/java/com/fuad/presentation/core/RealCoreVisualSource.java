@@ -4,6 +4,8 @@ import com.fuad.telemetry.gpu.GpuTelemetryProvider;
 import com.fuad.telemetry.gpu.GpuTelemetrySnapshot;
 import com.fuad.telemetry.host.HostTelemetryProvider;
 import com.fuad.telemetry.host.HostTelemetrySnapshot;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.concurrent.Executors;
@@ -11,7 +13,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.fuad.logging.LogCategory.TELEMETRY;
+
 public class RealCoreVisualSource implements CoreVisualSource {
+    private static final Logger LOGGER = LoggerFactory.getLogger(RealCoreVisualSource.class);
+
     private final AssistantVisualStateStore assistantStateStore;
     private final Object publishLock = new Object();
     private final HostTelemetryProvider telemetryProvider;
@@ -60,7 +66,7 @@ public class RealCoreVisualSource implements CoreVisualSource {
                 gpuSnapshot = gpuTelemetryProvider.sample();
             }
             catch (RuntimeException | LinkageError e) {
-                System.err.println("GPU telemetry failed: " + e.getMessage());
+                LOGGER.warn(TELEMETRY, "GPU telemetry failed", e);
                 gpuSnapshot = GpuTelemetrySnapshot.unavailable();
             }
 
@@ -76,7 +82,7 @@ public class RealCoreVisualSource implements CoreVisualSource {
             }
         }
         catch (Exception | LinkageError e) {
-            System.err.println("Telemetry sampling failed: " + e.getMessage());
+            LOGGER.warn(TELEMETRY, "Telemetry sampling failed", e);
         }
     }
 

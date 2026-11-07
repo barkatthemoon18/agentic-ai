@@ -2,13 +2,19 @@ package com.fuad.presentation;
 
 import javafx.application.Platform;
 import javafx.scene.text.Font;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URL;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.fuad.logging.LogCategory.PRESENTATION;
+
 public final class JavaFxRuntime implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(JavaFxRuntime.class);
+
     private static final AtomicBoolean START_REQUESTED = new AtomicBoolean(false);
     private static final CompletableFuture<Void> READY = new CompletableFuture<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -92,8 +98,8 @@ public final class JavaFxRuntime implements AutoCloseable {
             if (font == null) {
                 throw new IllegalStateException("JavaFX could not load UI font: " + resourcePath);
             }
-            System.out.printf("Loaded UI font: family='%s', name'%s', style='%s'%n", font.getFamily(), font.getName(),
-                    font.getStyle());
+            LOGGER.debug(PRESENTATION, "Loaded UI font: family='{}', name='{}', style='{}'",
+                    font.getFamily(), font.getName(), font.getStyle());
         }
         catch (Exception e) {
             throw new IllegalStateException("Unable to read UI font: " + resourcePath, e);

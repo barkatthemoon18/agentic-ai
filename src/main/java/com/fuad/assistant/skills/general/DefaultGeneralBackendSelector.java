@@ -1,4 +1,6 @@
 package com.fuad.assistant.skills.general;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.text.Normalizer;
 import java.util.Locale;
@@ -6,7 +8,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
+import static com.fuad.logging.LogCategory.GENERAL;
+
 public class DefaultGeneralBackendSelector implements GeneralBackendSelector {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DefaultGeneralBackendSelector.class);
+
     private static final String LOCAL_TARGET = "(?:qwen|modelo local)";
     private static final String GPT_TARGET = "(?:gpt|openai|modelo en la nube)";
     private static final String SWITCH_ACTION = "(?:usa|utiliza|emplea|usando|responde con|respondeme con|respondas con"
@@ -50,7 +56,7 @@ public class DefaultGeneralBackendSelector implements GeneralBackendSelector {
                     SelectionOrigin.AUTOMATIC);
         }
         catch (RuntimeException e) {
-            System.err.println("General backend classification failed; defaulting to Qwen: " + e.getMessage());
+            LOGGER.warn(GENERAL, "General backend classification failed; defaulting to Qwen", e);
             return new GeneralBackendDecision(GeneralBackend.QWEN_LOCAL, SelectionOrigin.AUTOMATIC);
         }
     }

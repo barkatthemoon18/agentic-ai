@@ -39,6 +39,8 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.stage.WindowEvent;
 import javafx.util.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URL;
 import java.util.ArrayList;
@@ -50,7 +52,11 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.fuad.logging.LogCategory.INTERACTION;
+
 public final class JavaFxInteractionPresenter implements InteractionPresenter {
+    private static final Logger LOGGER = LoggerFactory.getLogger(JavaFxInteractionPresenter.class);
+
     private static final int MAX_CONFIGURATION_RETRIES = 4;
     private static final Duration CONFIGURATION_RETRY_DELAY = Duration.millis(50.0);
     private static final String WINDOW_TITLE = "Ares Interaction Surface";
@@ -224,8 +230,8 @@ public final class JavaFxInteractionPresenter implements InteractionPresenter {
                 retry.play();
                 return;
             }
-            System.err.println("Interation window: unable to locate interaction window after " + (attempt + 1) +
-                    " attempts");
+            LOGGER.warn(INTERACTION, "Interation window: unable to locate interaction window after {} attempts",
+                    (attempt + 1));
         }
         session.interactionWindow = configuration.interactionWindow();
         session.restoreOnDismiss = configuration.restoreOnDismiss();

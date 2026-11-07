@@ -1,4 +1,6 @@
 package com.fuad.interaction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -13,7 +15,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.fuad.logging.LogCategory.INTERACTION;
+
 public final class DefaultInteractionService implements InteractionService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DefaultInteractionService.class);
+
     public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(90);
 
     private final InteractionPresenter presenter;
@@ -166,7 +172,7 @@ public final class DefaultInteractionService implements InteractionService {
             lifecycleListener.onVisible(session.id);
         }
         catch (RuntimeException e) {
-            System.err.println("Interaction lifecycle listener failed: " + e.getMessage());
+            LOGGER.warn(INTERACTION, "Interaction lifecycle listener failed", e);
         }
     }
 
@@ -175,7 +181,7 @@ public final class DefaultInteractionService implements InteractionService {
             lifecycleListener.onCompleted(session.id, outcome);
         }
         catch (RuntimeException e) {
-            System.err.println("Interaction lifecycle listener failed: " + e.getMessage());
+            LOGGER.warn(INTERACTION, "Interaction lifecycle listener failed", e);
         }
     }
 

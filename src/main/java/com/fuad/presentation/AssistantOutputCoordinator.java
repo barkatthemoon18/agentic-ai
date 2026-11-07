@@ -8,10 +8,16 @@ import com.fuad.assistant.skills.os.OpenApplicationsPayload;
 import com.fuad.audio.output.AudioDeliveryState;
 import com.fuad.audio.output.AudioReservationDetector;
 import com.fuad.pipeline.AudioPipeline;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 
+import static com.fuad.logging.LogCategory.AUDIO;
+import static com.fuad.logging.LogCategory.PRESENTATION;
+
 public class AssistantOutputCoordinator implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AssistantOutputCoordinator.class);
 
     private final AssistantAudioController audioController;
     private final OutputPresentationPolicy presentationPolicy;
@@ -52,7 +58,7 @@ public class AssistantOutputCoordinator implements AutoCloseable {
         voiceRequested = presentationMode != PresentationMode.TEXT_ONLY;
 
         if (voiceRequested && exclusiveAudioDetector.isOutputReserved()) {
-            System.out.println("AUDIO OUTPUT -> media playback reserved; response redirected to visual output");
+            LOGGER.info(AUDIO, "AUDIO OUTPUT -> media playback reserved; response redirected to visual output");
             showVisualSafely(new VisualMessage(text, audioSnapshot, result.payload(), AudioDeliveryState.OUTPUT_RESERVED));
             return;
         }
@@ -106,7 +112,7 @@ public class AssistantOutputCoordinator implements AutoCloseable {
             visualOutput.show(visualMessage);
         }
         catch (Exception e) {
-            System.err.println("Unable to show visual output: " + e.getMessage());
+            LOGGER.warn(PRESENTATION, "Unable to show visual output", e);
         }
     }
 
@@ -115,7 +121,7 @@ public class AssistantOutputCoordinator implements AutoCloseable {
             visualOutput.hide();
         }
         catch (Exception e) {
-            System.err.println("Unable to hide visual output: " + e.getMessage());
+            LOGGER.warn(PRESENTATION, "Unable to hide visual output", e);
         }
     }
 
@@ -125,7 +131,7 @@ public class AssistantOutputCoordinator implements AutoCloseable {
             visualOutput.close();
         }
         catch (Exception e) {
-            System.err.println("Unable to close visual output: " + e.getMessage());
+            LOGGER.warn(PRESENTATION, "Unable to close visual output", e);
         }
     }
 }

@@ -12,6 +12,8 @@ import com.fuad.interaction.FocusRequirement;
 import com.fuad.interaction.InputModality;
 import com.fuad.interaction.InteractionOutcome;
 import com.fuad.interaction.InteractionResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.text.Normalizer;
@@ -19,7 +21,11 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.fuad.logging.LogCategory.OS;
+
 public class OsCommandSkill implements Skill {
+    private static final Logger LOGGER = LoggerFactory.getLogger(OsCommandSkill.class);
+
     private static final Pattern FILTER_FOLLOW_UP = Pattern.compile(
             "^(?:muestra|muestrame|busca|filtra)(?:me)?(?: las)?(?: aplicaciones| apps)?(?: de| por)?\\s+(.+)$");
     private final OsCommandParser parser;
@@ -46,16 +52,16 @@ public class OsCommandSkill implements Skill {
     @Override
     public AssistantResult execute(String command) {
         if (!safetyGuard.canExecute(command)) {
-            System.out.println("OS SAFETY -> REJECTED");
+            LOGGER.warn(OS, "OS SAFETY -> REJECTED");
             return new AssistantResult("No interpreté eso como una orden inmediata.");
         }
         OsCommandIntent intent;
         try {
             intent = parser.parse(command);
-            System.out.println("OS INTENT -> action=" + intent.action() + " | target='" + intent.target() + "'");
+            LOGGER.info(OS, "OS INTENT -> action={} | target='{}'", intent.action(), intent.target());
         }
         catch (RuntimeException e) {
-            System.err.println("OS command parsing failed: " + e.getMessage());
+            LOGGER.error(OS, "OS command parsing failed", e);
             return new AssistantResult("No pude interpretar el comando del sistema.");
         }
         if (intent.action() == OsAction.UNSUPPORTED) {
@@ -65,7 +71,7 @@ public class OsCommandSkill implements Skill {
             return executeParsed(intent);
         }
         catch (Exception e) {
-            System.err.println("OS command failed: " + e.getMessage());
+            LOGGER.error(OS, "OS command failed", e);
             return new AssistantResult("No pude ejecutar esa acción");
         }
     }
@@ -73,17 +79,17 @@ public class OsCommandSkill implements Skill {
     @Override
     public SkillExecution executeTurn(String command) {
         if (!safetyGuard.canExecute(command)) {
-            System.out.println("OS SAFETY -> REJECTED");
+            LOGGER.warn(OS, "OS SAFETY -> REJECTED");
             return SkillExecution.completed(new AssistantResult(
                     "No interpreté eso como una orden inmediata."));
         }
         OsCommandIntent intent;
         try {
             intent = parser.parse(command);
-            System.out.println("OS INTENT -> action=" + intent.action() + " | target='" + intent.target() + "'");
+            LOGGER.info(OS, "OS INTENT -> action={} | target='{}'", intent.action(), intent.target());
         }
         catch (RuntimeException e) {
-            System.err.println("OS command parsing failed: " + e.getMessage());
+            LOGGER.error(OS, "OS command parsing failed", e);
             return SkillExecution.completed(new AssistantResult(
                     "No pude interpretar el comando del sistema."));
         }
@@ -204,7 +210,7 @@ public class OsCommandSkill implements Skill {
             return executeSelected(intent, selected);
         }
         catch (IOException e) {
-            System.err.println("OS command continuation failed: " + e.getMessage());
+            LOGGER.error(OS, "OS command continuation failed", e);
             return new AssistantResult("No pude ejecutar esa acción");
         }
     }
@@ -429,7 +435,7 @@ public class OsCommandSkill implements Skill {
                     SkillExecution.completed(executeParsed(intent));
         }
         catch (Exception e) {
-            System.err.println("OS command failed: " + e.getMessage());
+            LOGGER.error(OS, "OS command failed", e);
             return SkillExecution.completed(new AssistantResult("No pude ejecutar esa acción"));
         }
     }

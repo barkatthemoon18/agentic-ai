@@ -8,11 +8,17 @@ import com.fuad.media.enrichment.MediaEnrichmentProvider;
 import com.fuad.media.enrichment.tidal.TidalMediaEnrichmentProvider;
 import com.fuad.media.windows.WindowsMediaSessionProvider;
 import com.fuad.presentation.media.MediaWorkspaceController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static com.fuad.logging.LogCategory.MEDIA;
+
 final class MediaBootstrap {
+    private static final Logger LOGGER = LoggerFactory.getLogger(MediaBootstrap.class);
+
     private final Supplier<MediaSessionProvider> sessions;
     private final Supplier<AudioOutputProvider> output;
     private final Supplier<MediaEnrichmentProvider> enrichment;
@@ -48,11 +54,11 @@ final class MediaBootstrap {
             if (provider == null) {
                 throw new IllegalStateException("factory returned null");
             }
-            System.out.println("MEDIA -> " + name + " provider ready");
+            LOGGER.info(MEDIA, "MEDIA -> {} provider ready", name);
             return provider;
         }
         catch (RuntimeException | LinkageError e) {
-            System.err.println("MEDIA -> " + name + " provider unavailable: " + e);
+            LOGGER.warn(MEDIA, "MEDIA -> {} provider unavailable", name, e);
             return fallback.get();
         }
     }

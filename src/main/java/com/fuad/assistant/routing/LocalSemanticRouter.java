@@ -6,11 +6,17 @@ import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.Set;
 
+import static com.fuad.logging.LogCategory.ROUTING;
+
 public class LocalSemanticRouter implements SemanticRouter {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LocalSemanticRouter.class);
+
     private static final Set<String> LABELS = Set.of(
             "system-time", "audio-control", "media-control", "os-command", "current-research", "general");
     private static final String SYSTEM_PROMPT = """
@@ -396,7 +402,7 @@ public class LocalSemanticRouter implements SemanticRouter {
             return parseOutput(firstOutput);
         }
         catch (IllegalStateException invalid) {
-            System.err.printf("Invalid semantic classification, retrying once [model=%s]: %s%n", model, invalid.getMessage());
+            LOGGER.warn(ROUTING, "Invalid semantic classification, retrying once [model={}]", model, invalid);
             String retryOutput = infer(query, true, firstOutput);
             try {
                 return parseOutput(retryOutput);

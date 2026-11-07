@@ -1,10 +1,16 @@
 package com.fuad.audio;
 
 import com.fuad.tts.TtsAudio;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sound.sampled.*;
 
+import static com.fuad.logging.LogCategory.AUDIO;
+
 public class AudioPlaybackService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AudioPlaybackService.class);
+
     private static final int VISUAL_CHUNK_SAMPLES = 512;
 
     public void play(AudioDeviceInfo device, TtsAudio audio, float gain) {
@@ -16,21 +22,21 @@ public class AudioPlaybackService {
         Mixer mixer = AudioSystem.getMixer(device.info());
         DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
         try {
-            System.out.println("PLAYBACK -> getLine");
+            LOGGER.debug(AUDIO, "PLAYBACK -> getLine");
             SourceDataLine line = (SourceDataLine) mixer.getLine(info);
-            System.out.println("PLAYBACK -> open");
+            LOGGER.debug(AUDIO, "PLAYBACK -> open");
             line.open(format);
-            System.out.println("PLAYBACK -> start");
+            LOGGER.debug(AUDIO, "PLAYBACK -> start");
             line.start();
-            System.out.println("PLAYBACK -> write");
+            LOGGER.debug(AUDIO, "PLAYBACK -> write");
             playChunks(line, audio.samples(), gain, listener);
-            System.out.println("PLAYBACK -> drain");
+            LOGGER.debug(AUDIO, "PLAYBACK -> drain");
             line.drain();
-            System.out.println("PLAYBACK -> stop");
+            LOGGER.debug(AUDIO, "PLAYBACK -> stop");
             line.stop();
-            System.out.println("PLAYBACK -> close");
+            LOGGER.debug(AUDIO, "PLAYBACK -> close");
             line.close();
-            System.out.println("PLAYBACK -> done");
+            LOGGER.debug(AUDIO, "PLAYBACK -> done");
         }
         catch (LineUnavailableException e) {
             throw new RuntimeException("Unable to play TTS audio", e);

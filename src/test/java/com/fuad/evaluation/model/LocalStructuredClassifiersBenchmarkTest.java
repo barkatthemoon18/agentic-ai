@@ -9,17 +9,22 @@ import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
 
+import static com.fuad.logging.LogCategory.EVALUATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("model-evaluation")
 class LocalStructuredClassifiersBenchmarkTest {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LocalStructuredClassifiersBenchmarkTest.class);
+
     @Test
     void structuredClassifiersShouldMeetBenchmarkThreshold() {
         String model = System.getProperty("evaluation.model", AppConfig.LOCAL_MODEL_ID);
@@ -71,7 +76,7 @@ class LocalStructuredClassifiersBenchmarkTest {
                 .append("- ").append(result.testCase().id()).append(" expected=")
                 .append(result.testCase().expected()).append(" actual=").append(result.actual())
                 .append(result.error() == null ? "" : " error=" + result.error()).append('\n'));
-        System.out.println(report);
+        LOGGER.info(EVALUATION, "{}", report);
         if (!Boolean.getBoolean("evaluation.report-only")) {
             assertEquals(0, errors, report.toString());
             assertTrue(accuracy >= Double.parseDouble(

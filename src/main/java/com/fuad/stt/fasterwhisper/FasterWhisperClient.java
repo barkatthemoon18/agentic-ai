@@ -3,13 +3,19 @@ package com.fuad.stt.fasterwhisper;
 import com.fuad.config.AppConfig;
 import com.fuad.speech.SpeechSegment;
 import com.fuad.stt.TranscriptionResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static com.fuad.logging.LogCategory.STT;
+
 public class FasterWhisperClient implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(FasterWhisperClient.class);
+
     private Process process;
     private DataOutputStream outputStream;
     private DataInputStream inputStream;
@@ -25,7 +31,7 @@ public class FasterWhisperClient implements AutoCloseable {
                     .daemon(true)
                     .start(() -> {
                         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-                            reader.lines().forEach(line -> System.out.println("[Whisper] " + line));
+                            reader.lines().forEach(line -> LOGGER.info(STT, "[Whisper] {}", line));
                         }
                         catch (IOException e) {
                             /* Ignored */
@@ -160,11 +166,11 @@ public class FasterWhisperClient implements AutoCloseable {
                 outputStream.writeLong(requestId);
                 outputStream.flush();
                 TranscriptionResult response = readTranscriptionResponse(requestId);
-                System.out.println("[Whisper] " + response.text());
+                LOGGER.info(STT, "[Whisper] {}", response.text());
             }
         }
         catch (Exception e) {
-            System.err.println("Unable to gracefully stop FasterWhisper: " + e.getMessage());
+            LOGGER.warn(STT, "Unable to gracefully stop FasterWhisper", e);
         }
         finally {
             closeResources();
@@ -178,7 +184,7 @@ public class FasterWhisperClient implements AutoCloseable {
             }
         }
         catch (IOException e) {
-            System.err.println("Unable to close output stream: " + e.getMessage());
+            LOGGER.warn(STT, "Unable to close output stream", e);
         }
         try {
             if (inputStream != null) {
@@ -186,7 +192,7 @@ public class FasterWhisperClient implements AutoCloseable {
             }
         }
         catch (IOException e) {
-            System.err.println("Unable to close input stream: " + e.getMessage());
+            LOGGER.warn(STT, "Unable to close input stream", e);
         }
         if (process != null && process.isAlive()) {
             try {

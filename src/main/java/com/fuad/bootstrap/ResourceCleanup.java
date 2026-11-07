@@ -1,11 +1,17 @@
 package com.fuad.bootstrap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static com.fuad.logging.LogCategory.APP;
+
 /** Owns shutdown actions in dependency order, including partially initialized applications. */
 final class ResourceCleanup implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ResourceCleanup.class);
+
     enum Resource {
         MODEL_RUNTIME, MEDIA, CORE_VISUAL, CORE_VISUAL_SOURCE, CAPTURE, INTERACTION, SPEECH_PROCESSOR, TTS,
         VISUAL_OUTPUT, STT, VAD, JAVAFX_RUNTIME
@@ -60,8 +66,7 @@ final class ResourceCleanup implements AutoCloseable {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            System.err.println("Unable to close " + resource + ": " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.warn(APP, "Unable to close {}", resource, e);
         }
     }
 }

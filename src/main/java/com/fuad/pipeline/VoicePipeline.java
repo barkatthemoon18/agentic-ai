@@ -7,10 +7,17 @@ import com.fuad.speech.SpeechSegment;
 import com.fuad.speech.SpeechSegmentListener;
 import com.fuad.vad.VadEngine;
 import com.fuad.vad.VadResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayDeque;
 import java.util.Deque;
 
+import static com.fuad.logging.LogCategory.AUDIO;
+
 public class VoicePipeline {
+    private static final Logger LOGGER = LoggerFactory.getLogger(VoicePipeline.class);
+
     private static final int SPEECH_START_FRAMES = 2;
     private static final int SILENCE_END_FRAMES = 20;
     private static final int PRE_ROLL_FRAMES = 10;
@@ -54,7 +61,7 @@ public class VoicePipeline {
         if (muteApplied) {
             reset();
             muteApplied = false;
-            System.out.println("VOICE INPUT -> READY");
+            LOGGER.info(AUDIO, "VOICE INPUT -> READY");
         }
         if (!audioPipeline.canListen()) {
             audioWasBlocked = true;
@@ -64,7 +71,7 @@ public class VoicePipeline {
         if (audioWasBlocked) {
             reset();
             audioWasBlocked = false;
-            System.out.println("AUDIO INPUT -> READY");
+            LOGGER.info(AUDIO, "AUDIO INPUT -> READY");
         }
         VadResult result = vadEngine.process(frame);
         signalListener.onSignal(createSignalSnapshot(frame, result));
@@ -85,7 +92,7 @@ public class VoicePipeline {
         if (wasListening && !audioPipeline.isProcessing() && !audioPipeline.isSpeaking()) {
             activityListener.onStateChanged(AssistantActivityState.IDLE);
         }
-        System.out.println("VOICE INPUT -> MUTED");
+        LOGGER.info(AUDIO, "VOICE INPUT -> MUTED");
     }
 
     private void processIdle(AudioFrame frame, VadResult result) {
@@ -112,7 +119,7 @@ public class VoicePipeline {
             speechBuffer.add(frame);
         }
         preRoll.clear();
-        System.out.println(">>> SPEECH START");
+        LOGGER.debug(AUDIO, ">>> SPEECH START");
     }
 
     private void processSpeaking(AudioFrame frame, VadResult result) {
@@ -130,7 +137,8 @@ public class VoicePipeline {
 
     private void endSpeech() {
         SpeechSegment segment = speechBuffer.toSegment();
-        System.out.println("<<< SPEECH END | " + speechBuffer.frameCount() + " frames | " + speechBuffer.durationMillis() + " ms");
+        LOGGER.debug(AUDIO, "<<< SPEECH END | {} frames | {} ms",
+                speechBuffer.frameCount(), speechBuffer.durationMillis());
         state = VoiceState.IDLE;
         silenceFrames = 0;
         speechFrames = 0;

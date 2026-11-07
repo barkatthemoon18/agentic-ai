@@ -6,10 +6,16 @@ import com.fuad.assistant.skills.SkillRegistry;
 import com.fuad.assistant.skills.SkillRoute;
 import com.fuad.assistant.skills.SkillRouter;
 import com.fuad.enums.Capability;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 
+import static com.fuad.logging.LogCategory.ROUTING;
+
 public class AiSkillRouter implements SkillRouter {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AiSkillRouter.class);
+
     private final SemanticRouter semanticRouter;
     private final SkillRegistry skillRegistry;
     private final ResearchEscalationDetector researchEscalationDetector;
@@ -29,7 +35,7 @@ public class AiSkillRouter implements SkillRouter {
     @Override
     public SkillRoute route(String command) {
         Capability capability = semanticRouter.classify(command);
-        System.out.println("CAPABILITY -> " + capability);
+        LOGGER.info(ROUTING, "CAPABILITY -> {}", capability);
         return routeTo(capability);
     }
 
@@ -43,7 +49,7 @@ public class AiSkillRouter implements SkillRouter {
     public SkillRoute routeFollowUp(String command, ConversationSnapshot snapshot) {
         if (snapshot.owner() == Capability.GENERAL
                 && researchEscalationDetector.shouldEscalate(command)) {
-            System.out.println("CAPABILITY TRANSITION -> CURRENT_RESEARCH");
+            LOGGER.info(ROUTING, "CAPABILITY TRANSITION -> CURRENT_RESEARCH");
             return routeTo(Capability.CURRENT_RESEARCH);
         }
         return routeTo(snapshot.owner());

@@ -1,4 +1,6 @@
 package com.fuad.interaction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.text.Normalizer;
 import java.util.HashSet;
@@ -6,7 +8,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static com.fuad.logging.LogCategory.INTERACTION;
+
 public final class InteractionVoiceRouter {
+    private static final Logger LOGGER = LoggerFactory.getLogger(InteractionVoiceRouter.class);
+
     private static final Set<String> CANCEL_COMMANDS = Set.of(
             "cancelar", "cancela", "anular", "anula", "salir", "olvidalo");
     private static final Set<String> AFFIRMATIVE = Set.of(
@@ -73,7 +79,7 @@ public final class InteractionVoiceRouter {
                 resolution = request.voiceResolver().orElseThrow().resolve(transcription);
             }
             catch (RuntimeException e) {
-                System.err.println("Choice voice resolution failed: " + e.getMessage());
+                LOGGER.warn(INTERACTION, "Choice voice resolution failed", e);
                 return VoiceRouteOutcome.UNRESOLVABLE;
             }
             if (resolution.status() != ChoiceVoiceResolution.Status.RESOLVED) {

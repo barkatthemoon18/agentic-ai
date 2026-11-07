@@ -5,11 +5,17 @@ import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
 import com.fuad.audio.AudioFrame;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.fuad.logging.LogCategory.VAD;
+
 public class SileroVadEngine implements VadEngine {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SileroVadEngine.class);
+
     private static final int SAMPLE_RATE = 16000;
     private static final int FRAME_SIZE = 512;
     private static final int CONTEXT_SIZE = 64;
@@ -27,10 +33,10 @@ public class SileroVadEngine implements VadEngine {
             OrtSession.SessionOptions options = new OrtSession.SessionOptions();
             session = environment.createSession(modelPath, options);
             reset();
-            System.out.println("Silero inputs: " + session.getInputNames());
-            System.out.println("Silero outputs: " + session.getOutputNames());
-            session.getInputInfo().forEach((name, info) -> System.out.println("INPUT " + name + " -> " + info));
-            session.getOutputInfo().forEach((name, info) -> System.out.println("OUTPUT " + name + " -> " + info));
+            LOGGER.debug(VAD, "Silero inputs: {}", session.getInputNames());
+            LOGGER.debug(VAD, "Silero outputs: {}", session.getOutputNames());
+            session.getInputInfo().forEach((name, info) -> LOGGER.debug(VAD, "INPUT {} -> {}", name, info));
+            session.getOutputInfo().forEach((name, info) -> LOGGER.debug(VAD, "OUTPUT {} -> {}", name, info));
         }
         catch (OrtException e) {
             throw new RuntimeException("Unable to initialize SileroVadEngine.", e);

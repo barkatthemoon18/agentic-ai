@@ -9,6 +9,8 @@ import com.fuad.media.control.MediaControlRequest;
 import com.fuad.media.control.MediaTarget;
 import org.endlesssource.mediainterface.SystemMediaFactory;
 import org.endlesssource.mediainterface.api.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.List;
@@ -16,7 +18,11 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
+import static com.fuad.logging.LogCategory.MEDIA;
+
 public class WindowsMediaSessionProvider implements MediaSessionProvider {
+    private static final Logger LOGGER = LoggerFactory.getLogger(WindowsMediaSessionProvider.class);
+
     private final SystemMediaInterface systemMediaInterface;
 
     public WindowsMediaSessionProvider() {
@@ -33,7 +39,7 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     @Override
     public Optional<MediaPlaybackState> playbackState(String applicationName) {
         if (applicationName == null || applicationName.isBlank()) {
-            System.out.println("applicationName must not be null or blank");
+            LOGGER.warn(MEDIA, "applicationName must not be null or blank");
             return Optional.empty();
         }
         var states = systemMediaInterface.getAllSessions().stream()
@@ -115,10 +121,11 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     private void logSessions() {
         var sessions = systemMediaInterface.getAllSessions();
 
-        System.out.println("[MEDIA] sessions detected: " + sessions.size());
+        LOGGER.debug(MEDIA, "Sessions detected: {}", sessions.size());
         for (var session : sessions) {
-            System.out.println("[MEDIA] session=" + session.getSessionId() + " | app=" + session.getApplicationName() +
-                    " | active=" + session.isActive() + " | state=" + session.getControls().getPlaybackState());
+            LOGGER.debug(MEDIA, "Session={} | app={} | active={} | state={}",
+                    session.getSessionId(), session.getApplicationName(), session.isActive(),
+                    session.getControls().getPlaybackState());
         }
     }
 

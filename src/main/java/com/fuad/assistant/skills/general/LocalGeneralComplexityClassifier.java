@@ -3,13 +3,19 @@ package com.fuad.assistant.skills.general;
 import com.fuad.config.AppConfig;
 import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+import static com.fuad.logging.LogCategory.GENERAL;
+
 public class LocalGeneralComplexityClassifier implements GeneralComplexityClassifier {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LocalGeneralComplexityClassifier.class);
+
     private static final Set<String> LABELS = Set.of("local", "gpt");
     private static final List<String> ORDERED_LABELS = List.of("local", "gpt");
     private static final int MAX_COMPLETION_TOKENS = 8;
@@ -67,8 +73,7 @@ public class LocalGeneralComplexityClassifier implements GeneralComplexityClassi
             return new GeneralBackendClassification(parse(requiredOutput(firstOutput)), 1);
         }
         catch (IllegalStateException firstInvalid) {
-            System.err.println("Invalid general backend output; retrying once: "
-                    + firstInvalid.getMessage());
+            LOGGER.warn(GENERAL, "Invalid general backend output; retrying once", firstInvalid);
             String previousOutput = firstOutput.filter(value -> !value.isBlank()).orElse(null);
             Optional<String> retryOutput = inference.infer(request(query, true, previousOutput));
             try {

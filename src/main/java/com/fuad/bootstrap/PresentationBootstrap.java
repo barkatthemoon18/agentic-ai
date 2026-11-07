@@ -33,12 +33,18 @@ import com.fuad.presentation.tools.ToolsWorkspaceConfigLoader;
 import com.fuad.speech.SpeechProcessingService;
 import com.fuad.telemetry.gpu.nvidia.NvidiaGpuTelemetryProvider;
 import com.fuad.telemetry.host.oshi.OshiHostTelemetryProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.EnumMap;
 import java.util.Map;
 
+import static com.fuad.logging.LogCategory.PRESENTATION;
+
 final class PresentationBootstrap {
+    private static final Logger LOGGER = LoggerFactory.getLogger(PresentationBootstrap.class);
+
     record ToolsComponents(ToolsWorkspaceConfig config, DeferredToolsActionHandler actions,
                            DeferredMoreToolsHandler more) { }
     record PresentationComponents(VisualOutput visualOutput, InteractionPresenter interactionPresenter,
@@ -83,7 +89,7 @@ final class PresentationBootstrap {
             return new PresentationComponents(visual, interaction, core, core, core, runtime);
         }
         catch (Exception e) {
-            System.err.println("Unable to initialize JavaFX visual output: " + e.getMessage());
+            LOGGER.warn(PRESENTATION, "Unable to initialize JavaFX visual output", e);
             if (core != null) core.close();
             if (visual != null) visual.close();
             if (runtime != null) runtime.close();

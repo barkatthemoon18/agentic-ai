@@ -7,11 +7,17 @@ import com.fuad.pipeline.AudioPipeline;
 import com.fuad.tts.piper.PiperClient;
 import com.fuad.tts.piper.PiperTtsEngine;
 import javafx.application.Platform;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Scanner;
 
+import static com.fuad.logging.LogCategory.PRESENTATION;
+
 /** Run from IntelliJ with the project root and Piper's Python environment. */
 public final class JavaFxVisualOutputDemo {
+    private static final Logger LOGGER = LoggerFactory.getLogger(JavaFxVisualOutputDemo.class);
+
     private static final String LONG_MESSAGE = ("Prueba de lectura y desplazamiento. "
             + "El panel conserva el mensaje completo y limita su altura al monitor. "
             + "Mantén el cursor dentro durante más de treinta segundos: debe permanecer visible. "
@@ -24,7 +30,7 @@ public final class JavaFxVisualOutputDemo {
                             && device.name().contains("Focusrite"))
                     .findFirst()
                     .orElseThrow(() -> new IllegalStateException("No se encontró la salida Altavoces Focusrite"));
-            System.out.println("Salida: " + output.name());
+            LOGGER.info(PRESENTATION, "Salida: {}", output.name());
             client.start();
             AssistantAudioController controller = new AssistantAudioController();
             OutputPresentationPolicy policy = new OutputPresentationPolicy(AppConfig.TEXT_UI_VOLUME_THRESHOLD);
@@ -36,8 +42,7 @@ public final class JavaFxVisualOutputDemo {
             }
         }
         catch (Exception e) {
-            System.err.println("Demo interrumpida: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.warn(PRESENTATION, "Demo interrumpida", e);
         }
         finally {
             // Also handles overlay construction failure after toolkit startup.
@@ -49,7 +54,7 @@ public final class JavaFxVisualOutputDemo {
                                 AssistantOutputCoordinator coordinator, VisualOutput visual) throws InterruptedException {
         Scanner input = new Scanner(System.in);
         while (true) {
-            System.out.println("""
+            LOGGER.info(PRESENTATION, """
 
                     1 — Mute al 40%: solo texto
                     2 — Volumen 10%: audio y texto con el umbral habitual de 20
@@ -62,7 +67,7 @@ public final class JavaFxVisualOutputDemo {
                     9 — Ocultar tras cinco segundos, incluso con el cursor dentro
                     0 — Salir
                     """);
-            System.out.print("Escenario: ");
+            LOGGER.info(PRESENTATION, "Escenario: ");
             if (!input.hasNextLine()) {
                 return;
             }
@@ -98,25 +103,25 @@ public final class JavaFxVisualOutputDemo {
                     controller.setVolume(40);
                     controller.mute();
                     if (choice.equals("8")) {
-                        System.out.println("Vuelve al editor y escribe; mueve el puntero al monitor que quieras probar.");
+                        LOGGER.info(PRESENTATION, "Vuelve al editor y escribe; mueve el puntero al monitor que quieras probar.");
                         Thread.sleep(5_000);
                     }
                     present(controller, policy, coordinator, choice.equals("6") ? LONG_MESSAGE
                             : "Mensaje corto. Comprueba tamaño, posición y que el editor conserve el foco.");
                 }
                 case "9" -> {
-                    System.out.println("Coloca el cursor dentro del panel. Se ocultará en cinco segundos.");
+                    LOGGER.info(PRESENTATION, "Coloca el cursor dentro del panel. Se ocultará en cinco segundos.");
                     Thread.sleep(5_000);
                     visual.hide();
                 }
-                default -> System.out.println("Selecciona una opción de 0 a 9.");
+                default -> LOGGER.info(PRESENTATION, "Selecciona una opción de 0 a 9.");
             }
         }
     }
 
     private static void present(AssistantAudioController controller, OutputPresentationPolicy policy,
                                 AssistantOutputCoordinator coordinator, String text) {
-        System.out.println("Salida esperada: " + policy.resolve(controller.getSnapshot()));
+        LOGGER.info(PRESENTATION, "Salida esperada: {}", policy.resolve(controller.getSnapshot()));
         // The main thread owns scenarios; JavaFX stays free during synthesis/playback.
         coordinator.present(text);
     }

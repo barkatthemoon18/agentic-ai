@@ -11,6 +11,8 @@ import com.fuad.media.enrichment.MediaEnrichmentSnapshot;
 import com.fuad.platform.windows.process.ProcessInventory;
 import com.fuad.platform.windows.process.ProcessInventorySnapshot;
 import com.fuad.platform.windows.process.WindowsProcessInventory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.util.Objects;
@@ -20,7 +22,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static com.fuad.logging.LogCategory.MEDIA;
+
 public final class MediaContextService implements MediaContextProvider, MediaActionHandler, MediaActionExecutor, AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(MediaContextService.class);
+
     private static final long CORE_REFRESH_MILLIS = 500L;
     private static final long ENRICHMENT_REFRESH_MILLIS = 1500L;
     private static final long PROCESS_REFRESH_NANOS = TimeUnit.SECONDS.toNanos(3);
@@ -128,7 +134,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
             coreStopped = awaitRemaining(coreExecutor, until);
             enrichmentStopped = awaitRemaining(enrichmentExecutor, until);
             if (!coreStopped || !enrichmentStopped) {
-                System.err.println("Media context close timed out; cleanup remains queued");
+                LOGGER.warn(MEDIA, "Media context close timed out; cleanup remains queued");
             }
         }
         catch (InterruptedException e) {
@@ -217,7 +223,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
                     MediaActionStatus.ACKNOWLEDGED : MediaActionStatus.REJECTED);
         }
         catch (RuntimeException | LinkageError e) {
-            System.err.println("Media action failed[" + request.action() + "]: " + e);
+            LOGGER.warn(MEDIA, "Media action failed[{}]", request.action(), e);
         }
         finally {
             result.complete(outcome);
@@ -251,7 +257,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
             }
         }
         catch (RuntimeException | LinkageError e) {
-            System.err.println("Media core refresh failed: " + e);
+            LOGGER.warn(MEDIA, "Media core refresh failed", e);
             invalidateCoreSafely();
         }
     }
@@ -272,7 +278,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
             }
         }
         catch (RuntimeException | LinkageError e) {
-            System.err.println("Media enrichment refresh failed: " + e);
+            LOGGER.warn(MEDIA, "Media enrichment refresh failed", e);
             invalidateEnrichmentSafely();
         }
     }
@@ -282,7 +288,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
             return MediaSample.observed(Objects.requireNonNull(supplier.get(), label), clock);
         }
         catch (RuntimeException | LinkageError e) {
-            System.err.println("Media provider read failed [" +  label + "]: " + e);
+            LOGGER.warn(MEDIA, "Media provider read failed [{}]", label, e);
             return prior.asFailed();
         }
     }
@@ -335,7 +341,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
             provider.close();
         }
         catch (Exception | LinkageError e) {
-            System.err.println("Unable to close " + label + ": " + e);
+            LOGGER.warn(MEDIA, "Unable to close {}", label, e);
         }
     }
 

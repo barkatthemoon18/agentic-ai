@@ -14,15 +14,20 @@ import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Set;
 
+import static com.fuad.logging.LogCategory.EVALUATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("model-evaluation")
 class LocalGeneralComplexityClassifierCorpusTest {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LocalGeneralComplexityClassifierCorpusTest.class);
+
     private static final List<String> LABELS = List.of("qwen_local", "gpt");
 
     @Test
@@ -39,7 +44,7 @@ class LocalGeneralComplexityClassifierCorpusTest {
                 LABELS, testCase -> classify(classifier, testCase.query()));
         String formatted = report.format("General backend corpus evaluation",
                 "model=" + model + " corpus=" + corpus);
-        System.out.println(formatted);
+        LOGGER.info(EVALUATION, "{}", formatted);
         if (!Boolean.getBoolean("evaluation.report-only")) {
             assertEquals(0, report.errorCount(), formatted);
             assertTrue(report.macroF1() >= Double.parseDouble(System.getProperty(

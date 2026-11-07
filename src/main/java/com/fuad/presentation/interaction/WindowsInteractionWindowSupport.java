@@ -6,6 +6,8 @@ import com.sun.jna.Pointer;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef;
 import com.sun.jna.ptr.IntByReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +15,11 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import static com.fuad.logging.LogCategory.INTERACTION;
+
 final class WindowsInteractionWindowSupport {
+    private static final Logger LOGGER = LoggerFactory.getLogger(WindowsInteractionWindowSupport.class);
+
     private static final int GWL_EXSTYLE = -20;
     private static final int WS_EX_NOACTIVATE = 0x08000000;
 
@@ -22,7 +28,7 @@ final class WindowsInteractionWindowSupport {
 
     static WindowsInteractionWindowSupport platformDefault() {
         Consumer<String> diagnostics = message ->
-                System.err.println("Interaction window: " + message);
+                LOGGER.warn(INTERACTION, "Interaction window: {}", message);
         if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")) {
             return new WindowsInteractionWindowSupport(null, diagnostics);
         }

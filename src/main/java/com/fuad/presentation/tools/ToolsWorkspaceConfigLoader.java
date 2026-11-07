@@ -1,13 +1,19 @@
 package com.fuad.presentation.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 
+import static com.fuad.logging.LogCategory.PRESENTATION;
+
 public final class ToolsWorkspaceConfigLoader {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ToolsWorkspaceConfigLoader.class);
+
     private final Path path;
     private final ObjectMapper objectMapper;
 
@@ -22,19 +28,19 @@ public final class ToolsWorkspaceConfigLoader {
 
     public ToolsWorkspaceConfig load() {
         if (!Files.isRegularFile(path)) {
-            System.err.println("Tools workspace config not found: " + path);
+            LOGGER.warn(PRESENTATION, "Tools workspace config not found: {}", path);
             return ToolsWorkspaceConfig.empty();
         }
         try {
             ToolsWorkspaceConfig config = objectMapper.readValue(path.toFile(), ToolsWorkspaceConfig.class);
             if (config == null) {
-                System.err.println("Invalid tools workspace config (JSON null): " + path);
+                LOGGER.warn(PRESENTATION, "Invalid tools workspace config (JSON null): {}", path);
                 return ToolsWorkspaceConfig.empty();
             }
             return config;
         }
         catch (IOException | RuntimeException e) {
-            System.err.println("Unable to load tools workspace config from: " + path + ": " + e.getMessage());
+            LOGGER.warn(PRESENTATION, "Unable to load tools workspace config from: {}", path, e);
             return ToolsWorkspaceConfig.empty();
         }
     }

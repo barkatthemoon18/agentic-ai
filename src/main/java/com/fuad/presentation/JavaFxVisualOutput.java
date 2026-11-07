@@ -20,6 +20,8 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URL;
 import java.time.LocalTime;
@@ -29,7 +31,11 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.fuad.logging.LogCategory.PRESENTATION;
+
 public class JavaFxVisualOutput implements VisualOutput {
+    private static final Logger LOGGER = LoggerFactory.getLogger(JavaFxVisualOutput.class);
+
     private static final double OVERLAY_WIDTH = 560.0;
     private static final double MINIMUM_HEIGHT = 132.0;
     private static final double SCREEN_MARGIN = 24.0;
@@ -253,7 +259,7 @@ public class JavaFxVisualOutput implements VisualOutput {
             ownerStage.show();
         }
         catch (RuntimeException e) {
-            System.err.println("Unable to materialize JavaFX overlay owner: " + e.getMessage());
+            LOGGER.warn(PRESENTATION, "Unable to materialize JavaFX overlay owner", e);
         }
         ownerSupport.configureAfterShow(ownerWindowTitle,
                 ProcessHandle.current().pid(), previousForegroundWindow);
@@ -633,7 +639,7 @@ public class JavaFxVisualOutput implements VisualOutput {
             }
         }
         catch (Exception e) {
-            System.err.println("Unable to resolve pointer screen: " + e.getMessage());
+            LOGGER.warn(PRESENTATION, "Unable to resolve pointer screen", e);
         }
         return Screen.getPrimary();
     }
