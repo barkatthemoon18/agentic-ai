@@ -2,13 +2,13 @@ package com.fuad.media.context;
 
 import com.fuad.audio.output.AudioOutputProvider;
 import com.fuad.audio.output.AudioOutputSnapshot;
+import com.fuad.audio.output.AudioReservation;
+import com.fuad.audio.output.MediaContextAudioReservationDetector;
 import com.fuad.media.MediaPlaybackState;
 import com.fuad.media.MediaSessionProvider;
 import com.fuad.media.MediaSessionSnapshot;
 import com.fuad.media.MediaTrack;
-import com.fuad.media.control.MediaAction;
-import com.fuad.media.control.MediaActionResult;
-import com.fuad.media.control.MediaActionStatus;
+import com.fuad.media.control.*;
 import com.fuad.media.enrichment.MediaEnrichmentProvider;
 import com.fuad.media.enrichment.MediaEnrichmentSnapshot;
 import com.fuad.platform.windows.process.ProcessInventorySnapshot;
@@ -159,6 +159,259 @@ class MediaContextServiceTest {
         assertFalse(failedSnapshot.tidalEnrichment().readSucceeded());
         // Audio continues working
         assertTrue(failedSnapshot.audioOutput().readSucceeded());
+    }
+
+    // 1. Una lectura de sesiones falla -> Se invalida solo su muestra
+    @Test
+    void sessionReadFailureShouldInvalidateOnlyItsSample() throws Exception {
+        MediaTrack track = new MediaTrack("Song", "Artist", "Album", 180);
+        MediaSessionSnapshot okSession = new MediaSessionSnapshot(true, "TIDAL", Optional.of(track), 10.0, MediaPlaybackState.PLAYING);
+        AudioOutputSnapshot okAudio = new AudioOutputSnapshot(true, "dev-1", "Speakers", OptionalDouble.of(0.8), false);
+        MediaEnrichmentSnapshot okEnrichment = new MediaEnrichmentSnapshot("HI_RES_LOSSLESS", List.of());
+
+        when(sessions.current()).thenReturn(okSession);
+        when(sessions.playbackState("TIDAL")).thenReturn(Optional.of(MediaPlaybackState.PLAYING));
+        when(audio.current()).thenReturn(okAudio);
+        when(enrichment.current()).thenReturn(okEnrichment);
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.RUNNING);
+        service.start();
+
+        until(() -> service.current().activeSession().readSucceeded()
+                && service.current().audioOutput().readSucceeded()
+                && service.current().tidalProcess().readSucceeded());
+
+        // Now session read fails, but other providers continue functioning
+        when(sessions.current()).thenThrow(new RuntimeException("Session IPC failed"));
+
+        until(() -> !service.current().activeSession().readSucceeded());
+
+        MediaContextSnapshot snapshot = service.current();
+        // Only active session sample is invalidated
+        assertFalse(snapshot.activeSession().readSucceeded());
+        assertEquals("TIDAL", snapshot.activeSession().value().sourceApplication());
+
+        // Other samples remain valid
+        assertTrue(snapshot.audioOutput().readSucceeded());
+        assertTrue(snapshot.tidalProcess().readSucceeded());
+        assertTrue(snapshot.tidalPlayback().readSucceeded());
+        assertTrue(snapshot.tidalEnrichment().readSucceeded());
+    }
+
+    // 2. Falla el enriquecimiento TIDAL -> No afecta el inventario de procesos ni TTS
+    @Test
+    void tidalEnrichmentFailureShouldNotAffectProcessInventoryOrTts() throws Exception {
+        Clock fixedClock = Clock.fixed(Instant.parse("2026-11-06T12:00:00Z"), ZoneOffset.UTC);
+        AudioOutputSnapshot okAudio = new AudioOutputSnapshot(true, "dev-1", "Speakers", OptionalDouble.of(0.5), false);
+
+        when(sessions.current()).thenReturn(MediaSessionSnapshot.unavailable());
+        when(sessions.playbackState(anyString())).thenReturn(Optional.of(MediaPlaybackState.PAUSED));
+        when(audio.current()).thenReturn(okAudio);
+        when(enrichment.current()).thenThrow(new RuntimeException("TIDAL enrichment service unavailable"));
+
+        service = new MediaContextService(sessions, audio, enrichment, fixedClock, () -> ProcessPresence.NOT_RUNNING);
+        MediaContextAudioReservationDetector detector = new MediaContextAudioReservationDetector(service, fixedClock);
+        service.start();
+
+        until(() -> service.current().tidalProcess().readSucceeded()
+                && !service.current().tidalEnrichment().readSucceeded());
+
+        MediaContextSnapshot snapshot = service.current();
+        // Enrichment failed
+        assertFalse(snapshot.tidalEnrichment().readSucceeded());
+
+        // Process inventory is NOT affected
+        assertTrue(snapshot.tidalProcess().readSucceeded());
+        assertEquals(ProcessPresence.NOT_RUNNING, snapshot.tidalProcess().value());
+
+        // TTS is NOT blocked (audio output is available for TTS)
+        assertFalse(detector.isOutputReserved());
+        assertEquals(AudioReservation.AVAILABLE, detector.reservation());
+    }
+
+    // 3. El proceso TIDAL deja de detectarse de forma fiable -> TTS permanece bloqueado
+    @Test
+    void unreliableTidalProcessDetectionShouldKeepTtsBlockedWhenPresenceUnknownOrProbeFails() throws Exception {
+        Clock fixedClock = Clock.fixed(Instant.parse("2026-11-06T12:00:00Z"), ZoneOffset.UTC);
+        AtomicReference<ProcessPresence> presenceRef = new AtomicReference<>(ProcessPresence.UNKNOWN);
+
+        when(sessions.current()).thenReturn(MediaSessionSnapshot.unavailable());
+        when(sessions.playbackState(anyString())).thenReturn(Optional.empty());
+        when(audio.current()).thenReturn(AudioOutputSnapshot.unavailable());
+        when(enrichment.current()).thenReturn(MediaEnrichmentSnapshot.unavailable());
+
+        service = new MediaContextService(sessions, audio, enrichment, fixedClock, presenceRef::get);
+        MediaContextAudioReservationDetector detector = new MediaContextAudioReservationDetector(service, fixedClock);
+        service.start();
+
+        until(() -> service.current().tidalProcess().readSucceeded());
+
+        // Presence is UNKNOWN -> TTS remains blocked
+        assertEquals(ProcessPresence.UNKNOWN, service.current().tidalProcess().value());
+        assertTrue(detector.isOutputReserved());
+        assertEquals(AudioReservation.UNKNOWN, detector.reservation());
+
+        // When probe throws / fails to detect reliably -> sample failed -> TTS remains blocked
+        service.close();
+        service = new MediaContextService(sessions, audio, enrichment, fixedClock, () -> {
+            throw new RuntimeException("Process scan failed");
+        });
+        MediaContextAudioReservationDetector failedDetector = new MediaContextAudioReservationDetector(service, fixedClock);
+        service.start();
+
+        until(() -> !service.current().tidalProcess().readSucceeded());
+        assertTrue(failedDetector.isOutputReserved());
+        assertEquals(AudioReservation.UNKNOWN, failedDetector.reservation());
+    }
+
+    // 4. Un comando se cancela mientras está encolado -> No llega al provider
+    @Test
+    void commandCancelledWhileQueuedShouldNotReachProvider() throws Exception {
+        CountDownLatch firstRunning = new CountDownLatch(1);
+        CountDownLatch letFirstProceed = new CountDownLatch(1);
+
+        when(sessions.playPause()).thenAnswer(invocation -> {
+            firstRunning.countDown();
+            letFirstProceed.await(5, TimeUnit.SECONDS);
+            return true;
+        });
+        when(sessions.current()).thenReturn(MediaSessionSnapshot.unavailable());
+        when(sessions.playbackState(anyString())).thenReturn(Optional.empty());
+        when(audio.current()).thenReturn(AudioOutputSnapshot.unavailable());
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.UNKNOWN);
+
+        // Occupy coreExecutor with the first command
+        service.executeAsync(MediaAction.PLAY_PAUSE);
+        assertTrue(firstRunning.await(5, TimeUnit.SECONDS));
+
+        // Submit second command while coreExecutor is busy
+        CompletableFuture<MediaActionResult> queuedFuture =
+                service.executeAsync(MediaAction.NEXT).toCompletableFuture();
+
+        // Cancel the second command while it's waiting in the queue
+        queuedFuture.cancel(true);
+
+        // Allow the first command to finish so coreExecutor picks up the second task
+        letFirstProceed.countDown();
+
+        // Wait for queue processing
+        Thread.sleep(150);
+
+        // The second command was cancelled before runAction started, so it never reaches provider
+        verify(sessions, never()).next();
+        assertTrue(queuedFuture.isCancelled());
+    }
+
+    // 5. La sesión activa cambia entre dos comandos -> Cada comando resuelve la sesión vigente
+    @Test
+    void activeSessionChangesBetweenCommandsShouldResolveCurrentSessionForEachCommand() throws Exception {
+        when(sessions.current()).thenReturn(MediaSessionSnapshot.unavailable());
+        when(sessions.playbackState(anyString())).thenReturn(Optional.empty());
+        when(audio.current()).thenReturn(AudioOutputSnapshot.unavailable());
+
+        when(sessions.next()).thenReturn(true);
+        when(sessions.previous()).thenReturn(true);
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.UNKNOWN);
+
+        MediaActionResult first = service.executeAsync(MediaAction.NEXT).toCompletableFuture().get(3, TimeUnit.SECONDS);
+        MediaActionResult second = service.executeAsync(MediaAction.PREVIOUS).toCompletableFuture().get(3, TimeUnit.SECONDS);
+
+        assertEquals(MediaActionStatus.ACKNOWLEDGED, first.status());
+        assertEquals(MediaActionStatus.ACKNOWLEDGED, second.status());
+        verify(sessions).next();
+        verify(sessions).previous();
+    }
+
+    // 6. Una aplicación desaparece antes de ejecutar -> REJECTED
+    @Test
+    void applicationDisappearingBeforeExecutionShouldReturnRejected() throws Exception {
+        when(sessions.current()).thenReturn(MediaSessionSnapshot.unavailable());
+        when(sessions.playbackState(anyString())).thenReturn(Optional.empty());
+        when(audio.current()).thenReturn(AudioOutputSnapshot.unavailable());
+
+        MediaControlRequest request = MediaControlRequest.application(MediaAction.PAUSE, "Spotify");
+        // Application disappeared before execution -> session cannot be resolved -> provider returns false
+        when(sessions.execute(request)).thenReturn(false);
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.UNKNOWN);
+
+        MediaActionResult result = service.executeAsync(request).toCompletableFuture().get(3, TimeUnit.SECONDS);
+
+        assertEquals(MediaActionStatus.REJECTED, result.status());
+        assertEquals(MediaAction.PAUSE, result.action());
+        assertFalse(result.successful());
+    }
+
+    // 7. Dos sesiones coinciden con el mismo destino -> REJECTED
+    @Test
+    void twoSessionsMatchingSameDestinationShouldReturnRejected() throws Exception {
+        when(sessions.current()).thenReturn(MediaSessionSnapshot.unavailable());
+        when(sessions.playbackState(anyString())).thenReturn(Optional.empty());
+        when(audio.current()).thenReturn(AudioOutputSnapshot.unavailable());
+
+        MediaControlRequest request = MediaControlRequest.application(MediaAction.PAUSE, "TIDAL");
+        // Ambiguous destination matches multiple sessions -> provider returns false
+        when(sessions.execute(request)).thenReturn(false);
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.UNKNOWN);
+
+        MediaActionResult result = service.executeAsync(request).toCompletableFuture().get(3, TimeUnit.SECONDS);
+
+        assertEquals(MediaActionStatus.REJECTED, result.status());
+        assertEquals(MediaAction.PAUSE, result.action());
+        assertFalse(result.successful());
+    }
+
+    // 8. Se cierra ARES con comandos pendientes -> Los pendientes terminan como CLOSED
+    @Test
+    void closingAresWithPendingCommandsShouldCompleteThemAsClosed() throws Exception {
+        CountDownLatch workerHolding = new CountDownLatch(1);
+        CountDownLatch letWorkerFinish = new CountDownLatch(1);
+
+        when(sessions.playPause()).thenAnswer(invocation -> {
+            workerHolding.countDown();
+            letWorkerFinish.await(5, TimeUnit.SECONDS);
+            return true;
+        });
+        when(sessions.current()).thenReturn(MediaSessionSnapshot.unavailable());
+        when(sessions.playbackState(anyString())).thenReturn(Optional.empty());
+        when(audio.current()).thenReturn(AudioOutputSnapshot.unavailable());
+
+        service = new MediaContextService(sessions, audio, enrichment, Clock.systemUTC(), () -> ProcessPresence.UNKNOWN);
+
+        // Occupy worker
+        service.executeAsync(MediaAction.PLAY_PAUSE);
+        assertTrue(workerHolding.await(5, TimeUnit.SECONDS));
+
+        // Submit pending commands while worker is busy
+        CompletableFuture<MediaActionResult> pending1 =
+                service.executeAsync(MediaAction.NEXT).toCompletableFuture();
+        CompletableFuture<MediaActionResult> pending2 =
+                service.executeAsync(MediaControlRequest.application(MediaAction.PREVIOUS, "Spotify")).toCompletableFuture();
+
+        // Close service while commands are pending
+        CompletableFuture<Void> closeFuture = CompletableFuture.runAsync(() -> {
+            try {
+                service.close();
+            }
+            catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // Pending commands must complete as CLOSED
+        MediaActionResult result1 = pending1.get(3, TimeUnit.SECONDS);
+        MediaActionResult result2 = pending2.get(3, TimeUnit.SECONDS);
+
+        assertEquals(MediaActionStatus.CLOSED, result1.status());
+        assertEquals(MediaAction.NEXT, result1.action());
+        assertEquals(MediaActionStatus.CLOSED, result2.status());
+        assertEquals(MediaAction.PREVIOUS, result2.action());
+
+        letWorkerFinish.countDown();
+        closeFuture.get(5, TimeUnit.SECONDS);
     }
 
     @Test

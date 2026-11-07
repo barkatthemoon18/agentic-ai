@@ -192,6 +192,9 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
         MediaActionResult outcome;
         boolean acknowledged;
 
+        if (result.isDone()) {
+            return;
+        }
         if (closed.get()) {
             result.complete(new MediaActionResult(request.action(), MediaActionStatus.CLOSED));
             return;
@@ -249,6 +252,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
         }
         catch (RuntimeException | LinkageError e) {
             System.err.println("Media core refresh failed: " + e);
+            invalidateCoreSafely();
         }
     }
 
@@ -269,6 +273,7 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
         }
         catch (RuntimeException | LinkageError e) {
             System.err.println("Media enrichment refresh failed: " + e);
+            invalidateEnrichmentSafely();
         }
     }
 
@@ -289,6 +294,28 @@ public final class MediaContextService implements MediaContextProvider, MediaAct
             return prior;
         nextProcessRefreshNanos = now + PROCESS_REFRESH_NANOS;
         return read(processProbe, prior, "TIDAL process");
+    }
+
+    private void invalidateCoreSafely() {
+        synchronized (lifecycleLock) {
+            if (closed.get()) {
+                return;
+            }
+            current.updateAndGet(latest -> new MediaContextSnapshot(latest.activeSession().asFailed(),
+                    latest.tidalPlayback().asFailed(), latest.tidalEnrichment(), latest.audioOutput().asFailed(),
+                    latest.tidalProcess().asFailed()));
+        }
+    }
+
+    private void invalidateEnrichmentSafely() {
+        synchronized (lifecycleLock) {
+            if (closed.get()) {
+                return;
+            }
+            current.updateAndGet(latest -> new MediaContextSnapshot(latest.activeSession(),
+                    latest.tidalPlayback(), latest.tidalEnrichment().asFailed(), latest.audioOutput(),
+                    latest.tidalProcess()));
+        }
     }
 
     private static boolean awaitRemaining(ExecutorService executor, long until) throws InterruptedException {

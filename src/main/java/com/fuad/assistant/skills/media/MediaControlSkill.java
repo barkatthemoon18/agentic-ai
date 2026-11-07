@@ -6,10 +6,7 @@ import com.fuad.media.control.*;
 
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
 public final class MediaControlSkill implements Skill {
     private final MediaControlParser parser;
@@ -29,6 +26,7 @@ public final class MediaControlSkill implements Skill {
 
     @Override
     public AssistantResult execute(String command) {
+        CompletableFuture<MediaActionResult> pending = null;
         MediaControlIntent intent = Objects.requireNonNull(parser.parse(command), "parser result cannot be null");
 
         MediaAction action = switch (intent) {
@@ -50,6 +48,7 @@ public final class MediaControlSkill implements Skill {
             MediaTarget target = resolvedTarget.orElseThrow();
             CompletionStage<MediaActionResult> execution = target instanceof MediaTarget.Active ?
                     mediaActionExecutor.executeAsync(action) : mediaActionExecutor.executeAsync(new MediaControlRequest(action, target));
+            pending = execution.toCompletableFuture();
             MediaActionResult result = execution.toCompletableFuture().get(2, TimeUnit.SECONDS);
             return switch (result.status()) {
                 case ACKNOWLEDGED -> successResponse(intent);
@@ -59,6 +58,7 @@ public final class MediaControlSkill implements Skill {
             };
         }
         catch (TimeoutException e) {
+            pending.cancel(false);
             return new AssistantResult("No pude confirmar el resultado del comando");
         }
         catch (InterruptedException e) {

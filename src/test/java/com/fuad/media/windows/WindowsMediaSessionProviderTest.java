@@ -162,6 +162,16 @@ class WindowsMediaSessionProviderTest {
     }
 
     @Test
+    void targetedCommandWhenApplicationDisappearedShouldReturnFalse() {
+        when(system.getAllSessions()).thenReturn(List.of());
+        WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
+
+        boolean executed = provider.execute(MediaControlRequest.application(MediaAction.PAUSE, "Spotify"));
+
+        assertFalse(executed);
+    }
+
+    @Test
     void executeShouldRejectNullRequest() {
         WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
         assertThrows(NullPointerException.class, () -> provider.execute(null));
@@ -176,6 +186,22 @@ class WindowsMediaSessionProviderTest {
 
         assertTrue(provider.execute(MediaControlRequest.active(MediaAction.NEXT)));
         verify(session.getControls()).next();
+    }
+
+    @Test
+    void activeTargetExecutionShouldResolveTheActiveSessionForEachCommand() {
+        MediaSession spotify = session("Spotify", PlaybackState.PLAYING);
+        MediaSession tidal = session("TIDAL", PlaybackState.PLAYING);
+        when(system.getActiveSession()).thenReturn(Optional.of(spotify), Optional.of(tidal));
+        when(spotify.getControls().next()).thenReturn(true);
+        when(tidal.getControls().next()).thenReturn(true);
+        WindowsMediaSessionProvider provider = new WindowsMediaSessionProvider(system);
+
+        assertTrue(provider.execute(MediaControlRequest.active(MediaAction.NEXT)));
+        assertTrue(provider.execute(MediaControlRequest.active(MediaAction.NEXT)));
+
+        verify(spotify.getControls()).next();
+        verify(tidal.getControls()).next();
     }
 
     @Test
