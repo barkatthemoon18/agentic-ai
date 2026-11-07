@@ -1,7 +1,7 @@
 package com.fuad.presentation;
 
 import com.fuad.audio.*;
-import com.fuad.audio.output.MediaExclusiveAudioDetector;
+import com.fuad.audio.output.AudioReservationDetector;
 import com.fuad.config.AppConfig;
 import com.fuad.pipeline.AudioPipeline;
 import com.fuad.tts.piper.PiperClient;
@@ -31,7 +31,7 @@ public final class JavaFxVisualOutputDemo {
             AudioPipeline audio = new AudioPipeline(new PiperTtsEngine(client),
                     new AudioPlaybackService(), output, controller);
             try (JavaFxVisualOutput visual = new JavaFxVisualOutput(null, null, null, null, false)) {
-                AssistantOutputCoordinator coordinator = new AssistantOutputCoordinator(controller, policy, audio, visual, new MediaExclusiveAudioDetector());
+                AssistantOutputCoordinator coordinator = new AssistantOutputCoordinator(controller, policy, audio, visual, () -> false);
                 runMenu(controller, policy, coordinator, visual);
             }
         }

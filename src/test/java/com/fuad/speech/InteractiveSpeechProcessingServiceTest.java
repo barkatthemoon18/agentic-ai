@@ -10,7 +10,7 @@ import com.fuad.assistant.session.ConversationSession;
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.audio.AudioDeviceInfo;
 import com.fuad.audio.AudioPlaybackService;
-import com.fuad.audio.output.MediaExclusiveAudioDetector;
+import com.fuad.audio.output.AudioReservationDetector;
 import com.fuad.activation.ActivationType;
 import com.fuad.enums.Capability;
 import com.fuad.interaction.*;
@@ -69,7 +69,7 @@ class InteractiveSpeechProcessingServiceTest {
         AudioPipeline audio = audioPipeline(audioController);
         TrackingVisualOutput visual = new TrackingVisualOutput();
         AssistantOutputCoordinator output = new AssistantOutputCoordinator(audioController,
-                new OutputPresentationPolicy(20), audio, visual, mock(MediaExclusiveAudioDetector.class));
+                new OutputPresentationPolicy(20), audio, visual, mock(AudioReservationDetector.class));
         SttEngine stt = new SttEngine() {
             @Override
             public TranscriptionResult transcribe(SpeechSegment segment) {

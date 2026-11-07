@@ -19,7 +19,7 @@ import com.fuad.assistant.skills.media.LocalMediaControlParser;
 import com.fuad.assistant.skills.media.MediaControlSkill;
 import com.fuad.audio.AssistantAudioController;
 import com.fuad.audio.AudioPlaybackService;
-import com.fuad.audio.output.MediaExclusiveAudioDetector;
+import com.fuad.audio.output.AudioReservationDetector;
 import com.fuad.activation.ActivationType;
 import com.fuad.enums.Capability;
 import com.fuad.pipeline.ConversationPolicy;
@@ -708,7 +708,7 @@ class SpeechProcessingServiceTest {
                 new AssistantPipeline(staticRouter(Capability.GENERAL, cmd -> new AssistantResult("ok"))),
                 ignored -> ActivationResult.none(), new ConversationSession(), audio, valid(true),
                 request -> UtteranceDecision.OTHER,
-                new AssistantOutputCoordinator(controller, new OutputPresentationPolicy(20), audio, visual, org.mockito.Mockito.mock(MediaExclusiveAudioDetector.class)));
+                new AssistantOutputCoordinator(controller, new OutputPresentationPolicy(20), audio, visual, org.mockito.Mockito.mock(AudioReservationDetector.class)));
         service.close();
 
         assertDoesNotThrow(() -> service.onSpeechSegment(segment));
@@ -757,7 +757,7 @@ class SpeechProcessingServiceTest {
                 new VisualOutput() {
                     @Override public void show(VisualMessage visualMessage) { }
                     @Override public void hide() { }
-                }, org.mockito.Mockito.mock(MediaExclusiveAudioDetector.class));
+                }, org.mockito.Mockito.mock(AudioReservationDetector.class));
     }
 
     private SttEngine stt(java.util.function.Function<SpeechSegment, TranscriptionResult> function) {
