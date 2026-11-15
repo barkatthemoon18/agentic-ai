@@ -76,19 +76,41 @@ class MediaCommandTargetResolverTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
+            "Siguiente canción",
             "Pausa la música",
-            "Pausa la canción",
             "Pon en pausa la reproducción",
             "Continúa la música",
+            "Vuelve atrás"
+    })
+    void safeGenericCommandsShouldUseActiveSession(String command) {
+        assertEquals(Optional.of(MediaTarget.active()), resolver.resolve(command));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Pausa la canción",
             "Sigue reproduciendo la música",
             "Reanuda la pista",
-            "Siguiente canción",
             "Canción anterior",
             "Ponlo en pausa",
             "Dale de nuevo"
     })
     void genericCommandsShouldAddressActiveSession(String command) {
         assertEquals(Optional.of(MediaTarget.active()), resolver.resolve(command));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Cambia la canción en Studio One",
+            "Siguiente canción en Studio One",
+            "Pausa Studio One",
+            "Pausa la música en Apple Music",
+            "Siguiente canción en Deezer",
+            "Pausa Spotify en TIDAL",
+            "Pausa la música en Spotify y TIDAL"
+    })
+    void unsupportedOrAmbiguousTargetsShouldBeRejected(String command) {
+        assertTrue(resolver.resolve(command).isEmpty());
     }
 
     @ParameterizedTest

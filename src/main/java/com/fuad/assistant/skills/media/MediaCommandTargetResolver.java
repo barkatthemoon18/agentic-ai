@@ -4,6 +4,7 @@ import com.fuad.media.control.MediaCommandNormalizer;
 import com.fuad.media.control.MediaControlCommandDetector;
 import com.fuad.media.control.MediaTarget;
 
+import javax.print.attribute.standard.Media;
 import java.text.Normalizer;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -16,6 +17,8 @@ public final class MediaCommandTargetResolver {
     private static final Set<String> GENERIC_OBJECTS = Set.of(
             "musica", "cancion", "pista",
             "tema", "reproduccion", "audio");
+    private static final Set<String> SAFE_GENERIC_ALIASES = Set.of("vuelve atras", "pon la siguiente", "pon la anterior",
+            "siguiente", "anterior", "continua");
     private static final Pattern UNSUPPORTED_SEPARATORS = Pattern.compile("[,;:!?]");
     private static final Pattern UNSAFE_CONTEXT = Pattern.compile(
             "\\b(?:no|nunca|jamas|cuando|si|salvo|pero"
@@ -25,16 +28,8 @@ public final class MediaCommandTargetResolver {
     private static final Pattern DIRECT = Pattern.compile(
             "^(?:pausa|reanuda|continua|pon en pausa"
                     + "|sigue reproduciendo)\\s+([a-z][a-z0-9._-]*)$");
-    private static final Pattern SCOPED = Pattern.compile(
-            "^(.+)\\s+(?:en|de|del|desde|para|con|usando)"
-                    + "\\s+([a-z][a-z0-9._-]*)$");
-    private static final Pattern DIRECT_VERB = Pattern.compile(
-            "^(?:pausa|reanuda|continua|pon en pausa"
-                    + "|sigue reproduciendo)\\s+.+$");
-    private static final Pattern EXTRA_TRACK_TARGET = Pattern.compile(
-            ".*\\b(?:cancion|pista|tema)\\s+"
-                    + "(?!anterior$|siguiente$|actual$)"
-                    + "[a-z][a-z0-9._-]*$");
+    private static final Pattern EXPLICIT_SCOPED = Pattern.compile(
+            "^(.+)\\s+(?:en|de|del|desde|para|con|usando)\\s+(.+)$");
     private final MediaControlCommandDetector actionDetector;
 
     public MediaCommandTargetResolver() {
@@ -53,15 +48,6 @@ public final class MediaCommandTargetResolver {
         if (normalized.equalsIgnoreCase("ponlo en pausa") || normalized.equalsIgnoreCase("dale de nuevo")) {
             return Optional.of(MediaTarget.active());
         }
-        var scoped = SCOPED.matcher(normalized);
-        if (scoped.matches()) {
-            String baseCommand = scoped.group(1);
-            String player = canonicalPlayer(scoped.group(2));
-            if (player == null || KNOWN_MENTION.matcher(baseCommand).find() || actionDetector.detect(baseCommand).isEmpty()) {
-                return Optional.empty();
-            }
-            return Optional.of(MediaTarget.application(player));
-        }
         var direct = DIRECT.matcher(normalized);
         if (direct.matches()) {
             String object = direct.group(1);
@@ -71,16 +57,25 @@ public final class MediaCommandTargetResolver {
             }
             return GENERIC_OBJECTS.contains(object) ? Optional.of(MediaTarget.active()) : Optional.empty();
         }
+        String prefix = normalized.startsWith("pon en pausa ") ? "pon en pausa " : "";
+        String candidate = normalized.substring(prefix.length());
+        var scoped = EXPLICIT_SCOPED.matcher(candidate);
+        if (scoped.matches()) {
+            String baseCommand = prefix + scoped.group(1);
+            String destination = scoped.group(2);
+            String player = canonicalPlayer(destination);
+            if (player == null || KNOWN_MENTION.matcher(baseCommand).find() || actionDetector.detect(baseCommand).isEmpty()) {
+                return Optional.empty();
+            }
+            return Optional.of(MediaTarget.application(player));
+        }
         if (KNOWN_MENTION.matcher(normalized).find()) {
             return Optional.empty();
         }
-        if (DIRECT_VERB.matcher(normalized).matches() && actionDetector.detect(normalized).isEmpty()) {
-            return Optional.empty();
+        if (actionDetector.detect(normalized).isPresent() || SAFE_GENERIC_ALIASES.contains(normalized)) {
+            return Optional.of(MediaTarget.active());
         }
-        if (EXTRA_TRACK_TARGET.matcher(normalized).matches() && actionDetector.detect(normalized).isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(MediaTarget.active());
+        return Optional.empty();
     }
 
     private static String canonicalPlayer(String value) {
