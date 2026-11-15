@@ -1,12 +1,18 @@
 package com.fuad.assistant.skills.os;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static com.fuad.logging.LogCategory.OS;
+
 public class ApplicationAliasConfigLoader {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ApplicationAliasConfigLoader.class);
+
     private final Path path;
     private final ObjectMapper objectMapper;
 
@@ -25,7 +31,7 @@ public class ApplicationAliasConfigLoader {
             return objectMapper.readValue(path.toFile(), ApplicationAliasConfig.class);
         }
         catch (IOException e) {
-            System.err.println("Unable to load application aliases from " + path + ": " + e.getMessage());
+            LOGGER.warn(OS, "Unable to load application aliases from {}", path, e);
             return ApplicationAliasConfig.empty();
         }
     }

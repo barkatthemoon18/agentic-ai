@@ -21,12 +21,18 @@ import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
 import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.fuad.logging.LogCategory.AUDIO;
+
 public final class WindowsAudioOutputProvider implements AudioOutputProvider {
+    private static final Logger LOGGER = LoggerFactory.getLogger(WindowsAudioOutputProvider.class);
+
     private static final CLSID CLSID_MMDEVICE_ENUMERATOR = new CLSID("BCDE0395-E52F-467C-8E3D-C4579291692E");
     private static final IID IID_IMMDEVICE_ENUMERATOR = new IID("A95664D2-9614-4F35-A746-DE8DB63617E6");
     private static final IID IID_IAUDIO_ENDPOINT_VOLUME = new IID("5CDF2C82-841E-4546-9722-0CF74078229A");
@@ -64,7 +70,7 @@ public final class WindowsAudioOutputProvider implements AudioOutputProvider {
             return readSnapshot();
         }
         catch (RuntimeException | LinkageError e) {
-            System.err.println("WINDOWS AUDIO OUTPUT -> unavailable" + e.getMessage());
+            LOGGER.warn(AUDIO, "WINDOWS AUDIO OUTPUT -> unavailable", e);
             return AudioOutputSnapshot.unavailable();
         }
         finally {
@@ -87,9 +93,9 @@ public final class WindowsAudioOutputProvider implements AudioOutputProvider {
             }
             VolumeInfo volume = readVolumeInfo(device);
             if (showInfo.compareAndSet(false, true)) {
-                System.out.println("[AUDIO OUTPUT] device=" + deviceName + " | endpoint=" + endpointId + " | hardwareVolume="
-                        + volume.hardwareVolumeSupported() + " | volume=" + (volume.volume().isPresent() ?
-                        volume.volume().getAsDouble() : "N/A"));
+                LOGGER.info(AUDIO, "Output device={} | endpoint={} | hardwareVolume={} | volume={}",
+                        deviceName, endpointId, volume.hardwareVolumeSupported(),
+                        (volume.volume().isPresent() ? volume.volume().getAsDouble() : "N/A"));
             }
             return new AudioOutputSnapshot(true, endpointId, deviceName, volume.volume(), volume.hardwareVolumeSupported());
         }

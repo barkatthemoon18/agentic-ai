@@ -3,12 +3,18 @@ package com.fuad.bootstrap;
 import com.fuad.model.runtime.LmStudioStartupCoordinator;
 import com.fuad.presentation.core.AssistantVisualStateStore;
 import com.fuad.presentation.core.RuntimeStatusCoordinator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static com.fuad.logging.LogCategory.APP;
+
 /** Composition root. Subsystems expose explicit dependencies rather than a global context. */
 public final class AresApplication {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AresApplication.class);
+
     private final AudioBootstrap audio;
     private final AssistantBootstrap assistant;
     private final MediaBootstrap media;
@@ -61,11 +67,10 @@ public final class AresApplication {
         }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            System.err.println("Ares interrupted");
+            LOGGER.warn(APP, "Ares interrupted");
         }
         catch (Exception e) {
-            System.out.println("Exception: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.error(APP, "Ares failed", e);
         }
     }
 }

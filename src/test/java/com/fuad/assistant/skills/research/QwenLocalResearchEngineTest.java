@@ -25,7 +25,7 @@ class QwenLocalResearchEngineTest {
                 new ResearchMessage(ResearchMessage.Role.USER, "pregunta anterior"),
                 new ResearchMessage(ResearchMessage.Role.ASSISTANT, "respuesta anterior"));
         ResearchRequest request = new ResearchRequest(
-                "pregunta actual", "instrucciones", 500, ResearchDepth.QUICK,
+                "pregunta actual", "instrucciones", 500, ResearchAccess.MODEL_KNOWLEDGE, ResearchDepth.QUICK,
                 new ResearchBranchState(null, previous));
 
         ResearchEngineResult result = engine.research(request);

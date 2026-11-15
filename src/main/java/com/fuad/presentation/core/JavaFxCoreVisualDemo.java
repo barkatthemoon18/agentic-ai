@@ -6,27 +6,33 @@ import com.fuad.telemetry.gpu.nvidia.NvidiaGpuTelemetryProvider;
 import com.fuad.telemetry.host.oshi.OshiHostTelemetryProvider;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Control;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.Scanner;
 
+import static com.fuad.logging.LogCategory.PRESENTATION;
+
 public class JavaFxCoreVisualDemo {
+    private static final Logger LOGGER = LoggerFactory.getLogger(JavaFxCoreVisualDemo.class);
+
     public static void main(String[] args) throws Exception {
-        System.out.println("Application:");
-        System.out.println(JavaFxCoreVisualDemo.class.getModule());
+        LOGGER.info(PRESENTATION, "Application:");
+        LOGGER.info(PRESENTATION, "{}", JavaFxCoreVisualDemo.class.getModule());
 
-        System.out.println("JavaFX Control:");
-        System.out.println(Control.class.getModule());
+        LOGGER.info(PRESENTATION, "JavaFX Control:");
+        LOGGER.info(PRESENTATION, "{}", Control.class.getModule());
 
-        System.out.println("JavaFX Graphics:");
-        System.out.println(Canvas.class.getModule());
+        LOGGER.info(PRESENTATION, "JavaFX Graphics:");
+        LOGGER.info(PRESENTATION, "{}", Canvas.class.getModule());
 
         var displayResolver = DefaultInteractionDisplayResolver.platformDefault(Path.of("config", "interaction-display.json"));
         try (JavaFxRuntime runtime = new JavaFxRuntime(); JavaFxCoreVisual visual = new JavaFxCoreVisual(runtime, displayResolver);
              RealCoreVisualSource source = new RealCoreVisualSource(new OshiHostTelemetryProvider(), new NvidiaGpuTelemetryProvider(), new RuntimeStatusCoordinator(), new AssistantVisualStateStore())) {
             visual.show();
             source.start(visual::update);
-            System.out.println("""
+            LOGGER.info(PRESENTATION, """
                     
                     ARES // CORE VISUAL DEMO
                     

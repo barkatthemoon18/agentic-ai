@@ -4,6 +4,9 @@ import com.fuad.config.AppConfig;
 import com.fuad.pipeline.OsAction;
 import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Objects;
@@ -11,7 +14,11 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.fuad.logging.LogCategory.OS;
+
 public class LocalOsCommandParser implements OsCommandParser {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LocalOsCommandParser.class);
+
     private static final Pattern OUTPUT = Pattern.compile(
             "^(open_application|close_application|focus_application|list_applications"
                     + "|list_running_applications|check_application_installed|get_application_status|unsupported)\\|(.+)$");
@@ -75,12 +82,12 @@ public class LocalOsCommandParser implements OsCommandParser {
             return new OsCommandIntent(OsAction.LIST_RUNNING_APPLICATIONS, "");
         }
         Optional<String> firstOutput = inference.infer(request(query, false, null));
-        System.out.println("OS PARSER RAW ->" + firstOutput.orElse("<empty>"));
+        LOGGER.debug(OS, "OS PARSER RAW ->{}", firstOutput.orElse("<empty>"));
         try {
             return parseOutput(requiredOutput(firstOutput));
         }
         catch (IllegalStateException firstInvalid) {
-            System.err.println("Invalid OS command output; retrying once: " + firstInvalid.getMessage());
+            LOGGER.warn(OS, "Invalid OS command output; retrying once", firstInvalid);
             String previousOutput = firstOutput.filter(value -> !value.isBlank()).orElse(null);
             Optional<String> retryOutput = inference.infer(request(query, true, previousOutput));
             try {

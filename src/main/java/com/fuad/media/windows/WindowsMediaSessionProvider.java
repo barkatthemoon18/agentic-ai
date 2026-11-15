@@ -4,14 +4,24 @@ import com.fuad.media.MediaPlaybackState;
 import com.fuad.media.MediaSessionProvider;
 import com.fuad.media.MediaSessionSnapshot;
 import com.fuad.media.MediaTrack;
+import com.fuad.media.control.MediaAction;
+import com.fuad.media.control.MediaControlRequest;
+import com.fuad.media.control.MediaTarget;
 import org.endlesssource.mediainterface.SystemMediaFactory;
 import org.endlesssource.mediainterface.api.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
+
+import static com.fuad.logging.LogCategory.MEDIA;
 
 public class WindowsMediaSessionProvider implements MediaSessionProvider {
+    private static final Map<String, String> SESSION_ALIASES = Map.of("com.squirrel.tidal.tidal", "tidal",
+            "spotifyab.spotifymusic_zpdnekdrzrea0!spotify", "spotify");
+    private static final Logger LOGGER = LoggerFactory.getLogger(WindowsMediaSessionProvider.class);
+
     private final SystemMediaInterface systemMediaInterface;
 
     public WindowsMediaSessionProvider() {
@@ -28,7 +38,7 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     @Override
     public Optional<MediaPlaybackState> playbackState(String applicationName) {
         if (applicationName == null || applicationName.isBlank()) {
-            System.out.println("applicationName must not be null or blank");
+            LOGGER.warn(MEDIA, "applicationName must not be null or blank");
             return Optional.empty();
         }
         var states = systemMediaInterface.getAllSessions().stream()
@@ -51,52 +61,46 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     }
 
     @Override
+    public boolean execute(MediaControlRequest request) {
+        Objects.requireNonNull(request);
+
+        return resolveSession(request.target()).map(session -> executeOnSession(session, request.action()))
+                .orElse(false);
+    }
+
+    @Override
     public MediaSessionSnapshot current() {
         return systemMediaInterface.getActiveSession().map(this::toSnapshot).orElseGet(MediaSessionSnapshot::unavailable);
     }
 
     @Override
     public boolean playPause() {
-        return activeControls().map(MediaTransportControls::togglePlayPause).orElse(false);
+        return execute(MediaControlRequest.active(MediaAction.PLAY_PAUSE));
     }
 
     @Override
     public boolean pause() {
-        return systemMediaInterface.getActiveSession()
-                .map(session -> switch (session.getControls().getPlaybackState()) {
-            case PLAYING -> session.getControls().togglePlayPause();
-            case PAUSED -> true;
-            case STOPPED, UNKNOWN -> false;
-        }).orElse(false);
+        return execute(MediaControlRequest.active(MediaAction.PAUSE));
     }
 
     @Override
     public boolean resume() {
-        return systemMediaInterface.getActiveSession()
-                .map(session -> switch (session.getControls().getPlaybackState()) {
-            case PLAYING -> true;
-            case PAUSED -> session.getControls().togglePlayPause();
-            case STOPPED, UNKNOWN -> false;
-        }).orElse(false);
+        return execute(MediaControlRequest.active(MediaAction.RESUME));
     }
 
     @Override
     public boolean next() {
-        return activeControls().map(MediaTransportControls::next).orElse(false);
+        return execute(MediaControlRequest.active(MediaAction.NEXT));
     }
 
     @Override
     public boolean previous() {
-        return activeControls().map(MediaTransportControls::previous).orElse(false);
+        return execute(MediaControlRequest.active(MediaAction.PREVIOUS));
     }
 
     @Override
     public void close() {
         systemMediaInterface.close();
-    }
-
-    private Optional<MediaTransportControls> activeControls() {
-        return systemMediaInterface.getActiveSession().map(MediaSession::getControls);
     }
 
     private MediaSessionSnapshot toSnapshot(MediaSession session) {
@@ -116,10 +120,11 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     private void logSessions() {
         var sessions = systemMediaInterface.getAllSessions();
 
-        System.out.println("[MEDIA] sessions detected: " + sessions.size());
+        LOGGER.debug(MEDIA, "Sessions detected: {}", sessions.size());
         for (var session : sessions) {
-            System.out.println("[MEDIA] session=" + session.getSessionId() + " | app=" + session.getApplicationName() +
-                    " | active=" + session.isActive() + " | state=" + session.getControls().getPlaybackState());
+            LOGGER.debug(MEDIA, "Session={} | app={} | active={} | state={}",
+                    session.getSessionId(), session.getApplicationName(), session.isActive(),
+                    session.getControls().getPlaybackState());
         }
     }
 
@@ -140,16 +145,67 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     }
 
     private static boolean matchesApplication(String actual, String expected) {
+        String source;
+        String target;
+
         if (actual == null || expected == null) {
             return false;
         }
-        return normalizeApplicationName(actual).equalsIgnoreCase(normalizeApplicationName(expected));
+        source = normalizeApplicationName(actual);
+        target = normalizeApplicationName(expected);
+        return !source.isBlank() && source.equals(target);
     }
 
     private static String normalizeApplicationName(String value) {
-        String normalized = value.trim().replaceFirst("(?i)\\.exe", "");
-        String[] parts = normalized.split("\\.");
+        String normalized = value.strip().toLowerCase(Locale.ROOT);
 
-        return parts.length == 0 ? normalized : parts[parts.length - 1];
-     }
+        normalized = normalized.endsWith(".exe") ? normalized.substring(0, normalized.length() - 4) : normalized;
+        return SESSION_ALIASES.getOrDefault(normalized, normalized);
+    }
+
+    private static boolean executeOnSession(MediaSession session, MediaAction action) {
+        MediaTransportControls controls = session.getControls();
+
+        return switch (action) {
+            case NEXT -> controls.next();
+            case PREVIOUS -> controls.previous();
+            case PLAY_PAUSE -> controls.togglePlayPause();
+            case PAUSE -> switch (controls.getPlaybackState()) {
+                case PLAYING -> controls.togglePlayPause();
+                case PAUSED -> true;
+                case STOPPED, UNKNOWN -> false;
+            };
+            case RESUME -> switch (controls.getPlaybackState()) {
+                case PLAYING -> true;
+                case PAUSED -> controls.togglePlayPause();
+                case STOPPED, UNKNOWN -> false;
+            };
+        };
+    }
+
+    private Optional<MediaSession> resolveSession(MediaTarget target) {
+        return switch (target) {
+            case MediaTarget.Active ignored -> systemMediaInterface.getActiveSession();
+            case MediaTarget.Application application -> resolveApplicationSession(application.applicationName());
+        };
+    }
+
+    private Optional<MediaSession> resolveApplicationSession(String applicationName) {
+        List<MediaSession> sessions = systemMediaInterface.getAllSessions();
+
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug(MEDIA, "Available media sessions: {}", sessions.size());
+            for (var session : sessions) {
+                LOGGER.debug(MEDIA, "app={} active={} state={}", session.getApplicationName(), session.isActive(), session.getControls().getPlaybackState());
+            }
+        }
+        List<MediaSession> matches = sessions.stream()
+                .filter(session -> matchesApplication(session.getApplicationName(), applicationName))
+                .limit(2).toList();
+        if (matches.size() != 1) {
+            LOGGER.info(MEDIA, "event=MEDIA_TARGET_REJECTED target={} reason={}", applicationName, matches.isEmpty() ? "NOT_FOUND" : "AMBIGUOUS");
+            return Optional.empty();
+        }
+        return Optional.of(matches.getFirst());
+    }
 }

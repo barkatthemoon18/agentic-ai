@@ -9,6 +9,8 @@ import com.fuad.interaction.InteractionResponder;
 import com.fuad.interaction.TextInputRequest;
 import com.fuad.presentation.JavaFxRuntime;
 import javafx.stage.Screen;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Optional;
@@ -18,21 +20,24 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
+import static com.fuad.logging.LogCategory.INTERACTION;
+
 /** Visual smoke test that does not start speech, models, or the assistant pipeline. */
 public final class JavaFxInteractionPresenterDemo {
+    private static final Logger LOGGER = LoggerFactory.getLogger(JavaFxInteractionPresenterDemo.class);
 
     public static void main(String[] args) {
-        System.out.println("Application:");
-        System.out.println(JavaFxInteractionPresenterDemo.class.getModule());
+        LOGGER.info(INTERACTION, "Application:");
+        LOGGER.info(INTERACTION, "{}", JavaFxInteractionPresenterDemo.class.getModule());
 
-        System.out.println("JavaFX Control:");
-        System.out.println(javafx.scene.control.Control.class.getModule());
+        LOGGER.info(INTERACTION, "JavaFX Control:");
+        LOGGER.info(INTERACTION, "{}", javafx.scene.control.Control.class.getModule());
 
-        System.out.println("JavaFX Paint:");
-        System.out.println(javafx.scene.paint.Paint.class.getModule());
+        LOGGER.info(INTERACTION, "JavaFX Paint:");
+        LOGGER.info(INTERACTION, "{}", javafx.scene.paint.Paint.class.getModule());
 
-        System.out.println(javafx.scene.control.Control.class.getProtectionDomain().getCodeSource());
-        System.out.println(javafx.scene.paint.Paint.class.getProtectionDomain().getCodeSource());
+        LOGGER.info(INTERACTION, "{}", javafx.scene.control.Control.class.getProtectionDomain().getCodeSource());
+        LOGGER.info(INTERACTION, "{}", javafx.scene.paint.Paint.class.getProtectionDomain().getCodeSource());
 
         try (JavaFxRuntime runtime = new JavaFxRuntime()) {
             runMenu(runtime);
@@ -42,7 +47,7 @@ public final class JavaFxInteractionPresenterDemo {
     private static void runMenu(JavaFxRuntime runtime) {
         Scanner input = new Scanner(System.in);
         while (true) {
-            System.out.println("""
+            LOGGER.info(INTERACTION, """
 
                     1 — CHOICE con dos opciones
                     2 — CHOICE con diez opciones y scroll
@@ -50,7 +55,7 @@ public final class JavaFxInteractionPresenterDemo {
                     4 — FREE_TEXT
                     0 — Salir
                     """);
-            System.out.print("Escenario: ");
+            LOGGER.info(INTERACTION, "Escenario: ");
             if (!input.hasNextLine()) {
                 return;
             }
@@ -62,7 +67,7 @@ public final class JavaFxInteractionPresenterDemo {
                 case "2" -> runScenario(runtime, (presenter, completion) -> showChoice(presenter, completion, 10));
                 case "3" -> runScenario(runtime, JavaFxInteractionPresenterDemo::showConfirmation);
                 case "4" -> runScenario(runtime, JavaFxInteractionPresenterDemo::showText);
-                default -> System.out.println("Selecciona una opción de 0 a 4");
+                default -> LOGGER.info(INTERACTION, "Selecciona una opción de 0 a 4");
             }
         }
     }
@@ -155,17 +160,12 @@ public final class JavaFxInteractionPresenterDemo {
 
             @Override
             public void visible(UUID sessionId) {
-                System.out.println("Visible: " + sessionId);
+                LOGGER.info(INTERACTION, "Visible: {}", sessionId);
             }
 
             @Override
             public void submit(UUID sessionId, T value, InputModality modality) {
-                System.out.println(
-                        "Seleccionado: "
-                                + value
-                                + " mediante "
-                                + modality
-                );
+                LOGGER.info(INTERACTION, "Seleccionado: {} mediante {}", value, modality);
 
                 completion.complete(null);
             }
@@ -175,9 +175,7 @@ public final class JavaFxInteractionPresenterDemo {
                     UUID sessionId,
                     InputModality modality
             ) {
-                System.out.println(
-                        "Cancelado mediante " + modality
-                );
+                LOGGER.info(INTERACTION, "Cancelado mediante {}", modality);
 
                 completion.complete(null);
             }
@@ -187,9 +185,7 @@ public final class JavaFxInteractionPresenterDemo {
                     UUID sessionId,
                     String reason
             ) {
-                System.err.println(
-                        "No disponible: " + reason
-                );
+                LOGGER.warn(INTERACTION, "No disponible: {}", reason);
 
                 completion.complete(null);
             }

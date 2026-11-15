@@ -9,17 +9,22 @@ import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
+import static com.fuad.logging.LogCategory.EVALUATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("model-evaluation")
 class LocalSemanticRouterCorpusTest {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LocalSemanticRouterCorpusTest.class);
+
     private static final List<RoutingCase> CASES = List.of(
             new RoutingCase("time-01", "¿Qué hora es?", Capability.SYSTEM_TIME),
             new RoutingCase("time-02", "Dime la hora", Capability.SYSTEM_TIME),
@@ -73,7 +78,7 @@ class LocalSemanticRouterCorpusTest {
         List<Long> latency = results.stream().map(RoutingResult::latencyNanos).sorted().toList();
         String report = format(model, guarded, results, correct, errors, accuracy,
                 percentile(latency, .50), percentile(latency, .95));
-        System.out.println(report);
+        LOGGER.info(EVALUATION, "{}", report);
         if (!Boolean.getBoolean("evaluation.report-only")) {
             assertEquals(0, errors, report);
             assertTrue(accuracy >= Double.parseDouble(

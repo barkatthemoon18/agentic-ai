@@ -17,16 +17,18 @@ public final class MediaControlCommandDetector {
     private static final String TRACK = "(?:cancion|pista|tema)";
     private static final String PLAYBACK_TARGET =
             "(?:(?:la )?(?:musica|cancion|pista|reproduccion)|tidal|spotify|vlc)";
+    private static final String APP_SUFFIX = "(?: (?:en|de) (?:tidal|spotify|vlc))?";
     private static final Map<MediaAction, Pattern> COMMANDS = Map.of(
             MediaAction.NEXT, Pattern.compile("(?:siguiente " + TRACK
                     + "|pon la siguiente " + TRACK
                     + "|(?:cambia|pasa|salta) a la siguiente " + TRACK
-                    + "|salta esta " + TRACK + ")"),
+                    + "|salta esta " + TRACK + ")" + APP_SUFFIX),
             MediaAction.PREVIOUS, Pattern.compile("(?:" + TRACK + " anterior"
                     + "|pon la " + TRACK + " anterior"
-                    + "|(?:vuelve|regresa|retrocede) a la " + TRACK + " anterior)"),
-            MediaAction.PAUSE, Pattern.compile("(?:pausa|pon en pausa) " + PLAYBACK_TARGET),
-            MediaAction.RESUME, Pattern.compile("(?:reanuda|continua|sigue reproduciendo) " + PLAYBACK_TARGET));
+                    + "|(?:vuelve|regresa|retrocede) a la " + TRACK + " anterior)" + APP_SUFFIX),
+            MediaAction.PAUSE, Pattern.compile("(?:(?:pausa|pon en pausa) " + PLAYBACK_TARGET + ")" + APP_SUFFIX),
+            MediaAction.RESUME, Pattern.compile("(?:(?:reanuda|continua|sigue reproduciendo) " + PLAYBACK_TARGET
+                    + ")" + APP_SUFFIX));
 
     private static final List<Pattern> CONTRADICTIONS = List.of(
             Pattern.compile("no (?:pauses|reanudes|continues|saltes|cambies) " + PLAYBACK_TARGET),
@@ -42,7 +44,7 @@ public final class MediaControlCommandDetector {
             Pattern.compile("(?:pon|reproduce) (?:comfortably numb|[\"“][^\"“”]+[\"”])"));
 
     public Optional<MediaAction> detect(String command) {
-        String normalized = normalize(command);
+        String normalized = MediaCommandNormalizer.normalize(command);
         for (var entry : COMMANDS.entrySet()) {
             if (entry.getValue().matcher(normalized).matches()) {
                 return Optional.of(entry.getKey());
@@ -53,21 +55,7 @@ public final class MediaControlCommandDetector {
 
     /** True only for an explicitly recognized contradiction; unknown input is false. */
     public boolean definitelyNotMediaControl(String command) {
-        String normalized = normalize(command);
+        String normalized = MediaCommandNormalizer.normalize(command);
         return CONTRADICTIONS.stream().anyMatch(pattern -> pattern.matcher(normalized).matches());
-    }
-
-    private String normalize(String command) {
-        if (command == null) {
-            return "";
-        }
-        return Normalizer.normalize(command, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")
-                .toLowerCase(Locale.ROOT)
-                .trim()
-                .replaceAll("\\s+", " ")
-                .replaceAll("^[¡¿]+|[.!?]+$", "")
-                .trim()
-                .replaceFirst("^por favor,? ", "");
     }
 }

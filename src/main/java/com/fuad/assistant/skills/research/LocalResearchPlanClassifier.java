@@ -6,6 +6,8 @@ import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.text.Normalizer;
 import java.util.Locale;
@@ -14,7 +16,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static com.fuad.logging.LogCategory.RESEARCH;
+
 public class LocalResearchPlanClassifier implements ResearchPlanClassifier {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LocalResearchPlanClassifier.class);
+
     private static final int MAX_COMPLEMENTION_TOKENS = 12;
     private static final Set<String> LABELS = Set.of("knowledge_quick", "knowledge_deep", "web_quick", "web_deep");
     private static final Pattern EXPLICIT_MODEL_KNOWLEDGE = Pattern.compile(
@@ -375,7 +381,7 @@ public class LocalResearchPlanClassifier implements ResearchPlanClassifier {
             return parse(requiredOutput(firstOutput));
         }
         catch (IllegalStateException e) {
-            System.err.println("Invalid research plus output; retrying once: " + e.getMessage());
+            LOGGER.warn(RESEARCH, "Invalid research plus output; retrying once", e);
             previousOutput = firstOutput.filter(value -> !value.isBlank()).orElse(null);
             retryOutput = infer(normalizedQuery, true, previousOutput);
             try {
@@ -443,23 +449,23 @@ public class LocalResearchPlanClassifier implements ResearchPlanClassifier {
     private static ResearchPlan parse(String output) {
         switch(LocalModelOutput.extractLeadingLabel(output, LABELS, "research_plan")) {
             case "knowledge_quick" -> {
-                System.out.println("Respuesta rápida MODEL_KNOWLEDGE_QUICK");
+                LOGGER.info(RESEARCH, "Respuesta rápida MODEL_KNOWLEDGE_QUICK");
                 return new ResearchPlan(ResearchAccess.MODEL_KNOWLEDGE, ResearchDepth.QUICK);
             }
             case "knowledge_deep" -> {
-                System.out.println("Respuesta profunda MODEL_KNOWLEDGE_DEEP");
+                LOGGER.info(RESEARCH, "Respuesta profunda MODEL_KNOWLEDGE_DEEP");
                 return new ResearchPlan(ResearchAccess.MODEL_KNOWLEDGE, ResearchDepth.DEEP);
             }
             case "web_quick" -> {
-                System.out.println("Respuesta rápida MODEL_KNOWLEDGE_QUICK_WEB");
+                LOGGER.info(RESEARCH, "Respuesta rápida MODEL_KNOWLEDGE_QUICK_WEB");
                 return new ResearchPlan(ResearchAccess.WEB_REQUIRED, ResearchDepth.QUICK);
             }
             case "web_deep" -> {
-                System.out.println("Respuesta profunda MODEL_KNOWLEDGE_DEEP_WEB");
+                LOGGER.info(RESEARCH, "Respuesta profunda MODEL_KNOWLEDGE_DEEP_WEB");
                 return new ResearchPlan(ResearchAccess.WEB_REQUIRED, ResearchDepth.DEEP);
             }
             default -> {
-                System.out.println("Default");
+                LOGGER.debug(RESEARCH, "Unknown research plan: {}", output);
                 throw new IllegalStateException("Unknown research plan: " + output);
             }
         }

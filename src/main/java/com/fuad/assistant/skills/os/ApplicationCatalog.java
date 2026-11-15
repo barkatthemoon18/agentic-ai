@@ -1,10 +1,16 @@
 package com.fuad.assistant.skills.os;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.fuad.logging.LogCategory.OS;
+
 public class ApplicationCatalog {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ApplicationCatalog.class);
+
     private final ApplicationDiscovery discovery;
     private final ApplicationAliasConfigLoader configLoader;
     private final boolean enrichDefinitions;
@@ -33,13 +39,13 @@ public class ApplicationCatalog {
             List<ApplicationDefinition> discovered = discovery.discover();
             State next = buildState(discovered, configLoader.load());
             state.set(next);
-            System.out.println("APPLICATION CATALOG -> " + next.applications.size() + " applications");
+            LOGGER.info(OS, "APPLICATION CATALOG -> {} applications", next.applications.size());
             return true;
         }
         catch (Exception e) {
             State current = state.get();
             if (!current.available) state.set(State.unavailable(e.getMessage()));
-            System.err.println("APPLICATION CATALOG -> DEGRADED: " + e.getMessage());
+            LOGGER.warn(OS, "APPLICATION CATALOG -> DEGRADED", e);
             return false;
         }
     }
@@ -135,8 +141,8 @@ public class ApplicationCatalog {
                         app.displayName(), normalizedTarget))
                 .sorted(ApplicationCatalogIdentity.STABLE_ORDER)
                 .toList();
-        System.out.println("APP RESOLVE NATURAL -> target='" + normalizedTarget + "' | matches=" +
-                matches.stream().map(ApplicationDefinition::displayName).toList());
+        LOGGER.debug(OS, "APP RESOLVE NATURAL -> target='{}' | matches={}",
+                normalizedTarget, matches.stream().map(ApplicationDefinition::displayName).toList());
         return resolution(matches);
     }
 
@@ -198,13 +204,13 @@ public class ApplicationCatalog {
         collisions += registerAutomaticAliases(derivedCandidates, byKey, removed, index, ambiguous, aliasesByKey,
                 true);
         if (collisions > 0) {
-            System.out.println("APPLICATION ALIAS -> skipped " + collisions + " collisions");
+            LOGGER.info(OS, "APPLICATION ALIAS -> skipped {} collisions", collisions);
         }
 
         for (Map.Entry<String, String> override : config.aliases().entrySet()) {
             ApplicationDefinition target = byId.get(ApplicationCatalogIdentity.canonicalId(override.getValue()));
             if (target == null) {
-                System.err.println("APPLICATION ALIAS -> unknown AppID: " + override.getValue());
+                LOGGER.warn(OS, "APPLICATION ALIAS -> unknown AppID: {}", override.getValue());
                 continue;
             }
             String alias = ApplicationNames.normalize(override.getKey());
@@ -237,7 +243,7 @@ public class ApplicationCatalog {
             if (!hostApplicationId.isBlank()
                     && (!byId.containsKey(ApplicationCatalogIdentity.canonicalId(hostApplicationId))
                     || hostApplicationId.equalsIgnoreCase(Objects.toString(app.id(), "")))) {
-                System.err.println("APPLICATION HOST -> invalid relationship for AppID: " + app.id());
+                LOGGER.warn(OS, "APPLICATION HOST -> invalid relationship for AppID: {}", app.id());
                 hostApplicationId = "";
             }
             else if (!hostApplicationId.isBlank()) {

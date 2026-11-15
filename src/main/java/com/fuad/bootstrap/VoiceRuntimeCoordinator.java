@@ -6,12 +6,18 @@ import com.fuad.presentation.InfrastructureStatus;
 import com.fuad.presentation.VisualOutput;
 import com.fuad.presentation.core.RuntimeStatusCoordinator;
 import com.fuad.presentation.core.RuntimeVisualState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.fuad.logging.LogCategory.APP;
+
 /** Serializes voice startup with model-runtime shutdown, without adding worker threads. */
 final class VoiceRuntimeCoordinator implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(VoiceRuntimeCoordinator.class);
+
     @FunctionalInterface
     interface StartAction {
         void start() throws Exception;
@@ -78,11 +84,11 @@ final class VoiceRuntimeCoordinator implements AutoCloseable {
                         throw e;
                     }
                     starts.capture().start();
-                    System.out.println("Voice runtime active: daemon, API server and phi-router are ready");
+                    LOGGER.info(APP, "Voice runtime active: daemon, API server and phi-router are ready");
                 }
                 catch (Exception e) {
                     voiceStarted.set(false);
-                    System.err.println("Unable to start voice runtime: " + e.getMessage());
+                    LOGGER.error(APP, "Unable to start voice runtime", e);
                 }
             }
         }

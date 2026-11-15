@@ -2,13 +2,19 @@ package com.fuad.assistant.routing;
 
 import com.fuad.enums.Capability;
 import com.fuad.media.control.MediaControlCommandDetector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
+import static com.fuad.logging.LogCategory.ROUTING;
+
 public class GuardedSemanticRouter implements SemanticRouter {
+    private static final Logger LOGGER = LoggerFactory.getLogger(GuardedSemanticRouter.class);
+
     private static final Pattern CURRENT_TIME_REQUEST = Pattern.compile(
             "^(?:que hora es|dime la hora|me dices la hora|en que fecha estamos"
                     + "|que fecha es hoy|que dia es hoy|en que dia estamos)[?.!]*$");
@@ -76,7 +82,7 @@ public class GuardedSemanticRouter implements SemanticRouter {
             return isCompatible(modelDecision, normalized) ? modelDecision : Capability.GENERAL;
         }
         catch (InvalidSemanticClassificationException e) {
-            System.err.println("Semantic classification failed: defaulting to GENERAL: " + e.getMessage());
+            LOGGER.warn(ROUTING, "Semantic classification failed: defaulting to GENERAL", e);
             return Capability.GENERAL;
         }
     }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.out</target>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%marker] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="com.fuad" level="${ARES_LOG_LEVEL:-INFO}"/>
+
+    <root level="${ARES_ROOT_LOG_LEVEL:-WARN}">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

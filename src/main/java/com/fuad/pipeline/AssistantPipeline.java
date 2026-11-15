@@ -10,12 +10,18 @@ import com.fuad.assistant.skills.SkillRoute;
 import com.fuad.assistant.skills.SkillExecution;
 import com.fuad.assistant.skills.SkillRouter;
 import com.fuad.enums.Capability;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+import static com.fuad.logging.LogCategory.ROUTING;
+
 public class AssistantPipeline {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AssistantPipeline.class);
+
     private final AssistantExecutionLifecycleListener executionLifecycleListener;
     private final SkillRouter skillRouter;
 
@@ -40,7 +46,7 @@ public class AssistantPipeline {
         validateActivation(activationResult);
         SkillRoute skillRoute = skillRouter.route(activationResult.command());
         Skill skill = skillRoute.skill();
-        System.out.println("SKILL -> " + skill.getClass().getSimpleName());
+        LOGGER.info(ROUTING, "SKILL -> {}", skill.getClass().getSimpleName());
         return execute(() -> skill.executeTurn(activationResult.command()), skill, skillRoute);
     }
 
@@ -50,7 +56,7 @@ public class AssistantPipeline {
         Objects.requireNonNull(conversationSnapshot, "conversationSnapshot cannot be null");
         SkillRoute skillRoute = skillRouter.routeFollowUp(activationResult.command(), conversationSnapshot);
         Skill skill = skillRoute.skill();
-        System.out.println("SKILL -> " + skill.getClass().getSimpleName());
+        LOGGER.info(ROUTING, "SKILL -> {}", skill.getClass().getSimpleName());
         return execute(() -> skill.executeFollowUpTurn(activationResult.command(), conversationSnapshot), skill, skillRoute);
     }
 
@@ -61,7 +67,7 @@ public class AssistantPipeline {
         SkillRoute route = skillRouter.routeTo(capability);
         Skill skill = route.skill();
 
-        System.out.println("SKILL -> " + skill.getClass().getSimpleName() + " [DIRECT]");
+        LOGGER.info(ROUTING, "SKILL -> {} [DIRECT]", skill.getClass().getSimpleName());
 
         return execute(execution, skill, route);
     }

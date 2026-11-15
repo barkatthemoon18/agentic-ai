@@ -6,12 +6,18 @@ import com.fuad.activation.wake.WakeWordMatcher;
 import com.fuad.vad.WakeMatchStatus;
 import com.fuad.vad.WakeResolution;
 import com.fuad.stt.TranscriptionResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Locale;
 import java.text.Normalizer;
 
+import static com.fuad.logging.LogCategory.ACTIVATION;
+
 public class RuleBasedActivationDetector implements ActivationDetector {
+    private static final Logger LOGGER = LoggerFactory.getLogger(RuleBasedActivationDetector.class);
+
     private final WakeWordMatcher wakeWordMatcher;
     private final WakeClassifier wakeClassifier;
     private final List<String> intentPhrases;
@@ -32,16 +38,18 @@ public class RuleBasedActivationDetector implements ActivationDetector {
         String normalized = original.toLowerCase(Locale.ROOT);
         WakeWordMatch wakeWordMatch = wakeWordMatcher.match(original);
         if (wakeWordMatch.status() == WakeMatchStatus.MATCH) {
-            System.out.printf("WAKE -> MATCH | %.2f | candidate='%s'%n", wakeWordMatch.similarity(), wakeWordMatch.candidate());
+            LOGGER.debug(ACTIVATION, "WAKE -> MATCH | {} | candidate='{}'",
+                    wakeWordMatch.similarity(), wakeWordMatch.candidate());
             return new ActivationResult(true, ActivationType.WAKE_WORD, wakeWordMatch.command());
         }
         if (wakeWordMatch.status() == WakeMatchStatus.AMBIGUOUS) {
-            System.out.printf("WAKE -> AMBIGUOUS | %.2f | candidate='%s'%n", wakeWordMatch.similarity(), wakeWordMatch.candidate());
+            LOGGER.debug(ACTIVATION, "WAKE -> AMBIGUOUS | {} | candidate='{}'",
+                    wakeWordMatch.similarity(), wakeWordMatch.candidate());
             WakeResolution resolution = wakeClassifier.classify(wakeWordMatch.candidate(), wakeWordMatch.command());
-            System.out.println("WAKE AI -> " + resolution);
+            LOGGER.debug(ACTIVATION, "WAKE AI -> {}", resolution);
             if (resolution == WakeResolution.WAKE) {
                 if (looksLikeMisheardOpenCommand(wakeWordMatch)) {
-                    System.out.println("WAKE -> REJECTED AMBIGUOUS ACTION");
+                    LOGGER.debug(ACTIVATION, "WAKE -> REJECTED AMBIGUOUS ACTION");
                     return ActivationResult.none();
                 }
                 return new ActivationResult(true, ActivationType.WAKE_WORD, wakeWordMatch.command());
@@ -52,7 +60,7 @@ public class RuleBasedActivationDetector implements ActivationDetector {
         }
         for (String phrase : intentPhrases) {
             if (normalized.contains(phrase.toLowerCase(Locale.ROOT))) {
-                System.out.println("ACTIVATION -> INTENT_PHRASE | phrase='" + phrase + "'");
+                LOGGER.debug(ACTIVATION, "ACTIVATION -> INTENT_PHRASE | phrase='{}'", phrase);
                 return new ActivationResult(true, ActivationType.INTENT_PHRASE, original);
             }
         }

@@ -1,30 +1,40 @@
 package com.fuad.presentation;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fuad.audio.AssistantAudioSnapshot;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
+import java.util.List;
 
+import static com.fuad.logging.LogCategory.PRESENTATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ConsoleVisualOutputTest {
-    private PrintStream originalOut;
-    private ByteArrayOutputStream capturedOutput;
+    private Logger logger;
+    private Level originalLevel;
+    private ListAppender<ILoggingEvent> capturedEvents;
 
     @BeforeEach
-    void captureSystemOut() {
-        originalOut = System.out;
-        capturedOutput = new ByteArrayOutputStream();
-        System.setOut(new PrintStream(capturedOutput, true, StandardCharsets.UTF_8));
+    void captureLogs() {
+        logger = (Logger) LoggerFactory.getLogger(ConsoleVisualOutput.class);
+        originalLevel = logger.getLevel();
+        logger.setLevel(Level.INFO);
+        capturedEvents = new ListAppender<>();
+        capturedEvents.start();
+        logger.addAppender(capturedEvents);
     }
 
     @AfterEach
-    void restoreSystemOut() {
-        System.setOut(originalOut);
+    void restoreLogger() {
+        logger.detachAppender(capturedEvents);
+        capturedEvents.stop();
+        logger.setLevel(originalLevel);
     }
 
     @Test
@@ -35,9 +45,7 @@ class ConsoleVisualOutputTest {
                 "Respuesta silenciada",
                 new AssistantAudioSnapshot(40, true)));
 
-        assertEquals(
-                "TEXT UI [MUTED]:Respuesta silenciada" + System.lineSeparator(),
-                capturedOutput.toString(StandardCharsets.UTF_8));
+        assertPresentationLog("TEXT UI [MUTED]:Respuesta silenciada");
     }
 
     @Test
@@ -48,9 +56,7 @@ class ConsoleVisualOutputTest {
                 "Respuesta visible",
                 new AssistantAudioSnapshot(10, false)));
 
-        assertEquals(
-                "TEXT UI [VOL 10%]:Respuesta visible" + System.lineSeparator(),
-                capturedOutput.toString(StandardCharsets.UTF_8));
+        assertPresentationLog("TEXT UI [VOL 10%]:Respuesta visible");
     }
 
     @Test
@@ -59,8 +65,14 @@ class ConsoleVisualOutputTest {
 
         output.hide();
 
-        assertEquals(
-                "TEXT UI: hidden" + System.lineSeparator(),
-                capturedOutput.toString(StandardCharsets.UTF_8));
+        assertPresentationLog("TEXT UI: hidden");
+    }
+
+    private void assertPresentationLog(String expectedMessage) {
+        assertEquals(1, capturedEvents.list.size());
+        ILoggingEvent event = capturedEvents.list.getFirst();
+        assertEquals(expectedMessage, event.getFormattedMessage());
+        assertEquals(Level.INFO, event.getLevel());
+        assertEquals(List.of(PRESENTATION), event.getMarkerList());
     }
 }

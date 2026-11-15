@@ -1,8 +1,14 @@
 package com.fuad.audio;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sound.sampled.*;
 
+import static com.fuad.logging.LogCategory.AUDIO;
+
 public class AudioCaptureService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AudioCaptureService.class);
+
     private TargetDataLine line;
     private Thread captureThread;
     private volatile boolean running;
@@ -14,11 +20,11 @@ public class AudioCaptureService {
         line = (TargetDataLine) mixer.getLine(lineInfo);
         line.open(format);
         line.start();
-        System.out.println("Captura iniciada");
+        LOGGER.info(AUDIO, "Captura iniciada");
         running = true;
         captureThread = new Thread(() -> captureLoop(listener), "audio-capture");
         captureThread.start();
-        System.out.println("Thread iniciado");
+        LOGGER.debug(AUDIO, "Thread iniciado");
     }
 
     public void stop()  {

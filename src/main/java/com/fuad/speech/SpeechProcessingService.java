@@ -24,6 +24,8 @@ import com.fuad.speech.validation.SpeechSegmentValidator;
 import com.fuad.speech.validation.SpeechValidationResult;
 import com.fuad.stt.SttEngine;
 import com.fuad.stt.TranscriptionResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -33,7 +35,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static com.fuad.logging.LogCategory.ACTIVATION;
+import static com.fuad.logging.LogCategory.ASSISTANT;
+import static com.fuad.logging.LogCategory.CONVERSATION;
+import static com.fuad.logging.LogCategory.INTERACTION;
+import static com.fuad.logging.LogCategory.SPEECH;
+import static com.fuad.logging.LogCategory.STT;
+
 public class SpeechProcessingService implements SpeechSegmentListener, AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SpeechProcessingService.class);
 
     private final SttEngine sttEngine;
 
@@ -100,11 +110,11 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
         if (pendingTurn.get()
                 && (interactionVoiceRouter == null
                 || !interactionVoiceRouter.hasActiveInteraction())) {
-            System.out.println("Speech segment ignored: assistant turn pending");
+            LOGGER.debug(ASSISTANT, "Speech segment ignored: assistant turn pending");
             return;
         }
         if (!audioPipeline.beginProcessing()) {
-            System.out.println("Speech segment ignored: audio pipeline busy");
+            LOGGER.debug(SPEECH, "Speech segment ignored: audio pipeline busy");
             return;
         }
         try {
@@ -112,7 +122,7 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
         }
         catch (RejectedExecutionException e) {
             audioPipeline.finishProcessing();
-            System.err.println("Speech segment ignored: executor rejected task: " + e.getMessage());
+            LOGGER.warn(SPEECH, "Speech segment ignored: executor rejected task", e);
         }
     }
 
@@ -123,7 +133,7 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             if (!executorService.awaitTermination(30, TimeUnit.SECONDS)) {
                 executorService.shutdownNow();
                 if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
-                    System.err.println("Speech processor did not terminate");
+                    LOGGER.warn(SPEECH, "Speech processor did not terminate");
                 }
             }
         }
@@ -149,7 +159,7 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
         }
         catch (RejectedExecutionException e) {
             audioPipeline.finishProcessing();
-            System.err.println("Direct assistant turn rejected: " + e.getMessage());
+            LOGGER.warn(ASSISTANT, "Direct assistant turn rejected", e);
             return false;
         }
     }
@@ -173,36 +183,37 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
 
         try {
             SpeechValidationResult validationResult = speechValidator.validate(speechSegment);
-            System.out.printf("Speech validation | %.0f ms | RMS %.4f | Peak %.4f | %s%n",
+            LOGGER.atDebug().addMarker(SPEECH).log(() -> String.format(java.util.Locale.ROOT,
+                    "Speech validation | %.0f ms | RMS %.4f | Peak %.4f | %s",
                     validationResult.durationMillis(), validationResult.rms(), validationResult.peak(),
-                    validationResult.reason());
+                    validationResult.reason()));
             if (!validationResult.valid()) {
-                System.out.println("Speech segment ignored");
+                LOGGER.debug(SPEECH, "Speech segment ignored");
                 return;
             }
             TranscriptionResult result = sttEngine.transcribe(speechSegment);
             String text = result.text() != null ? result.text().trim() : "";
-            System.out.println("STT: " + text);
+            LOGGER.info(STT, "STT: {}", text);
             if (text.isEmpty()) {
-                System.out.println("STT: empty. Ignored");
+                LOGGER.debug(STT, "STT: empty. Ignored");
                 return;
             }
             if (interactionVoiceRouter != null) {
                 VoiceRouteOutcome voiceOutcome = interactionVoiceRouter.route(text);
                 if (voiceOutcome != VoiceRouteOutcome.NO_ACTIVE_INTERACTION) {
-                    System.out.println("INTERACTION VOICE -> " + voiceOutcome);
+                    LOGGER.info(INTERACTION, "INTERACTION VOICE -> {}", voiceOutcome);
                     return;
                 }
             }
             ConversationControl conversationControl = controlDetector.detect(text);
             if (conversationControl == ConversationControl.CLOSE) {
-                System.out.println("CONVERSATION -> FORCE CLOSE");
+                LOGGER.info(CONVERSATION, "CONVERSATION -> FORCE CLOSE");
                 conversationSession.close();
                 assistantOutputCoordinator.present("Conversación terminada");
                 return;
             }
             if (conversationSession.hasExpired()) {
-                System.out.println("Conversación expirada");
+                LOGGER.info(CONVERSATION, "Conversación expirada");
                 conversationSession.close();
             }
             ActivationResult explicitActivation = activationDetector.detect(result);
@@ -212,11 +223,11 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             else {
                 UtteranceClassificationRequest request = buildClassificationRequest(text);
                 UtteranceDecision decision = utteranceClassifier.classify(request);
-                System.out.println("UTTERANCE AI -> " + decision);
+                LOGGER.info(ACTIVATION, "UTTERANCE AI -> {}", decision);
                 activationResult = mapDecision(decision, text);
             }
             if (!activationResult.activated()) {
-                System.out.println("Activation ignored");
+                LOGGER.debug(ACTIVATION, "Activation ignored");
                 return;
             }
             AssistantTurn turn;
@@ -231,17 +242,16 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             advanceTurn(turn, activationResult.command());
         }
         catch (InvalidUtteranceClassificationException e) {
-            System.err.printf("Utterance classification failed [model=%s, attempts=%d]%n", e.model(), e.attempts());
+            LOGGER.error(ACTIVATION, "Utterance classification failed [model={}, attempts={}]", e.model(), e.attempts());
             presentProcessingFailure(e);
         }
         catch (Exception e) {
-            System.err.println("Error processing speech segment: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.error(SPEECH, "Error processing speech segment", e);
             try {
                 assistantOutputCoordinator.present("No pude completar la solicitud en este momento.");
             }
             catch (Exception presentationFailure) {
-                System.err.println("Unable to present processing failure: " + presentationFailure.getMessage());
+                LOGGER.error(SPEECH, "Unable to present processing failure", presentationFailure);
             }
         }
         finally {
@@ -261,7 +271,7 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
 
     private void finishExecution(AssistantExecutionResult executionResult, String userText) {
         AssistantResult response = executionResult.response();
-        System.out.println("ASSISTANT: " + response.text());
+        LOGGER.info(ASSISTANT, "ASSISTANT: {}", response.text());
         assistantOutputCoordinator.present(response);
         applyConversationPolicy(executionResult, userText, response.text());
     }
@@ -346,18 +356,17 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
         }
         catch (RejectedExecutionException e) {
             pendingTurn.set(false);
-            System.err.println("Assistant continuation rejected: " + e.getMessage());
+            LOGGER.warn(ASSISTANT, "Assistant continuation rejected", e);
         }
     }
 
     private void presentProcessingFailure(Throwable failure) {
-        System.err.println("Error completing assistant turn: " + failure.getMessage());
+        LOGGER.error(ASSISTANT, "Error completing assistant turn", failure);
         try {
             assistantOutputCoordinator.present("No pude completar la solicitud en este momento.");
         }
         catch (Exception presentationFailure) {
-            System.err.println("Unable to present processing failure: "
-                    + presentationFailure.getMessage());
+            LOGGER.error(SPEECH, "Unable to present processing failure", presentationFailure);
         }
     }
 
@@ -371,9 +380,10 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
                         executionResult.response().osConversationState());
                 boolean wasActive = conversationSession.isActive();
                 conversationSession.openOrRefresh(conversationSnapshot);
-                System.out.println("CONVERSATION POLICY: -> " + (wasActive ? "CONVERSATION -> REFRESHED" : "CONVERSATION -> OPENED"));
+                LOGGER.info(CONVERSATION, "CONVERSATION POLICY: -> {}",
+                        (wasActive ? "CONVERSATION -> REFRESHED" : "CONVERSATION -> OPENED"));
             }
-            case PRESERVE -> System.out.println("PRESERVE. Nothing to do");
+            case PRESERVE -> LOGGER.debug(CONVERSATION, "PRESERVE. Nothing to do");
         }
     }
 
@@ -388,7 +398,7 @@ public class SpeechProcessingService implements SpeechSegmentListener, AutoClose
             case NEW_REQUEST -> new ActivationResult(true, ActivationType.SEMANTIC_INTENT, text);
             case FOLLOW_UP -> {
                 if (conversationSession.getOwner().isEmpty()) {
-                    System.out.println("FOLLOW_UP rejected: no active context owner");
+                    LOGGER.debug(CONVERSATION, "FOLLOW_UP rejected: no active context owner");
                     yield ActivationResult.none();
                 }
                 yield new ActivationResult(true, ActivationType.CONTEXTUAL, text);

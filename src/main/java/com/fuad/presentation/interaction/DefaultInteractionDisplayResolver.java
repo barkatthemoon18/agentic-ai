@@ -2,6 +2,8 @@ package com.fuad.presentation.interaction;
 
 import javafx.geometry.Rectangle2D;
 import javafx.stage.Screen;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -13,7 +15,11 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static com.fuad.logging.LogCategory.INTERACTION;
+
 public final class DefaultInteractionDisplayResolver implements InteractionDisplayResolver {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DefaultInteractionDisplayResolver.class);
+
     private final InteractionDisplayConfig config;
     private final NativeDisplayDiscovery discovery;
     private final Supplier<List<Screen>> screens;
@@ -26,7 +32,7 @@ public final class DefaultInteractionDisplayResolver implements InteractionDispl
                 ? new WindowsNativeDisplayDiscovery() : List::of;
         return new DefaultInteractionDisplayResolver(config, discovery,
                 () -> List.copyOf(Screen.getScreens()),
-                message -> System.out.println("Interaction display: " + message));
+                message -> LOGGER.info(INTERACTION, "Interaction display: {}", message));
     }
 
     DefaultInteractionDisplayResolver(InteractionDisplayConfig config,

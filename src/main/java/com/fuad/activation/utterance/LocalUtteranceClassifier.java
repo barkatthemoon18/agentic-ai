@@ -7,11 +7,17 @@ import com.fuad.model.LocalModelOutput;
 import com.openai.client.OpenAIClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 import java.util.Set;
 
+import static com.fuad.logging.LogCategory.ACTIVATION;
+
 public class LocalUtteranceClassifier implements UtteranceClassifier {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LocalUtteranceClassifier.class);
+
     private static final Set<String> LABELS = Set.of("new_request", "follow_up", "other");
     private static final String SYSTEM_PROMPT = """
             You classify Spanish utterances for an always-listening
@@ -187,7 +193,7 @@ public class LocalUtteranceClassifier implements UtteranceClassifier {
             return classifyOutput(firstOutput, request);
         }
         catch (IllegalStateException invalid) {
-            System.err.printf("Invalid utterance classification, retrying once [model=%s]%n", model);
+            LOGGER.warn(ACTIVATION, "Invalid utterance classification, retrying once [model={}]", model);
             String retryOutput = infer(request, true);
             try {
                 return classifyOutput(retryOutput, request);

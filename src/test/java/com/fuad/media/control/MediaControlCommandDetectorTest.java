@@ -20,18 +20,26 @@ class MediaControlCommandDetectorTest {
             "Cambia a la siguiente pista, NEXT",
             "Pasa a la siguiente canción, NEXT",
             "Salta esta canción, NEXT",
+            "Siguiente canción en Spotify, NEXT",
+            "Pon la siguiente pista en Spotify, NEXT",
+            "Salta a la siguiente canción en VLC, NEXT",
             "Canción anterior, PREVIOUS",
             "Pon la pista anterior, PREVIOUS",
             "Vuelve a la canción anterior, PREVIOUS",
             "Retrocede a la pista anterior, PREVIOUS",
+            "Canción anterior de TIDAL, PREVIOUS",
+            "Pon la pista anterior en Spotify, PREVIOUS",
+            "Vuelve a la canción anterior en VLC, PREVIOUS",
             "Pausa la música, PAUSE",
             "Pon en pausa la reproducción, PAUSE",
             "Pausa TIDAL, PAUSE",
             "Pausa Spotify, PAUSE",
+            "Pausa la música en TIDAL, PAUSE",
             "Reanuda la reproducción, RESUME",
             "Continúa la música, RESUME",
             "Sigue reproduciendo la música, RESUME",
             "Reanuda TIDAL, RESUME",
+            "Reanuda la reproducción en VLC, RESUME",
             "'  ¡PAUSA   LA MÚSICA!  ', PAUSE",
             "'Por favor, pon la siguiente canción.', NEXT"
     })
@@ -41,8 +49,23 @@ class MediaControlCommandDetectorTest {
     }
 
     @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "Pausa, Tidal | PAUSE",
+            "¡Pausa, Spotify! | PAUSE",
+            "¡Reanuda, Tidal! | RESUME",
+            "Pon en pausa, Spotify | PAUSE",
+            "Sigue reproduciendo, VLC | RESUME",
+            "Siguiente canción, en Spotify | NEXT",
+            "Pausa, la música | PAUSE"
+    })
+    void shouldRecognizeNormalizedCommandsWithPunctuation(String command, MediaAction action) {
+        assertEquals(Optional.of(action), detector.detect(command));
+        assertFalse(detector.definitelyNotMediaControl(command));
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {
-            "No pauses la música", "No reanudes la reproducción", "¿Qué canción está sonando?",
+            "No pauses la música", "No pauses TIDAL", "No reanudes la reproducción", "¿Qué canción está sonando?",
             "Explícame cómo pausar la música", "Sube el volumen de TIDAL", "Cierra Spotify",
             "Activa shuffle", "Pon Comfortably Numb", "Pon \"Wish You Were Here\""
     })
@@ -60,7 +83,9 @@ class MediaControlCommandDetectorTest {
             "pon algo alegre", "No bajes el volumen, pausa la música",
             "Cierra Spotify y pausa TIDAL", "No pauses la música salvo que te lo pida",
             "Mi hermana dijo pausa la música", "Mañana voy a pausar TIDAL",
-            "¿Qué canción está sonando y puedes pausarla?", "Pausa la música si estoy hablando"
+            "¿Qué canción está sonando y puedes pausarla?", "Pausa la música si estoy hablando",
+            "Pausa TIDAL cuando termine", "Pausa Deezer", "Siguiente canción en Deezer",
+            "Pausa Spotify y TIDAL"
     })
     void inconclusiveOrCompoundRequestsShouldBeNeitherRecognizedNorVetoed(String command) {
         assertTrue(detector.detect(command).isEmpty());

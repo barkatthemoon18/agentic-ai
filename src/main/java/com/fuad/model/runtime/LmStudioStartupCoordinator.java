@@ -3,6 +3,8 @@ package com.fuad.model.runtime;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fuad.config.AppConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -20,9 +22,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
+import static com.fuad.logging.LogCategory.MODEL;
 import static com.fuad.model.runtime.LmStudioRuntimeConstants.*;
 
 public final class LmStudioStartupCoordinator implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LmStudioStartupCoordinator.class);
+
     private final LmsCommandRunner commandRunner;
     private final ServerHealthProbe healthProbe;
     private final ObjectMapper objectMapper;
@@ -572,7 +577,7 @@ public final class LmStudioStartupCoordinator implements AutoCloseable {
                 listener.accept(snapshot);
             }
             catch (RuntimeException e) {
-                System.err.println("Model runtime listener failed: " + safeMessage(e));
+                LOGGER.warn(MODEL, "Model runtime listener failed", e);
             }
         }
     }

@@ -6,8 +6,14 @@ import com.fuad.audio.AudioPlaybackService;
 import com.fuad.audio.AudioState;
 import com.fuad.tts.TtsAudio;
 import com.fuad.tts.TtsEngine;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static com.fuad.logging.LogCategory.AUDIO;
 
 public class AudioPipeline {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AudioPipeline.class);
+
     private static final long POST_PLAYBACK_GUARD_NANOS = 350_000_000L;
     private final VoiceSignalListener voiceSignalListener;
     private final AssistantActivityListener activityListener;
@@ -42,7 +48,7 @@ public class AudioPipeline {
         }
         state = AudioState.PROCESSING;
         activityListener.onStateChanged(AssistantActivityState.PROCESSING);
-        System.out.println("AUDIO STATE -> PROCESSING");
+        LOGGER.info(AUDIO, "AUDIO STATE -> PROCESSING");
         return true;
     }
 
@@ -54,7 +60,7 @@ public class AudioPipeline {
             state = AudioState.SPEAKING;
             activityListener.onStateChanged(AssistantActivityState.SPEAKING);
             playbackStarted = true;
-            System.out.println("AUDIO STATE -> SPEAKING");
+            LOGGER.info(AUDIO, "AUDIO STATE -> SPEAKING");
             playbackService.play(outputDevice, audio, assistantAudioController.getGain(), this::publishPlaybackSignal);
         }
         finally {
@@ -64,7 +70,7 @@ public class AudioPipeline {
             state = AudioState.LISTENING;
             activityListener.onStateChanged(AssistantActivityState.IDLE);
             voiceSignalListener.onSignal(VoiceSignalSnapshot.silence());
-            System.out.println("AUDIO STATE -> LISTENING (guard 350 ms)");
+            LOGGER.info(AUDIO, "AUDIO STATE -> LISTENING (guard 350 ms)");
         }
     }
 
@@ -72,7 +78,7 @@ public class AudioPipeline {
         if (state == AudioState.PROCESSING) {
             state = AudioState.LISTENING;
             activityListener.onStateChanged(AssistantActivityState.IDLE);
-            System.out.println("AUDIO STATE -> LISTENING");
+            LOGGER.info(AUDIO, "AUDIO STATE -> LISTENING");
         }
     }
 

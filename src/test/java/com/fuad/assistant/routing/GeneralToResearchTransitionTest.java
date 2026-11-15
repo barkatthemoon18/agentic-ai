@@ -7,9 +7,11 @@ import com.fuad.assistant.session.ConversationSnapshot;
 import com.fuad.assistant.skills.Skill;
 import com.fuad.assistant.skills.SkillRegistry;
 import com.fuad.assistant.skills.research.CurrentResearchSkill;
+import com.fuad.assistant.skills.research.ResearchAccess;
 import com.fuad.assistant.skills.research.ResearchBackend;
 import com.fuad.assistant.skills.research.ResearchBranchState;
 import com.fuad.assistant.skills.research.ResearchEngineResult;
+import com.fuad.assistant.skills.research.ResearchPlan;
 import com.fuad.assistant.skills.research.ResearchRequest;
 import com.fuad.activation.ActivationType;
 import com.fuad.enums.Capability;
@@ -33,7 +35,7 @@ class GeneralToResearchTransitionTest {
                     new ResearchBranchState("web-1", request.previousMessages()));
         }, request -> {
             throw new AssertionError("local research must not be called");
-        }, query -> ResearchDepth.QUICK, (query, inherited) -> ResearchBackend.GPT_API);
+        }, query -> new ResearchPlan(ResearchAccess.WEB_REQUIRED, ResearchDepth.QUICK));
         Skill general = command -> new AssistantResult("general");
         EnumMap<Capability, Skill> skills = new EnumMap<>(Capability.class);
         for (Capability capability : Capability.values()) {
