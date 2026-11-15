@@ -44,7 +44,7 @@ public final class AresApplication {
             ResourceCleanup cleanup = lifecycle.resources();
             var audioResources = audio.createResources(cleanup);
             var os = assistant.createOs();
-            var tools = presentation.createTools();
+            var tools = presentation.createTools(cleanup);
             var mediaController = media.create(cleanup);
             var visuals = presentation.create(new PresentationBootstrap.Inputs(
                     os.catalogSessions(), audioResources, tools, mediaController), cleanup);

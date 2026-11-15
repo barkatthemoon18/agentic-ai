@@ -2,6 +2,7 @@ package com.fuad.view.workspace.tools;
 
 import com.fuad.pipeline.OsAction;
 import com.fuad.presentation.tools.*;
+import com.fuad.terminal.PowershellSession;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -16,6 +17,7 @@ public class ToolsWorkspaceView extends VBox {
     private static final double ACTION_HEIGHT = 112.0;
     private final ToolsActionHandler actionHandler;
     private final MoreToolsHandler moreToolsHandler;
+    private final TerminalWorkspaceView terminalView;
     private final GridPane actionGrid = new GridPane();
     private final Label targetValue = new Label("INTELLIJ IDEA");
     private final Label typeValue = new Label("APPLICATION");
@@ -32,13 +34,22 @@ public class ToolsWorkspaceView extends VBox {
     }
 
     public ToolsWorkspaceView(ToolsWorkspaceConfig config, ToolsActionHandler actionHandler, MoreToolsHandler moreToolsHandler) {
+        this(config, actionHandler, moreToolsHandler, new PowershellSession());
+    }
+
+
+    public ToolsWorkspaceView(ToolsWorkspaceConfig config, ToolsActionHandler actionHandler, MoreToolsHandler moreToolsHandler,
+                              PowershellSession terminalSession) {
         int i = 0;
 
         this.actionHandler = Objects.requireNonNull(actionHandler);
         this.moreToolsHandler = Objects.requireNonNull(moreToolsHandler);
+        this.terminalView = new TerminalWorkspaceView(Objects.requireNonNull(terminalSession));
         List<ToolApplication> featured = Objects.requireNonNull(config).featuredApplications();
 
         setSpacing(12.0);
+        setFillWidth(true);
+        setMinHeight(0.0);
 
         actionGrid.setHgap(12.0);
         actionGrid.setVgap(12.0);
@@ -51,11 +62,16 @@ public class ToolsWorkspaceView extends VBox {
         actionGrid.add(createMoreButton(), i % 2, i / 2);
 
         VBox context = createContextPanel();
-        getChildren().addAll(actionGrid, context);
+        getChildren().addAll(actionGrid, context, terminalView);
+        VBox.setVgrow(terminalView, Priority.ALWAYS);
 
         if (!featured.isEmpty()) {
             previewApplication(featured.getFirst());
         }
+    }
+
+    public void dispose() {
+        terminalView.dispose();
     }
 
     private Button createApplicationButton(ToolApplication application) {
@@ -67,6 +83,12 @@ public class ToolsWorkspaceView extends VBox {
             }
         });
         button.setOnAction(event -> {
+            previewApplication(application);
+            if ("powershell".equals(application.id()) && terminalView.focusInput()) {
+                touchValue.setText("FOCUSED");
+                lastValue.setText("POWERSHELL");
+                return;
+            }
             boolean accepted = actionHandler.submit(new ToolsActionRequest(OsAction.OPEN_APPLICATION, application.resolverTarget()));
             touchValue.setText(accepted ? "SUBMITTED" : "BUSY");
             if (accepted) {
@@ -114,21 +136,31 @@ public class ToolsWorkspaceView extends VBox {
     private VBox createContextPanel() {
         Label title = new Label("ACTION // CONTEXT");
         title.getStyleClass().add("deck-context-title");
+
         GridPane values = new GridPane();
-        values.setHgap(18.0);
-        values.setVgap(7.0);
-        addContextRow(values, 0, "TARGET", targetValue);
-        addContextRow(values, 1, "TYPE", typeValue);
-        addContextRow(values, 2, "VOICE", voiceValue);
-        addContextRow(values, 3, "TOUCH", touchValue);
-        addContextRow(values, 4, "LAST", lastValue);
+        values.getStyleClass().add("deck-context-grid");
+        values.setHgap(8.0);
+        values.setVgap(8.0);
+
+        for (int i = 0; i < 3; i++) {
+            ColumnConstraints column = new ColumnConstraints();
+            column.setPercentWidth(100.0 / 3.0);
+            column.setHgrow(Priority.ALWAYS);
+            values.getColumnConstraints().add(column);
+        }
+
+        addContextCell(values, 0, 0, "TARGET", targetValue);
+        addContextCell(values, 1, 0, "TYPE", typeValue);
+        addContextCell(values, 2, 0, "VOICE", voiceValue);
+        addContextCell(values, 0, 1, "TOUCH", touchValue);
+        addContextCell(values, 1, 1, "LAST", lastValue);
+
         VBox context = new VBox(10.0, title, values);
-        context.setPadding(new Insets(15.0, 15.0, 22.0, 15.0));
+        context.setPadding(new Insets(12.0));
         context.getStyleClass().add("deck-context");
+
         targetValue.getStyleClass().add("deck-context-target");
-        context.setPrefHeight(145.0);
-        context.setMinHeight(145.0);
-        context.setMaxHeight(145.0);
+
         return context;
     }
 
@@ -144,12 +176,21 @@ public class ToolsWorkspaceView extends VBox {
         voiceValue.setText("TOUCH ONLY");
     }
 
-    private static void addContextRow(GridPane grid, int row, String name, Label value) {
+    private static void addContextCell(GridPane grid, int column, int row, String name, Label value) {
         Label key = new Label(name);
         key.getStyleClass().add("deck-context-key");
+
         value.getStyleClass().add("deck-context-value");
-        grid.add(key, 0, row);
-        grid.add(value, 1, row);
+        value.setWrapText(true);
+        value.setMinWidth(0.0);
+        value.setMaxWidth(Double.MAX_VALUE);
+
+        VBox cell = new VBox(3.0, key, value);
+        cell.getStyleClass().add("deck-context-cell");
+        cell.setMinWidth(0.0);
+        cell.setMaxWidth(Double.MAX_VALUE);
+
+        grid.add(cell, column, row);
     }
 
     private static String symbolFor(ToolApplication application) {

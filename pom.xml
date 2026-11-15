@@ -22,9 +22,21 @@
         <mediainterface.version>3.0.0</mediainterface.version>
         <slf4j.version>2.0.20</slf4j.version>
         <logback.version>1.6.6</logback.version>
+        <jeditermfx.version>1.1.0</jeditermfx.version>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>com.techsenger.jeditermfx</groupId>
+            <artifactId>jeditermfx-core</artifactId>
+            <version>${jeditermfx.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.techsenger.jeditermfx</groupId>
+            <artifactId>jeditermfx-ui</artifactId>
+            <version>${jeditermfx.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>

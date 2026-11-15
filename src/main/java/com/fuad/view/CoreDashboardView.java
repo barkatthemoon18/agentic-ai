@@ -11,6 +11,7 @@ import com.fuad.presentation.media.MediaWorkspaceSnapshot;
 import com.fuad.presentation.tools.MoreToolsHandler;
 import com.fuad.presentation.tools.ToolsActionHandler;
 import com.fuad.presentation.tools.ToolsWorkspaceConfig;
+import com.fuad.terminal.PowershellSession;
 import com.fuad.view.workspace.web.ResearchTtsState;
 import com.fuad.view.workspace.web.ResearchWorkspaceSnapshot;
 import javafx.animation.Animation;
@@ -53,6 +54,7 @@ public final class CoreDashboardView extends StackPane {
     private final AssistantVisualStateCoordinator stateCoordinator;
     private final Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier;
     private final MediaActionHandler mediaActionHandler;
+    private final PowershellSession terminalSession;
     private CoreVisualSnapshot latestSnapshot;
     private UUID activeInteractionSessionId;
     private UUID activeExecutionId;
@@ -60,25 +62,27 @@ public final class CoreDashboardView extends StackPane {
     public CoreDashboardView() {
         this (VoiceSignalSnapshot::silence, null, ToolsActionHandler.unavailable(),
                 MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable,
-                MediaActionHandler.unavailable());
+                MediaActionHandler.unavailable(), new PowershellSession());
     }
 
     public CoreDashboardView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController) {
         this(voiceSignalSupplier, voiceInputController, ToolsActionHandler.unavailable(), MoreToolsHandler.unavailable(),
-                ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable());
+                ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable(), new PowershellSession());
     }
 
     public CoreDashboardView(Supplier<VoiceSignalSnapshot> voiceSignalSupplier, VoiceInputController voiceInputController,
                              ToolsActionHandler toolsActionHandler, MoreToolsHandler moreToolsHandler, ToolsWorkspaceConfig toolsConfig,
-                             Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier, MediaActionHandler mediaActionHandler) {
+                             Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier, MediaActionHandler mediaActionHandler,
+                             PowershellSession terminalSession) {
         this.voiceInputController = Objects.requireNonNull(voiceInputController);
         this.mediaSnapshotSupplier = Objects.requireNonNull(mediaSnapshotSupplier);
         this.mediaActionHandler = Objects.requireNonNull(mediaActionHandler);
+        this.terminalSession = Objects.requireNonNull(terminalSession);
 
         coreView = new AresCoreView(Objects.requireNonNull(voiceSignalSupplier));
         stateCoordinator = new AssistantVisualStateCoordinator(this::handleEffectiveVisualState);
         aresWorkspaceView = new AresWorkspaceView(this::handleResearchLifecycle, toolsActionHandler, moreToolsHandler,
-                toolsConfig, mediaSnapshotSupplier, mediaActionHandler);
+                toolsConfig, mediaSnapshotSupplier, mediaActionHandler, terminalSession);
 
 
         HudBackground hudBackground = new HudBackground();

@@ -13,7 +13,7 @@ final class ResourceCleanup implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(ResourceCleanup.class);
 
     enum Resource {
-        MODEL_RUNTIME, MEDIA, CORE_VISUAL, CORE_VISUAL_SOURCE, CAPTURE, INTERACTION, SPEECH_PROCESSOR, TTS,
+        MODEL_RUNTIME, MEDIA, CORE_VISUAL, TERMINAL, CORE_VISUAL_SOURCE, CAPTURE, INTERACTION, SPEECH_PROCESSOR, TTS,
         VISUAL_OUTPUT, STT, VAD, JAVAFX_RUNTIME
     }
 

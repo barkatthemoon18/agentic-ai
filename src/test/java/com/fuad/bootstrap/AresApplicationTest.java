@@ -105,7 +105,7 @@ class AresApplicationTest {
         CountDownLatch started = new CountDownLatch(1);
         when(audio.createResources(cleanup)).thenReturn(resources);
         when(assistant.createOs()).thenReturn(os);
-        when(presentation.createTools()).thenReturn(tools);
+        when(presentation.createTools(cleanup)).thenReturn(tools);
         when(media.create(cleanup)).thenReturn(controller);
         when(presentation.create(any(), eq(cleanup))).thenReturn(visuals);
         when(presentation.createInteraction(visuals, tools, cleanup)).thenReturn(interaction);

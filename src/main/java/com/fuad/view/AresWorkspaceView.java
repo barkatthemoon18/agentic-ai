@@ -6,6 +6,7 @@ import com.fuad.presentation.media.MediaWorkspaceSnapshot;
 import com.fuad.presentation.tools.MoreToolsHandler;
 import com.fuad.presentation.tools.ToolsActionHandler;
 import com.fuad.presentation.tools.ToolsWorkspaceConfig;
+import com.fuad.terminal.PowershellSession;
 import com.fuad.view.workspace.tools.ToolsWorkspaceView;
 import com.fuad.view.workspace.files.FilesWorkspaceView;
 import com.fuad.view.workspace.media.MediaWorkspaceView;
@@ -37,27 +38,31 @@ public class AresWorkspaceView extends VBox {
     private final ToolsWorkspaceConfig toolsConfig;
     private final Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier;
     private final MediaActionHandler mediaActionHandler;
+    private final PowershellSession terminalSession;
 
     public AresWorkspaceView() {
         this(ResearchLifecycleListener.noop(), ToolsActionHandler.unavailable(),
                 MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable,
-                MediaActionHandler.unavailable());
+                MediaActionHandler.unavailable(), new PowershellSession());
     }
 
     public AresWorkspaceView(ResearchLifecycleListener researchLifecycleListener) {
         this(researchLifecycleListener, ToolsActionHandler.unavailable(), MoreToolsHandler.unavailable(),
-                ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable());
+                ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable(),
+                new PowershellSession());
     }
 
     public AresWorkspaceView(ResearchLifecycleListener researchLifecycleListener, ToolsActionHandler toolsActionHandler,
                              MoreToolsHandler moreToolsHandler, ToolsWorkspaceConfig toolsConfig,
-                             Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier, MediaActionHandler mediaActionHandler) {
+                             Supplier<MediaWorkspaceSnapshot> mediaSnapshotSupplier, MediaActionHandler mediaActionHandler,
+                             PowershellSession terminalSession) {
         this.researchLifecycleListener = researchLifecycleListener != null ? researchLifecycleListener : ResearchLifecycleListener.noop();
         this.toolsActionHandler = Objects.requireNonNull(toolsActionHandler);
         this.moreToolsHandler = Objects.requireNonNull(moreToolsHandler);
         this.toolsConfig = Objects.requireNonNull(toolsConfig);
         this.mediaSnapshotSupplier = Objects.requireNonNull(mediaSnapshotSupplier);
         this.mediaActionHandler = Objects.requireNonNull(mediaActionHandler);
+        this.terminalSession = Objects.requireNonNull(terminalSession);
 
         setSpacing(12.0);
 
@@ -97,11 +102,14 @@ public class AresWorkspaceView extends VBox {
             if (instance instanceof MediaWorkspaceView media) {
                 media.dispose();
             }
+            if (instance instanceof ToolsWorkspaceView tools) {
+                tools.dispose();
+            }
         });
     }
 
     private void registerMockWorkspaces() {
-        factories.put(WorkspaceType.TOOLS, () -> new ToolsWorkspaceView(toolsConfig, toolsActionHandler, moreToolsHandler));
+        factories.put(WorkspaceType.TOOLS, () -> new ToolsWorkspaceView(toolsConfig, toolsActionHandler, moreToolsHandler, terminalSession));
         factories.put(WorkspaceType.MEDIA, () -> new MediaWorkspaceView(mediaSnapshotSupplier, mediaActionHandler));
         factories.put(WorkspaceType.FILES, FilesWorkspaceView::new);
         factories.put(WorkspaceType.SYSTEM, SystemWorkspaceView::new);

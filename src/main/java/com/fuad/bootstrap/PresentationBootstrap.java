@@ -33,6 +33,7 @@ import com.fuad.presentation.tools.ToolsWorkspaceConfigLoader;
 import com.fuad.speech.SpeechProcessingService;
 import com.fuad.telemetry.gpu.nvidia.NvidiaGpuTelemetryProvider;
 import com.fuad.telemetry.host.oshi.OshiHostTelemetryProvider;
+import com.fuad.terminal.PowershellSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +47,7 @@ final class PresentationBootstrap {
     private static final Logger LOGGER = LoggerFactory.getLogger(PresentationBootstrap.class);
 
     record ToolsComponents(ToolsWorkspaceConfig config, DeferredToolsActionHandler actions,
-                           DeferredMoreToolsHandler more) { }
+                           DeferredMoreToolsHandler more, PowershellSession terminal) { }
     record PresentationComponents(VisualOutput visualOutput, InteractionPresenter interactionPresenter,
                                   CoreVisual coreVisual, InteractionLifecycleListener interactionLifecycleListener,
                                   AssistantExecutionLifecycleListener executionLifecycleListener,
@@ -57,9 +58,13 @@ final class PresentationBootstrap {
     record Inputs(CatalogSessionStore catalogSessions, AudioBootstrap.AudioResources audio,
                   ToolsComponents tools, MediaWorkspaceController media) { }
 
-    ToolsComponents createTools() {
+    ToolsComponents createTools(ResourceCleanup cleanup) {
+        PowershellSession terminal = new PowershellSession();
+
+        cleanup.register(ResourceCleanup.Resource.TERMINAL, terminal);
+        terminal.start();
         return new ToolsComponents(new ToolsWorkspaceConfigLoader(Path.of("config", "ares-tools-applications.json")).load(),
-                new DeferredToolsActionHandler(), new DeferredMoreToolsHandler());
+                new DeferredToolsActionHandler(), new DeferredMoreToolsHandler(), terminal);
     }
 
     PresentationComponents create(Inputs inputs, ResourceCleanup cleanup) {
@@ -121,7 +126,7 @@ final class PresentationBootstrap {
     JavaFxCoreVisual createCore(Inputs inputs, JavaFxRuntime runtime, DisplayBindings displays) {
         return new JavaFxCoreVisual(runtime, displays.interaction(), inputs.audio().signals()::current,
                 inputs.audio().input(), inputs.tools().actions(), inputs.tools().more(), inputs.tools().config(),
-                inputs.media()::current, inputs.media());
+                inputs.media()::current, inputs.media(), inputs.tools().terminal());
     }
 
     InteractionComponents createInteraction(PresentationComponents presentation, ToolsComponents tools,

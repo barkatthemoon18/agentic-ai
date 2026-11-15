@@ -325,6 +325,28 @@
     -fx-border-radius: 10px;
 }
 
+.deck-context-cell:hover {
+    -fx-background-color: rgba(34, 207, 245, 0.075);
+}
+
+.deck-context-key {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill: #7699a7;
+}
+
+.deck-context-value {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill: #b7d6df;
+}
+
+.deck-context-target {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
 .deck-context-title {
     -fx-font-family: "JetBrains Mono";
     -fx-font-size: 10px;
@@ -1456,4 +1478,39 @@
 .hud-icon-fill {
     -fx-fill: #78ecff;
     -fx-stroke: transparent;
+}
+
+/* =========================================================
+   ARES TERMINAL
+   ========================================================= */
+
+.ares-terminal {
+    -fx-background-color: rgba(5, 21, 32, 0.66);
+
+    -fx-background-radius: 10px;
+
+    -fx-border-color: rgba(120, 236, 255, 0.18);
+    -fx-border-radius: 10px;
+    -fx-border-width: 1px;
+
+    -fx-padding: 12px;
+}
+
+.ares-terminal-title {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #78ecff;
+}
+
+.ares-terminal-status {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 9px;
+    -fx-text-fill: #7699a7;
+}
+
+.ares-terminal-error {
+    -fx-font-family: "JetBrains Mono";
+    -fx-font-size: 10px;
+    -fx-text-fill: #d9b06c;
 }
