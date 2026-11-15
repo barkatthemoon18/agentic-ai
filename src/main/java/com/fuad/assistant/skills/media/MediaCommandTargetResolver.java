@@ -4,8 +4,6 @@ import com.fuad.media.control.MediaCommandNormalizer;
 import com.fuad.media.control.MediaControlCommandDetector;
 import com.fuad.media.control.MediaTarget;
 
-import javax.print.attribute.standard.Media;
-import java.text.Normalizer;
 import java.util.*;
 import java.util.regex.Pattern;
 
