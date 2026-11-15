@@ -131,14 +131,13 @@ class SpeechProcessingServiceTest {
             assertTrue(audio.awaitFinished());
         }
 
-        verify(handler).executeAsync(MediaAction.RESUME);
-        verifyNoMoreInteractions(handler);
+        verifyNoInteractions(handler);
         for (OpenAIClient client : List.of(utteranceClient, routerClient, parserClient)) {
             verify(client.chat().completions()).create(any(ChatCompletionCreateParams.class));
             verifyNoMoreInteractions(client.chat().completions());
         }
         verifyNoInteractions(unexpectedSkill);
-        assertEquals("Reproducción reanudada.", audio.spokenText.get());
+        assertEquals("No pude identificar de forma segura el reproductor", audio.spokenText.get());
         assertFalse(session.isActive());
     }
 

@@ -204,10 +204,10 @@ class MediaControlSkillTest {
             "CLOSED, El control multimedia no está disponible"
     })
     void nonAcknowledgedOutcomesShouldReportTheirOwnMessageWithoutRetrying(MediaActionStatus status, String message) {
-        when(parser.parse("comando")).thenReturn(MediaControlIntent.PAUSE);
+        when(parser.parse("Pausa la música")).thenReturn(MediaControlIntent.PAUSE);
         when(executor.executeAsync(MediaAction.PAUSE)).thenReturn(completed(MediaAction.PAUSE, status));
 
-        AssistantResult result = skill.execute("comando");
+        AssistantResult result = skill.execute("Pausa la música");
 
         assertEquals(message, result.text());
         verify(executor).executeAsync(MediaAction.PAUSE);
@@ -229,17 +229,17 @@ class MediaControlSkillTest {
         MediaControlSkill unavailable = new MediaControlSkill(
                 command -> MediaControlIntent.PAUSE, MediaActionExecutor.unavailable());
 
-        assertEquals("El control multimedia no está disponible", unavailable.execute("Pausa").text());
+        assertEquals("El control multimedia no está disponible", unavailable.execute("Pausa la música").text());
     }
 
     @Test
     void unresolvedActionShouldTimeOutWithoutClaimingSuccess() {
-        when(parser.parse("Pausa")).thenReturn(MediaControlIntent.PAUSE);
+        when(parser.parse("Pausa la música")).thenReturn(MediaControlIntent.PAUSE);
         CompletableFuture<MediaActionResult> future = new CompletableFuture<>();
         when(executor.executeAsync(MediaAction.PAUSE)).thenReturn(future);
 
         AssistantResult result = assertTimeoutPreemptively(java.time.Duration.ofSeconds(5),
-                () -> skill.execute("Pausa"));
+                () -> skill.execute("Pausa la música"));
 
         assertEquals("No pude confirmar el resultado del comando", result.text());
         assertTrue(future.isCancelled());
@@ -247,22 +247,22 @@ class MediaControlSkillTest {
 
     @Test
     void exceptionallyCompletedActionShouldReportExecutionError() {
-        when(parser.parse("Pausa")).thenReturn(MediaControlIntent.PAUSE);
+        when(parser.parse("Pausa la música")).thenReturn(MediaControlIntent.PAUSE);
         when(executor.executeAsync(MediaAction.PAUSE))
                 .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("boom")));
 
-        assertEquals("Ocurrió un error al ejecutar el comando", skill.execute("Pausa").text());
+        assertEquals("Ocurrió un error al ejecutar el comando", skill.execute("Pausa la música").text());
     }
 
     @Test
     void interruptedWaitShouldRestoreTheInterruptFlag() {
-        when(parser.parse("Pausa")).thenReturn(MediaControlIntent.PAUSE);
+        when(parser.parse("Pausa la música")).thenReturn(MediaControlIntent.PAUSE);
         CompletableFuture<MediaActionResult> future = new CompletableFuture<>();
         when(executor.executeAsync(MediaAction.PAUSE)).thenReturn(future);
 
         Thread.currentThread().interrupt();
         try {
-            assertEquals("La operación multimedia fue interrumpida", skill.execute("Pausa").text());
+            assertEquals("La operación multimedia fue interrumpida", skill.execute("Pausa la música").text());
             assertTrue(Thread.currentThread().isInterrupted());
             assertTrue(future.isCancelled());
         }
@@ -275,7 +275,7 @@ class MediaControlSkillTest {
     void interruptedThreadShouldCancelExecutionAndRestoreInterruptFlag() throws Exception {
         CountDownLatch waiting = new CountDownLatch(1);
         CompletableFuture<MediaActionResult> future = new CompletableFuture<>();
-        when(parser.parse("Pausa")).thenReturn(MediaControlIntent.PAUSE);
+        when(parser.parse("Pausa la música")).thenReturn(MediaControlIntent.PAUSE);
         when(executor.executeAsync(MediaAction.PAUSE)).thenAnswer(inv -> {
             waiting.countDown();
             return future;
@@ -285,7 +285,7 @@ class MediaControlSkillTest {
         AtomicBoolean threadInterrupted = new AtomicBoolean();
 
         Thread thread = new Thread(() -> {
-            result.set(skill.execute("Pausa"));
+            result.set(skill.execute("Pausa la música"));
             threadInterrupted.set(Thread.currentThread().isInterrupted());
         });
 
