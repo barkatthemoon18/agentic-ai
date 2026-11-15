@@ -47,6 +47,17 @@ class MediaCommandTargetResolverTest {
         assertEquals(Optional.of(MediaTarget.application(expectedApp)), resolver.resolve(command));
     }
 
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "Pausa, Tidal | TIDAL",
+            "Reanuda, Spotify | Spotify",
+            "Pon en pausa, VLC | VLC",
+            "Siguiente canción, en Spotify | Spotify"
+    })
+    void normalizedCommandsWithPunctuationShouldResolveToApplicationTarget(String command, String expectedApp) {
+        assertEquals(Optional.of(MediaTarget.application(expectedApp)), resolver.resolve(command));
+    }
+
     @Test
     void scopedPreviousCommandShouldResolveToApplicationTargetWhenParserRecognizesAction() {
         MediaControlCommandDetector mockDetector = mock(MediaControlCommandDetector.class);

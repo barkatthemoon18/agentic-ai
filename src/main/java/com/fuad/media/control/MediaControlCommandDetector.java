@@ -44,7 +44,7 @@ public final class MediaControlCommandDetector {
             Pattern.compile("(?:pon|reproduce) (?:comfortably numb|[\"“][^\"“”]+[\"”])"));
 
     public Optional<MediaAction> detect(String command) {
-        String normalized = normalize(command);
+        String normalized = MediaCommandNormalizer.normalize(command);
         for (var entry : COMMANDS.entrySet()) {
             if (entry.getValue().matcher(normalized).matches()) {
                 return Optional.of(entry.getKey());
@@ -55,21 +55,7 @@ public final class MediaControlCommandDetector {
 
     /** True only for an explicitly recognized contradiction; unknown input is false. */
     public boolean definitelyNotMediaControl(String command) {
-        String normalized = normalize(command);
+        String normalized = MediaCommandNormalizer.normalize(command);
         return CONTRADICTIONS.stream().anyMatch(pattern -> pattern.matcher(normalized).matches());
-    }
-
-    private String normalize(String command) {
-        if (command == null) {
-            return "";
-        }
-        return Normalizer.normalize(command, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")
-                .toLowerCase(Locale.ROOT)
-                .trim()
-                .replaceAll("\\s+", " ")
-                .replaceAll("^[¡¿]+|[.!?]+$", "")
-                .trim()
-                .replaceFirst("^por favor,? ", "");
     }
 }

@@ -13,14 +13,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
 import static com.fuad.logging.LogCategory.MEDIA;
 
 public class WindowsMediaSessionProvider implements MediaSessionProvider {
+    private static final Map<String, String> SESSION_ALIASES = Map.of("com.squirrel.tidal.tidal", "tidal",
+            "spotifyab.spotifymusic_zpdnekdrzrea0!spotify", "spotify");
     private static final Logger LOGGER = LoggerFactory.getLogger(WindowsMediaSessionProvider.class);
 
     private final SystemMediaInterface systemMediaInterface;
@@ -160,7 +159,8 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     private static String normalizeApplicationName(String value) {
         String normalized = value.strip().toLowerCase(Locale.ROOT);
 
-        return normalized.endsWith(".exe") ? normalized.substring(0, normalized.length() - 4) : normalized;
+        normalized = normalized.endsWith(".exe") ? normalized.substring(0, normalized.length() - 4) : normalized;
+        return SESSION_ALIASES.getOrDefault(normalized, normalized);
     }
 
     private static boolean executeOnSession(MediaSession session, MediaAction action) {
@@ -191,7 +191,24 @@ public class WindowsMediaSessionProvider implements MediaSessionProvider {
     }
 
     private Optional<MediaSession> resolveApplicationSession(String applicationName) {
-        List<MediaSession> matches = systemMediaInterface.getAllSessions().stream()
+        /*List<MediaSession> matches = systemMediaInterface.getAllSessions().stream()
+                .filter(session -> matchesApplication(session.getApplicationName(), applicationName))
+                .limit(2).toList();
+        if (matches.size() != 1) {
+            LOGGER.info(MEDIA, "event=MEDIA_TARGET_REJECTED target={} reason={}", applicationName, matches.isEmpty() ? "NOT_FOUND" : "AMBIGUOUS");
+            return Optional.empty();
+        }
+        return Optional.of(matches.getFirst());
+    }*/
+        List<MediaSession> sessions = systemMediaInterface.getAllSessions();
+
+        if (LOGGER.isInfoEnabled()) {
+            LOGGER.info(MEDIA, "Available media sessions: {}", sessions.size());
+            for (var session : sessions) {
+                LOGGER.info(MEDIA, "app={} active={} state={}", session.getApplicationName(), session.isActive(), session.getControls().getPlaybackState());
+            }
+        }
+        List<MediaSession> matches = sessions.stream()
                 .filter(session -> matchesApplication(session.getApplicationName(), applicationName))
                 .limit(2).toList();
         if (matches.size() != 1) {

@@ -1,5 +1,6 @@
 package com.fuad.assistant.skills.media;
 
+import com.fuad.media.control.MediaCommandNormalizer;
 import com.fuad.media.control.MediaControlCommandDetector;
 import com.fuad.media.control.MediaTarget;
 
@@ -15,6 +16,7 @@ public final class MediaCommandTargetResolver {
     private static final Set<String> GENERIC_OBJECTS = Set.of(
             "musica", "cancion", "pista",
             "tema", "reproduccion", "audio");
+    private static final Pattern UNSUPPORTED_SEPARATORS = Pattern.compile("[,;:!?]");
     private static final Pattern UNSAFE_CONTEXT = Pattern.compile(
             "\\b(?:no|nunca|jamas|cuando|si|salvo|pero"
                     + "|aunque|manana|despues|luego|y)\\b");
@@ -44,8 +46,8 @@ public final class MediaCommandTargetResolver {
     }
 
     public Optional<MediaTarget> resolve(String command) {
-        String normalized = normalize(command);
-        if (normalized.isBlank() || UNSAFE_CONTEXT.matcher(normalized).find()) {
+        String normalized = MediaCommandNormalizer.normalize(command);
+        if (normalized.isBlank() || UNSAFE_CONTEXT.matcher(normalized).find() || UNSUPPORTED_SEPARATORS.matcher(normalized).find()) {
             return Optional.empty();
         }
         if (normalized.equalsIgnoreCase("ponlo en pausa") || normalized.equalsIgnoreCase("dale de nuevo")) {
@@ -79,17 +81,6 @@ public final class MediaCommandTargetResolver {
             return Optional.empty();
         }
         return Optional.of(MediaTarget.active());
-    }
-
-    private static String normalize(String command) {
-        if (command == null) {
-            return "";
-        }
-        return Normalizer.normalize(command, Normalizer.Form.NFD).replaceAll("\\p{M}", "")
-                .toLowerCase(Locale.ROOT).strip().replaceAll("\\s+", " ")
-                .replaceAll("^[¡¿]+|[.!?]+$", "").strip()
-                .replaceFirst("^por favor,?\\s*", "")
-                .replaceFirst(",?\\s+por favor$", "").strip();
     }
 
     private static String canonicalPlayer(String value) {

@@ -49,6 +49,21 @@ class MediaControlCommandDetectorTest {
     }
 
     @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "Pausa, Tidal | PAUSE",
+            "¡Pausa, Spotify! | PAUSE",
+            "¡Reanuda, Tidal! | RESUME",
+            "Pon en pausa, Spotify | PAUSE",
+            "Sigue reproduciendo, VLC | RESUME",
+            "Siguiente canción, en Spotify | NEXT",
+            "Pausa, la música | PAUSE"
+    })
+    void shouldRecognizeNormalizedCommandsWithPunctuation(String command, MediaAction action) {
+        assertEquals(Optional.of(action), detector.detect(command));
+        assertFalse(detector.definitelyNotMediaControl(command));
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {
             "No pauses la música", "No pauses TIDAL", "No reanudes la reproducción", "¿Qué canción está sonando?",
             "Explícame cómo pausar la música", "Sube el volumen de TIDAL", "Cierra Spotify",
