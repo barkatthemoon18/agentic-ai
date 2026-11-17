@@ -8,6 +8,7 @@ import com.fuad.pipeline.VoiceInputController;
 import com.fuad.pipeline.VoiceSignalSnapshot;
 import com.fuad.presentation.JavaFxRuntime;
 import com.fuad.media.control.MediaActionHandler;
+import com.fuad.presentation.keyboard.AresKeyboardOverlay;
 import com.fuad.presentation.media.MediaWorkspaceSnapshot;
 import com.fuad.presentation.tools.MoreToolsHandler;
 import com.fuad.presentation.tools.ToolsActionHandler;
@@ -19,8 +20,11 @@ import com.fuad.view.CoreDashboardView;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.paint.Color;
+import javafx.scene.robot.Robot;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URL;
 import java.util.Objects;
@@ -28,6 +32,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListener, AssistantExecutionLifecycleListener {
+    private static final Logger LOGGER = LoggerFactory.getLogger(JavaFxCoreVisual.class);
     private final JavaFxRuntime javaFxRuntime;
     private final InteractionDisplayResolver interactionDisplayResolver;
     private final Supplier<VoiceSignalSnapshot> voiceSignalSupplier;
@@ -40,9 +45,10 @@ public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListene
     private final PowershellSession terminalSession;
     private Stage stage;
     private CoreDashboardView dashboardView;
+    private AresKeyboardOverlay keyboardOverlay;
 
     public JavaFxCoreVisual(JavaFxRuntime javaFxRuntime, InteractionDisplayResolver interactionDisplayResolver) {
-        this(javaFxRuntime, interactionDisplayResolver, VoiceSignalSnapshot::silence, null, ToolsActionHandler.unavailable(),
+        this(javaFxRuntime, interactionDisplayResolver, VoiceSignalSnapshot::silence, new VoiceInputController(), ToolsActionHandler.unavailable(),
                 MoreToolsHandler.unavailable(), ToolsWorkspaceConfig.empty(), MediaWorkspaceSnapshot::unavailable, MediaActionHandler.unavailable(),
                 new PowershellSession());
     }
@@ -69,7 +75,15 @@ public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListene
         this.mediaActionHandler = Objects.requireNonNull(mediaActionHandler);
         this.terminalSession = Objects.requireNonNull(terminalSession);
 
-        javaFxRuntime.runAndWait(this::createStage);
+        javaFxRuntime.runAndWait(() -> {
+            createStage();
+            try {
+                keyboardOverlay = new AresKeyboardOverlay(javaFxRuntime, voiceInputController, this::focusCommandDeck);
+            }
+            catch (RuntimeException | LinkageError e) {
+                LOGGER.warn("Keyboard overlay unavailable; ARES continues normally", e);
+            }
+        });
     }
 
     @Override
@@ -85,6 +99,10 @@ public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListene
     @Override
     public void close() {
         javaFxRuntime.runAndWait(() -> {
+            if (keyboardOverlay != null) {
+                keyboardOverlay.close();
+                keyboardOverlay = null;
+            }
             if (dashboardView != null) {
                 dashboardView.dispose();
             }
@@ -112,6 +130,28 @@ public class JavaFxCoreVisual implements CoreVisual, InteractionLifecycleListene
     @Override
     public void onExecutionStarted(UUID executionId, Capability capability) {
         javaFxRuntime.runLater(() -> dashboardView.executionStarted(executionId));
+    }
+
+    private void focusCommandDeck() {
+        stage.setIconified(false);
+        if (!stage.isShowing()) {
+            stage.show();
+        }
+        if (keyboardOverlay != null) {
+            keyboardOverlay.yieldToDeck(new Rectangle2D(stage.getX(), stage.getY(), stage.getWidth(), stage.getHeight()));
+        }
+        stage.toFront();
+        stage.requestFocus();
+        dashboardView.requestFocus();
+        var bounds = dashboardView.localToScreen(dashboardView.getBoundsInLocal());
+        if (bounds != null) {
+            try {
+                new Robot().mouseMove(bounds.getCenterX(), bounds.getCenterY());
+            }
+            catch (RuntimeException | LinkageError e) {
+                LOGGER.warn("Command Deck focused, but unable to move pointer to its display", e);
+            }
+        }
     }
 
     private void createStage() {

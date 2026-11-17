@@ -17,6 +17,7 @@ import com.fuad.view.workspace.web.ResearchWorkspaceSnapshot;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -24,6 +25,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.*;
 import javafx.util.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -32,6 +35,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 public final class CoreDashboardView extends StackPane {
+    private static final Logger LOGGER = LoggerFactory.getLogger(CoreDashboardView.class);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd MMM yyyy");
     public static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final PseudoClass STATE_IDLE = PseudoClass.getPseudoClass("idle");
@@ -45,6 +49,9 @@ public final class CoreDashboardView extends StackPane {
     private final AresCoreView coreView;
     private final AresWorkspaceView aresWorkspaceView;
     private final VoiceInputController voiceInputController;
+    private final ToggleButton muteButton = new ToggleButton("MUTE");
+    private final Label modality = new Label("● VOICE + TOUCH");
+    private final AutoCloseable voiceInputSubscription;
     private final RuntimePanel runtimePanel = new RuntimePanel();
     private final Label assistantStateLabel = new Label("● IDLE");
     private final Label runtimeSummaryLabel = new Label("MOCK TELEMETRY");
@@ -58,6 +65,7 @@ public final class CoreDashboardView extends StackPane {
     private CoreVisualSnapshot latestSnapshot;
     private UUID activeInteractionSessionId;
     private UUID activeExecutionId;
+    private volatile boolean disposed;
 
     public CoreDashboardView() {
         this (VoiceSignalSnapshot::silence, null, ToolsActionHandler.unavailable(),
@@ -125,6 +133,8 @@ public final class CoreDashboardView extends StackPane {
         clock = new Timeline(new KeyFrame(Duration.ZERO, event -> updateClock()), new KeyFrame(Duration.seconds(1)));
         clock.setCycleCount(Animation.INDEFINITE);
         clock.play();
+        voiceInputSubscription = voiceInputController.subscribe(ignored -> syncVoiceInputControls());
+        syncVoiceInputControls();
     }
 
     public void update(CoreVisualSnapshot visualSnapshot) {
@@ -165,6 +175,16 @@ public final class CoreDashboardView extends StackPane {
     }
 
     public void dispose() {
+        if (disposed) {
+            return;
+        }
+        disposed = true;
+        try {
+            voiceInputSubscription.close();
+        }
+        catch (Exception e) {
+            LOGGER.warn("Unable to unsubscribe dashboard mute controls", e);
+        }
         clock.stop();
         coreView.dispose();
         aresWorkspaceView.dispose();
@@ -209,8 +229,6 @@ public final class CoreDashboardView extends StackPane {
 
     private Region createFooter() {
         Label systemStatus = new Label("● ARES // READY");
-        Label modality = new Label("● VOICE + TOUCH");
-        ToggleButton muteButton = new ToggleButton("MUTE");
 
         systemStatus.getStyleClass().add("core-footer-primary");
         runtimeSummaryLabel.getStyleClass().add("core-footer-secondary");
@@ -263,6 +281,18 @@ public final class CoreDashboardView extends StackPane {
 
         muteButton.setText(muted ? "MUTE // ON" : "MUTE");
         modality.setText(muted ? "● TOUCH ONLY" : "● VOICE + TOUCH");
+    }
+
+    private void syncVoiceInputControls() {
+        if (disposed) {
+            return;
+        }
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(this::syncVoiceInputControls);
+            return;
+        }
+        muteButton.setSelected(voiceInputController.isMuted());
+        updateVoiceInputControls(muteButton, modality);
     }
 
     private void updateClock() {
