@@ -25,6 +25,7 @@ import javafx.scene.text.Text;
 import javafx.util.Duration;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -48,6 +49,8 @@ public final class AresKeyboardView extends Pane {
     private static final String[] ACTION_IDS = {"web", "music", "file", "apps"};
     private static final String[] ACTION_NAMES = {"Buscar en\nla Web", "Buscar\nmúsica", "Abrir\narchivo", "Abrir\naplicación"};
     private static final String[] MODEL_NAMES = {"Qwen 2.5 14B", "Phi 4 14B", "Gemma 2 9B", "Llama 3.2 11B"};
+    private static final List<String> SHORTCUT_IDS = List.of(
+            "mcp-deck", "mcp-unmute", "mcp-weather", "mcp-dj", "mcp-stub");
 
     private enum Mode { QUERY, MEDIA, FILES, SYSTEM }
 
@@ -58,6 +61,7 @@ public final class AresKeyboardView extends Pane {
     private int activeModel;
     private boolean voiceMuted = true;
     private String selectedShortcut = "";
+    private int focusedShortcut = -1;
     private Text feedback;
     private Circle feedbackIndicator;
     private TextField queryField;
@@ -245,7 +249,12 @@ public final class AresKeyboardView extends Pane {
             String name = directions[i];
             double middle = -90 + i * 90;
             Point2D center = KeyboardGeometry.polar(HUB_X, HUB_Y, 44, middle);
-            Runnable callback = () -> selectAction(selectedAction + (name.equals("LEFT") || name.equals("UP") ? -1 : 1));
+            Runnable callback = switch (name) {
+                case "UP" -> () -> focusShortcut(-1);
+                case "DOWN" -> () -> focusShortcut(1);
+                case "LEFT" -> () -> selectAction(selectedAction - 1);
+                default -> () -> selectAction(selectedAction + 1);
+            };
             addButton("nav-" + name.toLowerCase(Locale.ROOT),
                     KeyboardGeometry.annularKey(HUB_X, HUB_Y, 29, 59, middle - 40, middle + 40),
                     new Group(AresKeyboardIcons.icon(name, 16, CYAN)), center, false, callback);
@@ -284,6 +293,9 @@ public final class AresKeyboardView extends Pane {
         queryField.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ESCAPE) {
                 back();
+                event.consume();
+            } else if (event.getCode() == KeyCode.UP || event.getCode() == KeyCode.DOWN) {
+                focusShortcut(event.getCode() == KeyCode.UP ? -1 : 1);
                 event.consume();
             }
         });
@@ -440,6 +452,13 @@ public final class AresKeyboardView extends Pane {
         feedbackIndicator.setVisible(!feedbackMessage.isBlank());
     }
 
+    private void focusShortcut(int direction) {
+        focusedShortcut = focusedShortcut < 0
+                ? (direction > 0 ? 0 : SHORTCUT_IDS.size() - 1)
+                : Math.floorMod(focusedShortcut + direction, SHORTCUT_IDS.size());
+        lookup("#" + SHORTCUT_IDS.get(focusedShortcut)).requestFocus();
+    }
+
     private void selectAction(int index) {
         selectedAction = Math.floorMod(index, 4);
         mode = Mode.values()[selectedAction];
@@ -522,7 +541,9 @@ public final class AresKeyboardView extends Pane {
     }
 
     private void addButton(String id, Shape shape, Group content, Point2D center, boolean active, Runnable click) {
+        int shortcut = SHORTCUT_IDS.indexOf(id);
         Runnable interaction = () -> {
+            if (shortcut >= 0) focusedShortcut = shortcut;
             traces.pulseAt(center);
             click.run();
         };
@@ -575,7 +596,10 @@ public final class AresKeyboardView extends Pane {
         button.setOnMouseExited(event -> resting.run());
         button.focusedProperty().addListener((observable, previous, next) -> {
             resting.run();
-            if (next) traces.highlightAt(center);
+            if (next) {
+                if (shortcut >= 0) focusedShortcut = shortcut;
+                traces.highlightAt(center);
+            }
         });
         button.setOnMousePressed(event -> {
             if (event.getButton() == MouseButton.PRIMARY) shape.setFill(ACTIVE.deriveColor(0, 1, 1, 0.24));
@@ -591,9 +615,11 @@ public final class AresKeyboardView extends Pane {
         button.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER || event.getCode() == KeyCode.SPACE) {
                 interaction.run();
-            } else if (event.getCode() == KeyCode.LEFT || event.getCode() == KeyCode.UP) {
+            } else if (event.getCode() == KeyCode.UP || event.getCode() == KeyCode.DOWN) {
+                focusShortcut(event.getCode() == KeyCode.UP ? -1 : 1);
+            } else if (event.getCode() == KeyCode.LEFT) {
                 selectAction(selectedAction - 1);
-            } else if (event.getCode() == KeyCode.RIGHT || event.getCode() == KeyCode.DOWN) {
+            } else if (event.getCode() == KeyCode.RIGHT) {
                 selectAction(selectedAction + 1);
             } else if (event.getCode() == KeyCode.ESCAPE) {
                 back();
@@ -623,8 +649,9 @@ public final class AresKeyboardView extends Pane {
             case "mcp-dj" -> "DJ · TIDAL";
             case "mcp-stub" -> "MCP STUB · integraciones";
             case "nav-focus" -> "Enfocar consulta";
-            case "nav-up" -> "Seleccionar acción anterior";
-            case "nav-down", "nav-right" -> "Seleccionar acción siguiente";
+            case "nav-up" -> "Enfocar botón izquierdo anterior";
+            case "nav-down" -> "Enfocar botón izquierdo siguiente";
+            case "nav-right" -> "Seleccionar acción siguiente";
             case "nav-left" -> "Seleccionar acción anterior";
             case "execute" -> "Cursar consulta en demo";
             default -> id.replace('-', ' ');
